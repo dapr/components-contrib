@@ -17,14 +17,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/metadata"
 	kitlogger "github.com/dapr/kit/logger"
 )
 
@@ -34,16 +37,10 @@ import (
 type fakeRedisClient struct {
 	RedisClient
 	doWriteCalls chan []interface{}
-	authACLCalls chan [2]string
 }
 
 func (f *fakeRedisClient) DoWrite(_ context.Context, args ...interface{}) error {
 	f.doWriteCalls <- args
-	return nil
-}
-
-func (f *fakeRedisClient) AuthACL(_ context.Context, username, password string) error {
-	f.authACLCalls <- [2]string{username, password}
 	return nil
 }
 
@@ -220,25 +217,24 @@ func (f *fakeTokenCredential) GetToken(_ context.Context, _ policy.TokenRequestO
 	}, nil
 }
 
-// TestStartEntraIDTokenRefreshBackgroundRoutine covers the Entra ID loop's
+// TestEntraIDTokenRefresh covers the Entra ID loop's
 // scheduling: a token too short-lived to refresh early is floored rather than
 // producing a non-positive delay, and the refreshed token reschedules far out
 // so the goroutine goes dormant instead of spinning.
-func TestStartEntraIDTokenRefreshBackgroundRoutine(t *testing.T) {
+func TestEntraIDTokenRefresh(t *testing.T) {
 	logger := kitlogger.NewLogger("test")
-	fake := &fakeRedisClient{authACLCalls: make(chan [2]string, 10)}
+	fake := &fakeRedisClient{doWriteCalls: make(chan []interface{}, 10)}
 
 	cred := &fakeTokenCredential{expiry: time.Now().Add(24 * time.Hour)}
-	var asInterface azcore.TokenCredential = cred
 
 	// Already expired: the fixed grace period would make this negative and fire
 	// time.After immediately, so the floor is what keeps the loop off the IdP.
 	start := time.Now()
-	StartEntraIDTokenRefreshBackgroundRoutine(fake, "user", time.Now().Add(-time.Hour), &asInterface, &logger)
+	go runTokenRefreshLoop(fake, "user", time.Now().Add(-time.Hour), &logger, "entraID", entraTokenFetch(cred))
 
 	select {
-	case call := <-fake.authACLCalls:
-		require.Equal(t, [2]string{"user", "entra-token-1"}, call)
+	case call := <-fake.doWriteCalls:
+		require.Equal(t, []interface{}{"AUTH", "user", "entra-token-1"}, call)
 		// The regression: a fixed grace period hands time.After a negative
 		// duration here, so it fires at once and the loop spins. The floor must
 		// hold the first refresh back instead.
@@ -250,9 +246,110 @@ func TestStartEntraIDTokenRefreshBackgroundRoutine(t *testing.T) {
 
 	// The 24h token reschedules a full grace period out, so no second refresh.
 	select {
-	case call := <-fake.authACLCalls:
+	case call := <-fake.doWriteCalls:
 		t.Fatalf("unexpected second refresh scheduled: %v", call)
 	case <-time.After(2 * time.Second):
 	}
 	require.Equal(t, int32(1), cred.calls.Load())
+}
+
+// rotatingCredential hands out the token stored last, standing in for an Azure
+// credential whose cached token has been refreshed.
+type rotatingCredential struct{ token atomic.Value }
+
+func (r *rotatingCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{Token: r.token.Load().(string), ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
+
+// TestTokenRotation proves that a connection opened after the token rotated
+// authenticates with the new token, on both go-redis clients
+// (dapr/components-contrib#3554), and that a password snapshot does not.
+func TestTokenRotation(t *testing.T) {
+	const tokenA, tokenB = "token-a", "token-b"
+	clients := []struct {
+		name string
+		new  func(*Settings) (RedisClient, error)
+	}{{"v8", newV8Client}, {"v9", newV9Client}}
+	tests := []struct {
+		name     string
+		username string
+		snapshot bool
+	}{
+		{name: "ACL user authenticates new connections with the fresh token", username: "entra-oid"},
+		{name: "default user authenticates new connections with the fresh token"},
+		{name: "password snapshot fails once the token rotates", username: "entra-oid", snapshot: true},
+	}
+
+	for _, c := range clients {
+		for _, tc := range tests {
+			t.Run(c.name+"/"+tc.name, func(t *testing.T) {
+				aclUser := tc.username
+				if aclUser == "" {
+					aclUser = "default"
+				}
+				srv := miniredis.RunT(t)
+				srv.RequireUserAuth(aclUser, tokenA)
+
+				cred := &rotatingCredential{}
+				cred.token.Store(tokenA)
+				s := &Settings{Host: srv.Addr(), DB: 1, Username: tc.username, MaxConnAge: Duration(time.Millisecond)}
+				if tc.snapshot {
+					s.Password = tokenA
+				} else {
+					s.fetchToken = entraTokenFetch(cred)
+				}
+				client, err := c.new(s)
+				require.NoError(t, err)
+				t.Cleanup(func() { client.Close() })
+
+				require.NoError(t, client.DoWrite(t.Context(), "SET", "before", "1"))
+
+				// Revoke token A. The open connection stays authenticated, as on Redis.
+				srv.RequireUserAuth(aclUser, tokenB)
+				cred.token.Store(tokenB)
+				// Outlive MaxConnAge so the next command dials a new connection.
+				time.Sleep(10 * time.Millisecond)
+
+				err = client.DoWrite(t.Context(), "SET", "after", "1")
+				if tc.snapshot {
+					require.ErrorContains(t, err, "WRONGPASS")
+					return
+				}
+				require.NoError(t, err)
+				// SELECT ran after AUTH on the new connection.
+				got, err := srv.DB(1).Get("after")
+				require.NoError(t, err)
+				require.Equal(t, "1", got)
+			})
+		}
+	}
+}
+
+// TestTokenAuthFailoverUsesV9 checks that token auth with failover skips the v8
+// version probe. go-redis v8 copies OnConnect onto Sentinel connections, so the
+// probe would send the token to Sentinel.
+func TestTokenAuthFailoverUsesV9(t *testing.T) {
+	certPEM, keyPEM := createTestCertAndKey(t)
+	var hits atomic.Int32
+	var form sync.Map
+	idp := newTokenEndpointStub(t, &hits, &form)
+	defer idp.Close()
+	sentinel := miniredis.RunT(t)
+	log := kitlogger.NewLogger("test")
+
+	client, _, err := ParseClientFromProperties(map[string]string{
+		"redisHost":               sentinel.Addr(),
+		"failover":                "true",
+		"sentinelMasterName":      "mymaster",
+		"useOIDC":                 "true",
+		"oidcTokenEndpoint":       idp.URL,
+		"oidcClientID":            "test-client",
+		"oidcClientAssertionCert": string(certPEM),
+		"oidcClientAssertionKey":  string(keyPEM),
+	}, metadata.StateStoreType, t.Context(), &log)
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+
+	require.IsType(t, v9Client{}, client)
+	require.Zero(t, sentinel.TotalConnectionCount(), "the v8 version probe must not connect to Sentinel")
 }

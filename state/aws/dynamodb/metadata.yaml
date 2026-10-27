@@ -4,7 +4,7 @@ type: state
 name: aws.dynamodb
 version: v1
 status: stable
-title: "AWS DynamoDB"
+title: "Amazon DynamoDB"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-state-stores/setup-dynamodb/

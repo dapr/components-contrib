@@ -238,23 +238,36 @@ func (a *amqpPubSub) attachNamed(ctx context.Context, md *metadata, address stri
 	}
 
 	receiver, err := session.NewReceiver(dialCtx, address, sub.receiverOptions())
-	if err != nil {
-		a.closeClient(client)
-
-		return nil, sub.selectorChange(err, address)
+	var echoed any
+	if err == nil {
+		echoed = receiver.LinkSourceFilterValue(selectorFilterName)
 	}
 
-	if err = checkSelector(sub, receiver.LinkSourceFilterValue(selectorFilterName), address); err != nil {
-		a.closeClient(client)
+	return sub.namedLink(receiver, echoed, err, address, func() { a.closeClient(client) })
+}
+
+// namedLink builds the link of a named subscription from the receiver the
+// broker attached, with echoed the selector it echoed back, or ends the
+// subscription on the error the attach failed with. release is called on
+// failure, and kept on the link otherwise.
+func (o subscriptionOptions) namedLink(receiver messageReceiver, echoed any, err error, address string, release func()) (*subscriptionLink, error) {
+	if err != nil {
+		release()
+
+		return nil, o.selectorChange(err, address)
+	}
+
+	if err = checkSelector(o, echoed, address); err != nil {
+		release()
 
 		return nil, err
 	}
 
 	return &subscriptionLink{
 		receiver: receiver,
-		release:  func() { a.closeClient(client) },
+		release:  release,
 		named:    true,
-		sub:      sub,
+		sub:      o,
 	}, nil
 }
 
@@ -267,7 +280,7 @@ type selectorChangeError struct {
 }
 
 func (e *selectorChangeError) Error() string {
-	return fmt.Sprintf("the broker holds subscription %q with another address or selector than %s and %q, and would drop the messages it holds to recreate it: use a new subscriptionName, or set allowSelectorChange to recreate it (%v)",
+	return fmt.Sprintf("the broker holds subscription %q with another address or selector than the requested address %s and the requested selector %q, and would drop the messages it holds to recreate it: use a new subscriptionName, or set allowSelectorChange to recreate it (%v)",
 		e.sub.SubscriptionName, e.address, e.sub.Selector, e.cause)
 }
 

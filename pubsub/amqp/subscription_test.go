@@ -552,6 +552,51 @@ func TestSelectorChange(t *testing.T) {
 	})
 }
 
+func TestNamedLink(t *testing.T) {
+	sub := subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true, Selector: "a = 1"}
+
+	t.Run("the refusal from the attach ends the subscription", func(t *testing.T) {
+		released := false
+		_, err := sub.namedLink(nil, nil, errSelectorRefused.RemoteErr, "orders", func() { released = true })
+
+		var changed *selectorChangeError
+		require.ErrorAs(t, err, &changed)
+		assert.True(t, released, "the connection is closed")
+	})
+
+	t.Run("another attach error is returned as is", func(t *testing.T) {
+		released := false
+		attachErr := errors.New("dial failed")
+		_, err := sub.namedLink(nil, nil, attachErr, "orders", func() { released = true })
+
+		assert.Equal(t, attachErr, err)
+		assert.True(t, released)
+	})
+
+	t.Run("a dropped selector fails the subscription", func(t *testing.T) {
+		released := false
+		_, err := sub.namedLink(&fakeReceiver{}, nil, nil, "orders", func() { released = true })
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "without the selector")
+		assert.True(t, released)
+	})
+
+	t.Run("the link keeps the receiver, the options and the release", func(t *testing.T) {
+		released := false
+		receiver := &fakeReceiver{}
+		link, err := sub.namedLink(receiver, "a = 1", nil, "orders", func() { released = true })
+
+		require.NoError(t, err)
+		assert.Same(t, receiver, link.receiver)
+		assert.True(t, link.named)
+		assert.Equal(t, sub, link.sub)
+		assert.False(t, released)
+		link.release()
+		assert.True(t, released)
+	})
+}
+
 // TestSubscribeForeverEndsOnSelectorChange verifies that a durable subscription
 // the broker refuses because its selector changed ends, rather than re-attach
 // until the broker recreates it, and that allowSelectorChange keeps the

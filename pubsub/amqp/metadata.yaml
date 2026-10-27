@@ -22,8 +22,10 @@ description: |
   of a durable subscription, use a new `subscriptionName`: the broker drops the messages it holds
   when the selector changes, and reports nothing while no consumer is attached. While consumers
   are attached, for example during a rolling update, the broker refuses the changed selector, and
-  the subscription ends with an error instead of retrying until the broker recreates it, unless
-  `allowSelectorChange` is set.
+  the subscription ends with an error log instead of retrying until the broker recreates it, unless
+  `allowSelectorChange` is set. The sidecar stays up, and once the rolling update completes no
+  replica consumes the subscription; a restart with the new selector then drops its messages. Go
+  back to the old selector to resume, or use a new `subscriptionName`.
 authenticationProfiles:
   - title: "Username and password"
     description: "Authenticate with broker credentials"

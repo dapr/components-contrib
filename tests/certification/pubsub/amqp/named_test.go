@@ -46,8 +46,10 @@ import (
 const (
 	replicaSidecar1 = "dapr-replica-1"
 	replicaSidecar2 = "dapr-replica-2"
+	replicaSidecar3 = "dapr-replica-3"
 	replicaApp1     = "replica-1"
 	replicaApp2     = "replica-2"
+	replicaApp3     = "replica-3"
 
 	// Offset from the ports TestAMQP uses.
 	replicaPortOffset = 10
@@ -83,6 +85,10 @@ var namedSubscriptions = []namedSubscription{
 // reach no app.
 const unmatchedEventType = "refund"
 
+// changedSelector is the selector a third replica brings to the billing
+// subscription, as a rolling update that changes the selector would.
+const changedSelector = "eventType IN ('invoice', 'refund')"
+
 // TestAMQPNamedSubscriptions covers durable, shared, named and filtered
 // subscriptions against ActiveMQ Artemis: two replicas of one app, two named
 // subscriptions with their own selector on one multicast address.
@@ -115,6 +121,25 @@ func TestAMQPNamedSubscriptions(t *testing.T) {
 		}
 
 		return errs
+	}
+
+	// The replica of a rolling update that changes the selector of billing.
+	changed := newTally()
+	changedReplica := func(ctx flow.Context, s common.Service) error {
+		return s.AddTopicEventHandler(&common.Subscription{
+			PubsubName: namedSubscriptions[0].pubsub,
+			Topic:      namedTopic,
+			Route:      "/" + namedSubscriptions[0].pubsub,
+			Metadata: map[string]string{
+				"subscriptionName": namedSubscriptions[0].pubsub,
+				"durable":          "true",
+				"shared":           "true",
+				"selector":         changedSelector,
+			},
+		}, func(_ context.Context, e *common.TopicEvent) (bool, error) {
+			changed.observe(fmt.Sprint(e.Data))
+			return false, nil
+		})
 	}
 
 	replicaOptions := func(n int) []embedded.Option {
@@ -209,6 +234,38 @@ func TestAMQPNamedSubscriptions(t *testing.T) {
 			for _, sub := range namedSubscriptions {
 				tallies[sub.pubsub].expectExactlyOnce(ctx, eventsOfType(backlog, sub.eventType), 2*time.Minute)
 			}
+
+			return nil
+		}).
+		Step("reset", resetTallies(tallies)).
+		//
+		// A replica that brings another selector, as a rolling update that
+		// changes it does, is refused while the other replicas are attached.
+		// Its subscription must end there: retrying until the other replicas
+		// stop would have the broker recreate the queue and drop its messages.
+		Step(app.Run(replicaApp3, fmt.Sprintf(":%d", appPort+replicaPortOffset+2*portOffset), changedReplica)).
+		Step(sidecar.Run(replicaSidecar3, replicaOptions(2)...)).
+		Step("wait for the refusal", flow.Sleep(10*time.Second)).
+		Step("the subscription keeps its selector and its consumers", assertNamedQueues(2, 0)).
+		Step("stop replica 1", sidecar.Stop(replicaSidecar1)).
+		Step("stop replica 2", sidecar.Stop(replicaSidecar2)).
+		Step("give a retry time to recreate the queue", flow.Sleep(10*time.Second)).
+		Step("the subscription keeps its selector with no consumer", assertNamedQueues(0, 0)).
+		Step("publish while no replica consumes", func(ctx flow.Context) error {
+			backlog = newEvents("kept", 15)
+			return publishEvents(ctx, backlog, 0)
+		}).
+		Step("the subscription keeps its messages", assertNamedQueues(0, 5)).
+		Step("stop replica 3", sidecar.Stop(replicaSidecar3)).
+		Step("start replica 1", sidecar.Start(replicaSidecar1, replicaOptions(0)...)).
+		Step("start replica 2", sidecar.Start(replicaSidecar2, replicaOptions(1)...)).
+		Step("verify the kept messages", func(ctx flow.Context) error {
+			for _, sub := range namedSubscriptions {
+				tallies[sub.pubsub].expectExactlyOnce(ctx, eventsOfType(backlog, sub.eventType), 2*time.Minute)
+			}
+
+			// Nothing may have reached the refused replica.
+			changed.expectExactlyOnce(ctx, nil, time.Second)
 
 			return nil
 		}).

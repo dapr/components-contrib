@@ -817,7 +817,14 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 		if !r.metadata.AutoAck {
 			// if message is not auto acked we need to ack/nack
 			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, r.metadata.RequeueInFailure)
-			if err = d.Nack(false, r.metadata.RequeueInFailure); err != nil {
+			if r.metadata.RequeueInFailure {
+				// basic.reject marks the delivery as failed, so RabbitMQ >= 4.3 counts it against a quorum queue's
+				// delivery-limit. basic.nack with requeue=true is an explicit return there and is never limited.
+				err = d.Reject(true)
+			} else {
+				err = d.Nack(false, false)
+			}
+			if err != nil {
 				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		}

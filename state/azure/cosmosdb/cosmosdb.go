@@ -439,10 +439,14 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	upsertCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
+	if req.HasETag() {
+		// Replace so an etag on a missing item fails instead of creating it.
+		_, err = c.client.ReplaceItem(upsertCtx, pk, req.Key, marsh, &options)
+	} else {
+		_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
+	}
 	if err != nil {
-		resErr := &azcore.ResponseError{}
-		if errors.As(err, &resErr) && resErr.StatusCode == http.StatusPreconditionFailed {
+		if isETagMismatch(err, req.HasETag()) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
@@ -482,15 +486,22 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
-	if err != nil && !isNotFoundError(err) {
-		resErr := &azcore.ResponseError{}
-		if errors.As(err, &resErr) && resErr.StatusCode == http.StatusPreconditionFailed {
+	if err != nil && (req.HasETag() || !isNotFoundError(err)) {
+		if isETagMismatch(err, req.HasETag()) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
 	}
 
 	return nil
+}
+
+func isETagMismatch(err error, hasETag bool) bool {
+	resErr := &azcore.ResponseError{}
+	if !errors.As(err, &resErr) {
+		return false
+	}
+	return resErr.StatusCode == http.StatusPreconditionFailed || (hasETag && resErr.StatusCode == http.StatusNotFound)
 }
 
 // MultiMaxSize returns the maximum number of operations allowed in a transaction.

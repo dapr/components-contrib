@@ -1074,6 +1074,7 @@ func TestMultiETags(t *testing.T) {
 	t.Run("deduped key keeps the first guard", func(t *testing.T) {
 		for name, tc := range map[string]struct {
 			ops  []state.TransactionalStateOperation
+			ttl  string
 			expr string
 		}{
 			"set then delete": {
@@ -1104,10 +1105,18 @@ func TestMultiETags(t *testing.T) {
 				},
 				expr: "attribute_not_exists(etag)",
 			},
+			"first write then delete with ttl": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "a1", Options: firstWrite},
+					state.DeleteRequest{Key: "a"},
+				},
+				ttl:  "expiresAt",
+				expr: "attribute_not_exists(etag) OR #ttl <= :now",
+			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				var got *dynamodb.TransactWriteItemsInput
-				s := newStore("", capture(&got))
+				s := newStore(tc.ttl, capture(&got))
 				err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: tc.ops})
 				require.NoError(t, err)
 				require.Len(t, got.TransactItems, 1)
@@ -1115,9 +1124,13 @@ func TestMultiETags(t *testing.T) {
 				expr, values := condOf(got.TransactItems[0])
 				require.NotNil(t, expr)
 				assert.Equal(t, tc.expr, *expr)
-				if tc.expr == "etag = :etag" {
+				switch {
+				case tc.expr == "etag = :etag":
 					assert.Equal(t, &types.AttributeValueMemberS{Value: etag}, values[":etag"])
-				} else {
+				case tc.ttl != "":
+					require.Len(t, values, 1)
+					assert.Contains(t, values, ":now")
+				default:
 					assert.Nil(t, values)
 				}
 			})
@@ -1234,4 +1247,88 @@ func TestETagConditionExcludesExpired(t *testing.T) {
 		}
 		require.NoError(t, s.Delete(t.Context(), &state.DeleteRequest{Key: "a", ETag: &etag}))
 	})
+}
+
+func TestFirstWriteExpiredItem(t *testing.T) {
+	assertCondition := func(t *testing.T, ttlAttributeName string, cond *string, names map[string]string, values map[string]types.AttributeValue) {
+		t.Helper()
+		if ttlAttributeName == "" {
+			assert.Equal(t, "attribute_not_exists(etag)", *cond)
+			assert.Nil(t, names)
+			assert.Nil(t, values)
+			return
+		}
+		assert.Equal(t, "attribute_not_exists(etag) OR #ttl <= :now", *cond)
+		assert.Equal(t, map[string]string{"#ttl": ttlAttributeName}, names)
+		require.Len(t, values, 1)
+		var now int64
+		require.NoError(t, attributevalue.Unmarshal(values[":now"], &now))
+		assert.InDelta(t, time.Now().Unix(), now, 5)
+	}
+
+	for _, ttlAttributeName := range []string{"", "expiresAt"} {
+		t.Run("Set with ttlAttributeName="+ttlAttributeName, func(t *testing.T) {
+			called := false
+			s := StateStore{
+				logger: log,
+				dynamodbClient: &awsMock.DynamoDBClient{
+					PutItemFn: func(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+						called = true
+						assertCondition(t, ttlAttributeName, params.ConditionExpression, params.ExpressionAttributeNames, params.ExpressionAttributeValues)
+						return &dynamodb.PutItemOutput{}, nil
+					},
+				},
+				table:            tableName,
+				partitionKey:     defaultPartitionKeyName,
+				ttlAttributeName: ttlAttributeName,
+			}
+			err := s.Set(t.Context(), &state.SetRequest{
+				Key:     "key",
+				Value:   "value",
+				Options: state.SetStateOption{Concurrency: state.FirstWrite},
+			})
+			require.NoError(t, err)
+			assert.True(t, called)
+		})
+
+		t.Run("Multi with ttlAttributeName="+ttlAttributeName, func(t *testing.T) {
+			called := false
+			s := StateStore{
+				logger: log,
+				dynamodbClient: &awsMock.DynamoDBClient{
+					TransactWriteItemsFn: func(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error) {
+						called = true
+						require.Len(t, params.TransactItems, 2)
+						put := params.TransactItems[0].Put
+						require.NotNil(t, put)
+						assertCondition(t, ttlAttributeName, put.ConditionExpression, put.ExpressionAttributeNames, put.ExpressionAttributeValues)
+						plain := params.TransactItems[1].Put
+						require.NotNil(t, plain)
+						assert.Nil(t, plain.ConditionExpression)
+						assert.Nil(t, plain.ExpressionAttributeNames)
+						assert.Nil(t, plain.ExpressionAttributeValues)
+						return &dynamodb.TransactWriteItemsOutput{}, nil
+					},
+				},
+				table:            tableName,
+				partitionKey:     defaultPartitionKeyName,
+				ttlAttributeName: ttlAttributeName,
+			}
+			err := s.Multi(t.Context(), &state.TransactionalStateRequest{
+				Operations: []state.TransactionalStateOperation{
+					state.SetRequest{
+						Key:     "key1",
+						Value:   "value1",
+						Options: state.SetStateOption{Concurrency: state.FirstWrite},
+					},
+					state.SetRequest{
+						Key:   "key2",
+						Value: "value2",
+					},
+				},
+			})
+			require.NoError(t, err)
+			assert.True(t, called)
+		})
+	}
 }

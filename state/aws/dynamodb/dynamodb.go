@@ -314,12 +314,25 @@ func (d *StateStore) etagCondition(etag string) *condition {
 	return c
 }
 
+// DynamoDB deletes expired items lazily, so an expired item counts as missing.
+func (d *StateStore) firstWriteCondition() *condition {
+	c := &condition{expr: "attribute_not_exists(etag)"}
+	if d.ttlAttributeName != "" {
+		c.expr += " OR #ttl <= :now"
+		c.names = map[string]string{"#ttl": d.ttlAttributeName}
+		c.values = map[string]types.AttributeValue{
+			":now": &types.AttributeValueMemberN{Value: strconv.FormatInt(time.Now().Unix(), 10)},
+		}
+	}
+	return c
+}
+
 func (d *StateStore) setCondition(req *state.SetRequest) *condition {
 	switch {
 	case req.HasETag():
 		return d.etagCondition(*req.ETag)
 	case req.Options.Concurrency == state.FirstWrite:
-		return &condition{expr: "attribute_not_exists(etag)"}
+		return d.firstWriteCondition()
 	default:
 		return nil
 	}

@@ -4,7 +4,7 @@ type: nameresolution
 name: aws.cloudmap
 version: v1
 status: alpha
-title: "AWS CloudMap"
+title: "AWS Cloud Map"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-name-resolution/nr-awscloudmap/

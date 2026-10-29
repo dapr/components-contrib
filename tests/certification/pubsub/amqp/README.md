@@ -75,6 +75,13 @@ application property, so the test does not depend on
 - With both sidecars stopped, the queues stay, and they keep what is published
   meanwhile, also across a broker restart. The backlog arrives, once each,
   when the sidecars start again.
+- A third replica brings another selector to `billing`, as a rolling update
+  that changes the selector does. The broker refuses it while the other
+  replicas are attached, and its subscription ends there. Once the other
+  replicas stop, the queue keeps its selector and what is published meanwhile,
+  which the replicas receive once each when they start again. Before this, the
+  refused replica retried until the other replicas stopped, and the broker then
+  recreated the queue with the new selector and dropped its messages.
 
 ### Publish metadata as message properties
 

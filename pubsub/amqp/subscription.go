@@ -37,6 +37,10 @@ const (
 	// filter, the same one amqp.NewSelectorFilter writes.
 	selectorFilterName = "apache.org:selector-filter:string"
 
+	// recreateRefusal is how Artemis describes the amqp:illegal-state error
+	// it refuses an attach with, see selectorChange.
+	recreateRefusal = "Unable to recreate subscription"
+
 	// linkNameSeparator is reserved in subscription names. Artemis cuts a
 	// shared subscription name at the first "|", which JMS clients use to tell
 	// several links to one subscription apart, and it does so on the close
@@ -64,6 +68,12 @@ type subscriptionOptions struct {
 	// Selector is a JMS selector the broker applies to the subscription, for
 	// example "type = 'order'". Messages that do not match never enter it.
 	Selector string
+
+	// AllowSelectorChange lets the broker recreate a durable subscription
+	// whose selector changed, and drop the messages it holds. Without it the
+	// subscription ends when the broker reports the change, see
+	// selectorChange.
+	AllowSelectorChange bool
 }
 
 // parseSubscriptionOptions reads the subscription options from the metadata of
@@ -164,6 +174,9 @@ type subscriptionLink struct {
 
 	// named is set for a named subscription, see attachNamed.
 	named bool
+
+	// sub are the options the link was attached with.
+	sub subscriptionOptions
 }
 
 // attacher returns how a subscription attaches its receiver link, and the
@@ -225,23 +238,90 @@ func (a *amqpPubSub) attachNamed(ctx context.Context, md *metadata, address stri
 	}
 
 	receiver, err := session.NewReceiver(dialCtx, address, sub.receiverOptions())
-	if err != nil {
-		a.closeClient(client)
-
-		return nil, err
+	var echoed any
+	if err == nil {
+		echoed = receiver.LinkSourceFilterValue(selectorFilterName)
 	}
 
-	if err = checkSelector(sub, receiver.LinkSourceFilterValue(selectorFilterName), address); err != nil {
-		a.closeClient(client)
+	return sub.namedLink(receiver, echoed, err, address, func() { a.closeClient(client) })
+}
+
+// namedLink builds the link of a named subscription from the receiver the
+// broker attached, with echoed the selector it echoed back, or ends the
+// subscription on the error the attach failed with. release is called on
+// failure, and kept on the link otherwise.
+func (o subscriptionOptions) namedLink(receiver messageReceiver, echoed any, err error, address string, release func()) (*subscriptionLink, error) {
+	if err != nil {
+		release()
+
+		return nil, o.selectorChange(err, address)
+	}
+
+	if err = checkSelector(o, echoed, address); err != nil {
+		release()
 
 		return nil, err
 	}
 
 	return &subscriptionLink{
 		receiver: receiver,
-		release:  func() { a.closeClient(client) },
+		release:  release,
 		named:    true,
+		sub:      o,
 	}, nil
+}
+
+// selectorChangeError ends a durable subscription that the broker holds with
+// another selector, or address, than the one it was asked for.
+type selectorChangeError struct {
+	sub     subscriptionOptions
+	address string
+	cause   error
+}
+
+func (e *selectorChangeError) Error() string {
+	return fmt.Sprintf("the broker holds subscription %q with another address or selector than the requested address %s and the requested selector %q, and would drop the messages it holds to recreate it: use a new subscriptionName, or set allowSelectorChange to recreate it (%v)",
+		e.sub.SubscriptionName, e.address, e.sub.Selector, e.cause)
+}
+
+func (e *selectorChangeError) Unwrap() error {
+	return e.cause
+}
+
+// selectorChange turns the broker refusing to attach a durable subscription it
+// holds with another selector, or address, into a selectorChangeError. Any
+// other error, and this one once the subscription allows the change, is
+// returned as is.
+//
+// ActiveMQ Artemis compares the selector on every attach to a durable
+// subscription. With no consumer attached it recreates the subscription,
+// drops the messages it holds and reports nothing. With consumers attached, as
+// during a rolling update, it refuses the attach with this error instead.
+// Retrying the attach until the old consumers detach, which the re-attach loop
+// would do, has the subscription recreated the same way, so the refusal is
+// the one point at which the loss can be stopped.
+func (o subscriptionOptions) selectorChange(err error, address string) error {
+	if err == nil || o.AllowSelectorChange {
+		return err
+	}
+
+	// Artemis answers the attach and detaches right after, so the refusal
+	// arrives from the first Receive as a LinkError. A broker that answers
+	// the attach with no terminus at all makes it the attach error, a bare
+	// Error. Neither type unwraps to the other.
+	var protoErr *amqp.Error
+	var linkErr *amqp.LinkError
+	if errors.As(err, &linkErr) {
+		protoErr = linkErr.RemoteErr
+	} else if !errors.As(err, &protoErr) {
+		return err
+	}
+
+	if protoErr == nil || protoErr.Condition != amqp.ErrCondIllegalState || !strings.Contains(protoErr.Description, recreateRefusal) {
+		return err
+	}
+
+	return &selectorChangeError{sub: o, address: address, cause: err}
 }
 
 // checkSelector fails a subscription whose selector the broker did not echo

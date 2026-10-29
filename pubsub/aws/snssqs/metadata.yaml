@@ -4,7 +4,7 @@ type: pubsub
 name: aws.snssqs
 version: v1
 status: stable
-title: "AWS SNS/SQS"
+title: "Amazon SNS / Amazon SQS"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-pubsub/setup-aws-snssqs/

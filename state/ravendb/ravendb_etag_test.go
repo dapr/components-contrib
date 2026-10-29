@@ -34,9 +34,14 @@ type fakeRavenServer struct {
 	lock     sync.Mutex
 	commands [][]map[string]any
 	conflict bool
+	existing map[string]string
 }
 
 func (f *fakeRavenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/docs") {
+		f.serveDoc(w, r.URL.Query().Get("id"))
+		return
+	}
 	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/bulk_docs") {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -74,6 +79,28 @@ func (f *fakeRavenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{"Results": results})
+}
+
+func (f *fakeRavenServer) serveDoc(w http.ResponseWriter, id string) {
+	f.lock.Lock()
+	value, ok := f.existing[id]
+	f.lock.Unlock()
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"Results": []map[string]any{{
+			"Value": value,
+			"@metadata": map[string]any{
+				"@id":            id,
+				"@change-vector": "A:1-" + id,
+				"@collection":    "Items",
+			},
+		}},
+		"Includes": map[string]any{},
+	})
 }
 
 func (f *fakeRavenServer) commandsByID(t *testing.T) map[string]map[string]any {
@@ -118,6 +145,36 @@ func TestSetETag(t *testing.T) {
 		assert.Equal(t, "PUT", cmd["Type"])
 		assert.Equal(t, "A:1-x", cmd["ChangeVector"])
 	})
+
+	t.Run("first-write on an existing document is an etag mismatch", func(t *testing.T) {
+		for name, value := range map[string]string{"same value": "v", "different value": "w"} {
+			t.Run(name, func(t *testing.T) {
+				r, fake := newFakeRaven(t)
+				fake.existing = map[string]string{"a": `"v"`}
+				err := r.Set(t.Context(), &state.SetRequest{
+					Key: "a", Value: value,
+					Options: state.SetStateOption{Concurrency: state.FirstWrite},
+				})
+				var etagErr *state.ETagError
+				require.ErrorAs(t, err, &etagErr)
+				assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+				assert.Empty(t, fake.commands)
+			})
+		}
+	})
+
+	t.Run("first-write on a missing document stores it", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		err := r.Set(t.Context(), &state.SetRequest{
+			Key: "a", Value: "v",
+			Options: state.SetStateOption{Concurrency: state.FirstWrite},
+		})
+		require.NoError(t, err)
+
+		cmd := fake.commandsByID(t)["a"]
+		assert.Equal(t, "PUT", cmd["Type"])
+		assert.Nil(t, cmd["ChangeVector"])
+	})
 }
 
 func TestMultiETags(t *testing.T) {
@@ -153,6 +210,95 @@ func TestMultiETags(t *testing.T) {
 		var etagErr *state.ETagError
 		require.ErrorAs(t, err, &etagErr)
 		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+	})
+
+	t.Run("first-write on a key set earlier in the transaction is a mismatch", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		err := r.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.SetRequest{Key: "a", Value: "v"},
+				state.SetRequest{Key: "a", Value: "w", Options: state.SetStateOption{Concurrency: state.FirstWrite}},
+			},
+		})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+		assert.Empty(t, fake.commands)
+	})
+
+	t.Run("repeated key sends the last op with the first op's guard", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			ops          []state.TransactionalStateOperation
+			typ          string
+			changeVector any
+		}{
+			"set then set": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "v"},
+					state.SetRequest{Key: "a", Value: "w"},
+				},
+				typ: "PUT",
+			},
+			"etag set then set": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("A:1-x")},
+					state.SetRequest{Key: "a", Value: "w"},
+				},
+				typ: "PUT", changeVector: "A:1-x",
+			},
+			"etag delete then set": {
+				ops: []state.TransactionalStateOperation{
+					state.DeleteRequest{Key: "a", ETag: ptr.Of("A:1-x")},
+					state.SetRequest{Key: "a", Value: "w"},
+				},
+				typ: "PUT", changeVector: "A:1-x",
+			},
+			"etag set then delete": {
+				ops: []state.TransactionalStateOperation{
+					state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("A:1-x")},
+					state.DeleteRequest{Key: "a"},
+				},
+				typ: "DELETE", changeVector: "A:1-x",
+			},
+			"delete then first-write set": {
+				ops: []state.TransactionalStateOperation{
+					state.DeleteRequest{Key: "a"},
+					state.SetRequest{Key: "a", Value: "w", Options: state.SetStateOption{Concurrency: state.FirstWrite}},
+				},
+				typ: "PUT",
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				r, fake := newFakeRaven(t)
+				require.NoError(t, r.Multi(t.Context(), &state.TransactionalStateRequest{Operations: tc.ops}))
+				byID := fake.commandsByID(t)
+				require.Len(t, fake.commands[0], 1)
+				assert.Equal(t, tc.typ, byID["a"]["Type"])
+				assert.Equal(t, tc.changeVector, byID["a"]["ChangeVector"])
+				if tc.typ == "PUT" {
+					assert.Equal(t, `"w"`, byID["a"]["Document"].(map[string]any)["Value"])
+				}
+			})
+		}
+	})
+
+	t.Run("first-write set then delete", func(t *testing.T) {
+		ops := []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "v", Options: state.SetStateOption{Concurrency: state.FirstWrite}},
+			state.DeleteRequest{Key: "a"},
+		}
+
+		r, fake := newFakeRaven(t)
+		require.NoError(t, r.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+		assert.Empty(t, fake.commands)
+
+		r, fake = newFakeRaven(t)
+		fake.existing = map[string]string{"a": "old"}
+		err := r.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+		assert.Empty(t, fake.commands)
 	})
 
 	t.Run("etag on a key already used in the transaction is a mismatch", func(t *testing.T) {

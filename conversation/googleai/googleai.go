@@ -19,10 +19,14 @@ import (
 	"reflect"
 
 	"github.com/tmc/langchaingo/llms/openai"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google/externalaccount"
 
+	spiffeauth "github.com/dapr/components-contrib/common/authentication/spiffe"
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
+	kitspiffe "github.com/dapr/kit/crypto/spiffe"
 	"github.com/dapr/kit/logger"
 	kmeta "github.com/dapr/kit/metadata"
 )
@@ -42,8 +46,18 @@ func NewGoogleAI(logger logger.Logger) conversation.Conversation {
 	return g
 }
 
+const (
+	// endpoint from https://ai.google.dev/gemini-api/docs/openai
+	defaultEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+	cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
+)
+
+// gcpSTSTokenURL is a variable so tests can point it at a fake.
+var gcpSTSTokenURL = "https://sts.googleapis.com/v1/token" //nolint:gosec
+
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
-	md := conversation.LangchainMetadata{}
+	md := GoogleAILangchainMetadata{}
 	err := kmeta.DecodeMetadata(meta.Properties, &md)
 	if err != nil {
 		return err
@@ -53,9 +67,23 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	model := conversation.GetGoogleAIModel(md.Model)
 	key, _ := meta.GetProperty("key")
 
-	// endpoint from https://ai.google.dev/gemini-api/docs/openai
-	const endpoint = "https://generativelanguage.googleapis.com/v1beta/openai/"
-	opts := conversation.BuildOpenAIClientOptions(model, key, endpoint)
+	endpoint := defaultEndpoint
+	if md.Endpoint != "" {
+		endpoint = md.Endpoint
+	}
+
+	var opts []openai.Option
+	if md.WorkloadIdentityProvider == "" {
+		opts = conversation.BuildOpenAIClientOptions(model, key, endpoint)
+	} else {
+		ts, tsErr := federationTokenSource(ctx, md)
+		if tsErr != nil {
+			return tsErr
+		}
+		opts = append(conversation.BuildOpenAIClientOptions(model, conversation.PlaceholderToken, endpoint),
+			openai.WithHTTPClient(conversation.BuildBearerHTTPClient(ts)),
+		)
+	}
 
 	llm, err := openai.New(opts...)
 	if err != nil {
@@ -80,8 +108,43 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	return nil
 }
 
+// federationTokenSource exchanges JWT SVIDs for Google access tokens with the
+// Google Cloud Security Token Service.
+func federationTokenSource(ctx context.Context, md GoogleAILangchainMetadata) (oauth2.TokenSource, error) {
+	minter, err := spiffeauth.MinterFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := externalaccount.Config{ //nolint:gosec
+		Audience:             md.WorkloadIdentityProvider,
+		SubjectTokenType:     "urn:ietf:params:oauth:token-type:jwt",
+		TokenURL:             gcpSTSTokenURL,
+		SubjectTokenSupplier: svidSupplier{minter: minter},
+		Scopes:               []string{cloudPlatformScope},
+	}
+	if md.ServiceAccountEmail != "" {
+		cfg.ServiceAccountImpersonationURL = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" + md.ServiceAccountEmail + ":generateAccessToken"
+	}
+
+	// The token source keeps the given context for every refresh, so it must
+	// not be the Init context, which is cancelled once Init returns.
+	return externalaccount.NewTokenSource(context.Background(), cfg)
+}
+
+// svidSupplier supplies a newly minted JWT SVID for every token exchange.
+type svidSupplier struct {
+	minter kitspiffe.JWTSVIDMinter
+}
+
+func (s svidSupplier) SubjectToken(ctx context.Context, opts externalaccount.SupplierOptions) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, spiffeauth.ExchangeTimeout)
+	defer cancel()
+	return spiffeauth.MintJWT(ctx, s.minter, opts.Audience)
+}
+
 func (g *GoogleAI) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
-	metadataStruct := conversation.LangchainMetadata{}
+	metadataStruct := GoogleAILangchainMetadata{}
 	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType)
 	return
 }

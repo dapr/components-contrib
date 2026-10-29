@@ -25,7 +25,12 @@ import (
 	"github.com/tmc/langchaingo/llms/cache"
 	"github.com/tmc/langchaingo/llms/cache/inmemory"
 	"github.com/tmc/langchaingo/llms/openai"
+	"golang.org/x/oauth2"
 )
+
+// PlaceholderToken satisfies langchaingo clients that require a token when the
+// credential is set by BuildBearerHTTPClient instead. It is never sent.
+const PlaceholderToken = "dapr-workload-identity" //nolint:gosec
 
 // BuildOpenAIClientOptions is a helper function that is used by conversation components that use the OpenAI client under the hood.
 // HTTP client timeout is set from resiliency policy configuration.
@@ -74,4 +79,35 @@ func BuildHTTPClient() *http.Client {
 	}
 
 	return httpClient
+}
+
+// BuildBearerHTTPClient is BuildHTTPClient with an Authorization: Bearer header
+// taken from ts on every request. The x-api-key and api-key headers langchaingo
+// clients set from their placeholder token are removed.
+func BuildBearerHTTPClient(ts oauth2.TokenSource) *http.Client {
+	client := BuildHTTPClient()
+	client.Transport = &bearerTransport{base: client.Transport, ts: ts}
+	return client
+}
+
+type bearerTransport struct {
+	base http.RoundTripper
+	ts   oauth2.TokenSource
+}
+
+func (t *bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	tok, err := t.ts.Token()
+	if err != nil {
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+		return nil, err
+	}
+
+	req = req.Clone(req.Context())
+	req.Header.Del("x-api-key")
+	req.Header.Del("api-key")
+	tok.SetAuthHeader(req)
+
+	return t.base.RoundTrip(req)
 }

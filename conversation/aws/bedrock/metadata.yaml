@@ -10,6 +10,31 @@ urls:
     url: https://docs.dapr.io/reference/components-reference/supported-conversation/aws-bedrock/
 builtinAuthenticationProfiles:
   - name: "aws"
+authenticationProfiles:
+  - title: "AWS: Web identity federation (SPIFFE)"
+    description: |
+      Assume an IAM role with AssumeRoleWithWebIdentity, using a JWT SVID minted by the Dapr runtime
+      for the app's SPIFFE ID. Requires mTLS and Sentry JWT issuing, with Sentry registered as an IAM
+      OIDC identity provider that the role trusts.
+    metadata:
+      - name: assumeRoleArn
+        type: string
+        required: true
+        description: |
+          ARN of the IAM role to assume.
+        example: '"arn:aws:iam::123456789012:role/dapr-bedrock"'
+      - name: webIdentityAudience
+        type: string
+        required: true
+        description: |
+          Audience of the JWT SVID. Must be a client ID (audience) of the IAM OIDC identity provider.
+        example: '"sts.amazonaws.com"'
+      - name: assumeRoleSessionName
+        type: string
+        required: false
+        description: |
+          The session name for the assumed role.
+        example: '"dapr-bedrock"'
 metadata:
   - name: endpoint
     required: false

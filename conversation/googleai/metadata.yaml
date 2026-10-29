@@ -20,6 +20,27 @@ authenticationProfiles:
           API key for GoogleAI.
         example:  "**********"
         default: ""
+  - title: "Google Cloud workload identity federation (SPIFFE)"
+    description: |
+      Authenticate without an API key. The Dapr runtime mints a JWT SVID for the app's SPIFFE ID,
+      which Google Cloud's Security Token Service exchanges for a short-lived access token. Requires
+      mTLS and Sentry JWT issuing, with Sentry registered as an OIDC provider in a workload identity
+      pool. Use with an endpoint that accepts Google access tokens, such as the Vertex AI
+      OpenAI-compatible endpoint.
+    metadata:
+      - name: workloadIdentityProvider
+        type: string
+        required: true
+        description: |
+          Full resource name of the workload identity pool provider. Also used as the audience of
+          the JWT SVID.
+        example: '"//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/dapr/providers/sentry"'
+      - name: serviceAccountEmail
+        type: string
+        required: false
+        description: |
+          Email of the service account to impersonate. If not set, the federated token is used directly.
+        example: '"dapr-ai@my-project.iam.gserviceaccount.com"'
 metadata:
   - name: model
     required: false
@@ -28,6 +49,13 @@ metadata:
     type: string
     example: 'gemini-2.5-flash-lite'
     default: 'gemini-2.5-flash-lite'
+  - name: endpoint
+    required: false
+    description: |
+      OpenAI-compatible endpoint URL. If not specified, the Gemini API OpenAI-compatible endpoint is used.
+    type: string
+    example: 'https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/endpoints/openapi'
+    default: 'https://generativelanguage.googleapis.com/v1beta/openai/'
   - name: cacheTTL
     required: false
     description: |

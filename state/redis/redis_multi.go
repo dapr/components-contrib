@@ -36,6 +36,7 @@ const (
 	//nolint:dupword
 	multiQuery = `
 local pend = {}
+local nvs = {}
 local function num(s)
   if not string.match(s, "^%-?%d+$") or #s > 15 then return nil end
   return tonumber(s)
@@ -93,7 +94,8 @@ for i = 1, n do
       end
       nv = v + 1
     end
-    pend[key] = {exists=true, vs=string.format("%d", nv), kind=target, fwr=(fw == "1" or (target == "hash" and p.kind == "hash" and p.fwr))}
+    nvs[i] = string.format("%d", nv)
+    pend[key] = {exists=true, vs=nvs[i], kind=target, fwr=(fw == "1" or (target == "hash" and p.kind == "hash" and p.fwr))}
   end
 end
 for i = 1, n do
@@ -105,15 +107,11 @@ for i = 1, n do
   else
     local t = keytype(key)
     if js == "1" then
-      local prev = 0
-      if t == "ReJSON-RL" then
-        local v = redis.pcall("JSON.GET", key, ".version")
-        if type(v) == "string" then prev = tonumber(v) or 0 end
-      elseif t ~= "none" then
+      if t ~= "ReJSON-RL" and t ~= "none" then
         redis.call("DEL", key)
       end
       redis.call("JSON.SET", key, "$", data)
-      redis.call("JSON.SET", key, ".version", prev + 1)
+      redis.call("JSON.SET", key, ".version", nvs[i])
       if fw == "1" then
         redis.call("JSON.SET", key, ".first-write", 0)
       end
@@ -121,8 +119,7 @@ for i = 1, n do
       if t ~= "hash" and t ~= "none" then
         redis.call("DEL", key)
       end
-      redis.call("HSET", key, "data", data)
-      redis.call("HINCRBY", key, "version", 1)
+      redis.call("HSET", key, "data", data, "version", nvs[i])
       if fw == "1" then
         redis.call("HSET", key, "first-write", 0)
       end
@@ -154,7 +151,10 @@ func (r *StateStore) isCluster() bool {
 }
 
 func (r *StateStore) buildMultiOps(request *state.TransactionalStateRequest) ([]multiOp, error) {
-	isJSON := request.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON
+	isJSON := request.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType
+	if isJSON && !r.clientHasJSON {
+		return nil, errJSONUnsupported
+	}
 
 	ops := make([]multiOp, 0, len(request.Operations))
 	for _, o := range request.Operations {

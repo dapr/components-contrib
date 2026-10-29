@@ -717,7 +717,32 @@ func TestMultiETags(t *testing.T) {
 			state.SetRequest{Key: "b", Value: "b1", Metadata: jsonMD},
 		), errJSONUnsupported)
 		require.ErrorIs(t, multi(ss, state.DeleteRequest{Key: "a", Metadata: jsonMD}), errJSONUnsupported)
+		require.ErrorIs(t, ss.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{state.SetRequest{Key: "a", Value: "a1"}},
+			Metadata:   jsonMD,
+		}), errJSONUnsupported)
 		assert.Nil(t, get(t, ss, "a").Data)
+	})
+
+	t.Run("empty stored version counts as no version", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.client.DoWrite(t.Context(), "HSET", "bad", "data", `"x"`, "version", ""))
+		requireKind(t, multi(ss,
+			state.SetRequest{Key: "other", Value: "o1"},
+			state.SetRequest{Key: "bad", Value: "b2", ETag: ptr.Of("0")},
+		), state.ETagMismatch)
+		assert.Nil(t, get(t, ss, "other").Data)
+		assert.JSONEq(t, `"x"`, string(get(t, ss, "bad").Data))
+
+		require.NoError(t, multi(ss,
+			state.SetRequest{Key: "other", Value: "o1"},
+			state.SetRequest{Key: "bad", Value: "b2"},
+			state.SetRequest{Key: "bad", Value: "b3", ETag: ptr.Of("1")},
+		))
+		assert.JSONEq(t, `"o1"`, string(get(t, ss, "other").Data))
+		res := get(t, ss, "bad")
+		assert.JSONEq(t, `"b3"`, string(res.Data))
+		assert.Equal(t, "2", *res.ETag)
 	})
 
 	t.Run("first-write in multi blocks later unguarded writes", func(t *testing.T) {
@@ -779,6 +804,7 @@ func TestMultiETags(t *testing.T) {
 			state.SetRequest{Key: "b", Value: "b2", ETag: ptr.Of("5")},
 		)
 		requireKind(t, err, state.ETagMismatch)
+		// Documents the non-atomic cross slot fallback on purpose.
 		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data), "cross slot fallback isn't atomic")
 
 		err = multi(ss,

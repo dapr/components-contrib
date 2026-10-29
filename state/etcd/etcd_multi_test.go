@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"strconv"
 	"testing"
 
@@ -35,7 +36,33 @@ type fakeKV struct {
 	clientv3.KV
 
 	succeeded bool
+	commitErr error
+	onCommit  func()
 	txns      []*fakeTxn
+}
+
+type fakeLease struct {
+	clientv3.Lease
+
+	grantErrAfter int
+	granted       []int64
+	revoked       []clientv3.LeaseID
+}
+
+func (f *fakeLease) Grant(_ context.Context, ttl int64) (*clientv3.LeaseGrantResponse, error) {
+	if f.grantErrAfter > 0 && len(f.granted) == f.grantErrAfter {
+		return nil, errors.New("grant failed")
+	}
+	f.granted = append(f.granted, ttl)
+	return &clientv3.LeaseGrantResponse{ID: clientv3.LeaseID(len(f.granted)), TTL: ttl}, nil
+}
+
+func (f *fakeLease) Revoke(ctx context.Context, id clientv3.LeaseID) (*clientv3.LeaseRevokeResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f.revoked = append(f.revoked, id)
+	return &clientv3.LeaseRevokeResponse{}, nil
 }
 
 type fakeTxn struct {
@@ -77,17 +104,30 @@ func (t *fakeTxn) Else(...clientv3.Op) clientv3.Txn {
 }
 
 func (t *fakeTxn) Commit() (*clientv3.TxnResponse, error) {
+	if t.kv.onCommit != nil {
+		t.kv.onCommit()
+	}
+	if t.kv.commitErr != nil {
+		return nil, t.kv.commitErr
+	}
 	return &clientv3.TxnResponse{Succeeded: t.kv.succeeded}, nil
 }
 
 func newFakeStore(succeeded bool) (*Etcd, *fakeKV) {
+	s, kv, _ := newFakeLeaseStore(succeeded)
+	return s, kv
+}
+
+func newFakeLeaseStore(succeeded bool) (*Etcd, *fakeKV, *fakeLease) {
 	kv := &fakeKV{succeeded: succeeded}
+	lease := &fakeLease{}
 	return &Etcd{
-		client:        &clientv3.Client{KV: kv},
+		client:        &clientv3.Client{KV: kv, Lease: lease},
 		keyPrefixPath: "p",
 		schema:        schemaV1{},
 		maxTxnOps:     128,
-	}, kv
+		logger:        logger.NewLogger("test"),
+	}, kv, lease
 }
 
 func requireETagKind(t *testing.T, err error, kind state.ETagErrorKind) {
@@ -213,6 +253,64 @@ func TestMultiSameKey(t *testing.T) {
 	})
 }
 
+func TestMultiLeases(t *testing.T) {
+	ttl := func(s string) map[string]string { return map[string]string{"ttlInSeconds": s} }
+	ops := []state.TransactionalStateOperation{
+		state.SetRequest{Key: "a", Value: "a", Metadata: ttl("60")},
+		state.SetRequest{Key: "b", Value: "b", Metadata: ttl("60")},
+		state.SetRequest{Key: "c", Value: "c", Metadata: ttl("30")},
+		state.SetRequest{Key: "d", Value: "d"},
+		state.SetRequest{Key: "e", Value: "e", ETag: ptr.Of("5"), Metadata: ttl("60")},
+	}
+
+	t.Run("one lease per ttl, kept on success", func(t *testing.T) {
+		s, kv, lease := newFakeLeaseStore(true)
+		require.NoError(t, s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+		assert.Equal(t, []int64{60, 30}, lease.granted)
+		assert.Empty(t, lease.revoked)
+
+		require.Len(t, kv.txns, 1)
+		leaseOf := func(i int) clientv3.LeaseID {
+			return clientv3.LeaseID(reflect.ValueOf(kv.txns[0].ops[i]).FieldByName("leaseID").Int())
+		}
+		assert.Equal(t, clientv3.LeaseID(1), leaseOf(0))
+		assert.Equal(t, clientv3.LeaseID(1), leaseOf(1))
+		assert.Equal(t, clientv3.LeaseID(2), leaseOf(2))
+		assert.Equal(t, clientv3.NoLease, leaseOf(3))
+		assert.Equal(t, clientv3.LeaseID(1), leaseOf(4))
+	})
+
+	t.Run("revoked on etag mismatch", func(t *testing.T) {
+		s, _, lease := newFakeLeaseStore(false)
+		requireETagKind(t, s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}), state.ETagMismatch)
+		assert.ElementsMatch(t, []clientv3.LeaseID{1, 2}, lease.revoked)
+	})
+
+	t.Run("revoked on etag mismatch after the request context is done", func(t *testing.T) {
+		s, kv, lease := newFakeLeaseStore(false)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		kv.onCommit = cancel
+		requireETagKind(t, s.Multi(ctx, &state.TransactionalStateRequest{Operations: ops}), state.ETagMismatch)
+		assert.ElementsMatch(t, []clientv3.LeaseID{1, 2}, lease.revoked)
+	})
+
+	t.Run("revoked when a later grant fails", func(t *testing.T) {
+		s, kv, lease := newFakeLeaseStore(true)
+		lease.grantErrAfter = 1
+		require.ErrorContains(t, s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}), "grant failed")
+		assert.Equal(t, []clientv3.LeaseID{1}, lease.revoked)
+		assert.Empty(t, kv.txns)
+	})
+
+	t.Run("kept on commit error", func(t *testing.T) {
+		s, kv, lease := newFakeLeaseStore(true)
+		kv.commitErr = errors.New("commit failed")
+		require.ErrorContains(t, s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}), "commit failed")
+		assert.Empty(t, lease.revoked)
+	})
+}
+
 func TestMultiLive(t *testing.T) {
 	endpoints := os.Getenv("DAPR_TEST_ETCD_ENDPOINTS")
 	if endpoints == "" {
@@ -334,6 +432,36 @@ func testMultiLive(t *testing.T, s *Etcd) {
 		assert.JSONEq(t, `"f2"`, string(get(t, "f").Data))
 		assert.Nil(t, get(t, "g").Data)
 		assert.JSONEq(t, `"h1"`, string(get(t, "h").Data))
+	})
+
+	t.Run("unused leases are revoked and one ttl shares a lease", func(t *testing.T) {
+		leases := func(t *testing.T) int {
+			t.Helper()
+			res, err := s.client.Leases(ctx)
+			require.NoError(t, err)
+			return len(res.Leases)
+		}
+		ttl := map[string]string{"ttlInSeconds": "3600"}
+		before := leases(t)
+
+		requireETagKind(t, s.Multi(ctx, &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "l1", Value: "x", Metadata: ttl},
+			state.SetRequest{Key: "l2", Value: "x", ETag: ptr.Of("1"), Metadata: ttl},
+		}}), state.ETagMismatch)
+		requireETagKind(t, s.Set(ctx, &state.SetRequest{Key: "l2", Value: "x", ETag: ptr.Of("1"), Metadata: ttl}), state.ETagMismatch)
+		assert.Equal(t, before, leases(t))
+
+		require.NoError(t, s.Multi(ctx, &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "l1", Value: "x", Metadata: ttl},
+			state.SetRequest{Key: "l2", Value: "x", Metadata: ttl},
+			state.SetRequest{Key: "l3", Value: "x", Metadata: ttl},
+		}}))
+		assert.Equal(t, before+1, leases(t))
+		require.NoError(t, s.Multi(ctx, &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "l1"},
+			state.DeleteRequest{Key: "l2"},
+			state.DeleteRequest{Key: "l3"},
+		}}))
 	})
 
 	t.Run("MultiMaxSize etag ops fit in one txn", func(t *testing.T) {

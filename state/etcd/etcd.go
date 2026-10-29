@@ -332,6 +332,7 @@ func (e *Etcd) multi(ctx context.Context, operations []state.TransactionalStateO
 	}
 
 	ops := make([]clientv3.Op, 0, len(last))
+	leases := make(map[int64]clientv3.LeaseID)
 	for i, op := range pending {
 		if last[op.key] != i {
 			continue
@@ -342,24 +343,45 @@ func (e *Etcd) multi(ctx context.Context, operations []state.TransactionalStateO
 		}
 		var opts []clientv3.OpOption
 		if op.ttl != nil {
-			resp, err := e.client.Grant(ctx, *op.ttl)
-			if err != nil {
-				return fmt.Errorf("couldn't grant lease %s: %w", op.key, err)
+			id, ok := leases[*op.ttl]
+			if !ok {
+				resp, err := e.client.Grant(ctx, *op.ttl)
+				if err != nil {
+					e.revokeLeases(ctx, leases)
+					return fmt.Errorf("couldn't grant lease %s: %w", op.key, err)
+				}
+				id = resp.ID
+				leases[*op.ttl] = id
 			}
-			opts = append(opts, clientv3.WithLease(resp.ID))
+			opts = append(opts, clientv3.WithLease(id))
 		}
 		ops = append(ops, clientv3.OpPut(op.key, op.value, opts...))
 	}
 
 	resp, err := e.client.Txn(ctx).If(cmps...).Then(ops...).Commit()
 	if err != nil {
+		// The txn may still have applied, and revoking would delete the keys it wrote.
 		return fmt.Errorf("couldn't commit transaction: %w", err)
 	}
 	if !resp.Succeeded {
+		e.revokeLeases(ctx, leases)
 		return state.NewETagError(state.ETagMismatch, errors.New("etag mismatch or key state changed"))
 	}
 
 	return nil
+}
+
+func (e *Etcd) revokeLeases(ctx context.Context, leases map[int64]clientv3.LeaseID) {
+	if len(leases) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	for _, id := range leases {
+		if _, err := e.client.Revoke(ctx, id); err != nil {
+			e.logger.Warnf("couldn't revoke unused lease %x: %v", id, err)
+		}
+	}
 }
 
 func NewTLSConfig(clientCert, clientKey, caCert string) (*tls.Config, error) {

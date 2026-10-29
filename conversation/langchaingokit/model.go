@@ -43,7 +43,10 @@ type LLM struct {
 	// re-validate it.
 	defaultMaxTokens *int64
 	postCallOptions  []llms.CallOption
-	logger           logger.Logger
+	// reasoningEffortOptions is nil unless the component opted in through
+	// SetReasoningEffortOptions.
+	reasoningEffortOptions ReasoningEffortOptions
+	logger                 logger.Logger
 }
 
 func New(logger logger.Logger) LLM {
@@ -116,11 +119,14 @@ func (a *LLM) Converse(ctx context.Context, r *conversation.Request) (res *conve
 		baseOpts = append(baseOpts, llms.WithMaxTokens(capMaxTokens(*a.defaultMaxTokens)))
 	}
 	opts := getOptionsFromRequest(r, a.provider, a.logger, baseOpts...)
+	opts = append(opts, a.reasoningEffortCallOptions(r.ReasoningEffort)...)
 	opts = append(opts, a.postCallOptions...)
 
 	var messages []llms.MessageContent
 	if r.Message != nil {
-		messages = *r.Message
+		// langchaingo has no field for reasoning sent back on an assistant
+		// message, so it is dropped here rather than failing the call.
+		messages, _ = SplitReasoning(*r.Message)
 	}
 
 	resp, err := a.GenerateContent(ctx, messages, opts...)
@@ -203,6 +209,8 @@ func (a *LLM) NormalizeConverseResult(choices []*llms.ContentChoice) ([]conversa
 		if choices[i].ToolCalls != nil {
 			choice.Message.ToolCallRequest = &choices[i].ToolCalls
 		}
+
+		choice.Message.Reasoning = reasoningFromChoice(choices[i])
 
 		output := conversation.Result{
 			StopReason: finishReason,

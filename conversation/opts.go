@@ -16,6 +16,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -87,7 +88,21 @@ func BuildHTTPClient() *http.Client {
 func BuildBearerHTTPClient(ts oauth2.TokenSource) *http.Client {
 	client := BuildHTTPClient()
 	client.Transport = &bearerTransport{base: client.Transport, ts: ts}
+	client.CheckRedirect = sameOriginRedirect
 	return client
+}
+
+// sameOriginRedirect stops redirects to another scheme, host, or port. The
+// transport sets the bearer token on every request, including redirects, so
+// following them elsewhere would send the token to that destination.
+func sameOriginRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if req.URL.Scheme != via[0].URL.Scheme || req.URL.Host != via[0].URL.Host {
+		return fmt.Errorf("refusing to follow redirect from %s to another origin %s://%s", via[0].URL.Host, req.URL.Scheme, req.URL.Host)
+	}
+	return nil
 }
 
 type bearerTransport struct {

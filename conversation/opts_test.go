@@ -59,6 +59,38 @@ func TestBuildBearerHTTPClient(t *testing.T) {
 	})
 }
 
+func TestBuildBearerHTTPClientRedirects(t *testing.T) {
+	var otherHits int
+	other := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		otherHits++
+	}))
+	t.Cleanup(other.Close)
+
+	var sameOriginAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/same":
+			http.Redirect(w, r, "/final", http.StatusFound)
+		case "/final":
+			sameOriginAuth = r.Header.Get("Authorization")
+		case "/other":
+			http.Redirect(w, r, other.URL, http.StatusFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := BuildBearerHTTPClient(oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "tok"}))
+
+	resp, err := client.Get(srv.URL + "/same")
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, "Bearer tok", sameOriginAuth)
+
+	_, err = client.Get(srv.URL + "/other") //nolint:bodyclose
+	require.ErrorContains(t, err, "another origin")
+	assert.Zero(t, otherHits, "the token must not be sent to another origin")
+}
+
 type errTokenSource struct{}
 
 func (errTokenSource) Token() (*oauth2.Token, error) {

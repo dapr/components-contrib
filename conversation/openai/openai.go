@@ -107,6 +107,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.SetModel(model)
 	o.SetDefaultMaxTokens(md.MaxTokens)
+	o.SetReasoningEffortOptions(reasoningEffortOptions)
 	if md.UseLegacyMaxTokensField {
 		o.SetPostCallOptions(openai.WithLegacyMaxTokensField())
 	}

@@ -15,6 +15,7 @@ package sqlserver
 
 import (
 	"database/sql/driver"
+	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -59,13 +60,23 @@ func requireETagErr(t *testing.T, err error, kind state.ETagErrorKind) {
 
 const etagUpdateQuery = `UPDATE \[dbo\]\.\[state\].*CAST\(@TTL AS INT\).*WHERE \[Key\]=@Key AND \[RowVersion\]=@RowVersion\s+AND \(\[ExpireDate\] IS NULL OR \[ExpireDate\] > GETDATE\(\)\)`
 
+const firstWriteQuery = `SET NOCOUNT ON\s+DELETE FROM \[dbo\]\.\[state\] WHERE \[Key\]=@Key AND \[ExpireDate\] <= GETDATE\(\)\s+SET NOCOUNT OFF\s+INSERT INTO \[dbo\]\.\[state\].*CAST\(@TTL AS INT\).*WHERE NOT EXISTS \(SELECT 1 FROM \[dbo\]\.\[state\] WHERE \[Key\]=@Key\)`
+
 func TestFirstWriteConflict(t *testing.T) {
 	firstWrite := state.SetStateOption{Concurrency: state.FirstWrite}
-	throwErr := mssql.Error{Number: 35100, Message: "Error number 2601 in the THROW statement is outside the valid range. Specify an error number in the valid range of 50000 to 2147483647."}
 
-	t.Run("set", func(t *testing.T) {
+	t.Run("set inserts over an expired row", func(t *testing.T) {
 		s, mock := newETagTestStore(t)
-		mock.ExpectExec(`sp_Upsert_v5_state`).WillReturnError(throwErr)
+		mock.ExpectExec(firstWriteQuery).WillReturnResult(sqlmock.NewResult(0, 1))
+
+		err := s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a", Options: firstWrite, Metadata: map[string]string{"ttlInSeconds": "10"}})
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("existing key", func(t *testing.T) {
+		s, mock := newETagTestStore(t)
+		mock.ExpectExec(firstWriteQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 
 		err := s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a", Options: firstWrite})
 		requireETagErr(t, err, state.ETagMismatch)
@@ -76,7 +87,7 @@ func TestFirstWriteConflict(t *testing.T) {
 		s, mock := newETagTestStore(t)
 		mock.ExpectBegin()
 		mock.ExpectExec(`sp_Upsert_v5_state`).WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectExec(`sp_Upsert_v5_state`).WillReturnError(throwErr)
+		mock.ExpectExec(firstWriteQuery).WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectRollback()
 
 		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
@@ -87,20 +98,20 @@ func TestFirstWriteConflict(t *testing.T) {
 		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("conflict before a later error", func(t *testing.T) {
-		s, mock := newETagTestStore(t)
-		trancount := mssql.Error{Number: 266}
-		trancount.All = []mssql.Error{throwErr, trancount}
-		mock.ExpectExec(`sp_Upsert_v5_state`).WillReturnError(trancount)
+	for _, num := range []int32{2627, 2601} {
+		t.Run(fmt.Sprintf("concurrent insert %d", num), func(t *testing.T) {
+			s, mock := newETagTestStore(t)
+			mock.ExpectExec(firstWriteQuery).WillReturnError(mssql.Error{Number: num})
 
-		err := s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a", Options: firstWrite})
-		requireETagErr(t, err, state.ETagMismatch)
-		require.NoError(t, mock.ExpectationsWereMet())
-	})
+			err := s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a", Options: firstWrite})
+			requireETagErr(t, err, state.ETagMismatch)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 
 	t.Run("other errors are not mapped", func(t *testing.T) {
 		s, mock := newETagTestStore(t)
-		mock.ExpectExec(`sp_Upsert_v5_state`).WillReturnError(mssql.Error{Number: 1205})
+		mock.ExpectExec(firstWriteQuery).WillReturnError(mssql.Error{Number: 1205})
 
 		err := s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a", Options: firstWrite})
 		require.Error(t, err)

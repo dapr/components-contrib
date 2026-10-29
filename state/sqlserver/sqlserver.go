@@ -220,14 +220,14 @@ func (s *SQLServer) tableFullName() string {
 
 const expireDateValue = "CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, CAST(@TTL AS INT), GETDATE()) END"
 
-// THROW 2601 is outside THROW's range, so SQL Server raises Msg 35100, not always as the last error.
+// A concurrent first-write can insert the key between the NOT EXISTS check and the INSERT.
 func isFirstWriteConflict(err error) bool {
 	var mErr mssql.Error
 	if !errors.As(err, &mErr) {
 		return false
 	}
-	return mErr.Number == 35100 || slices.ContainsFunc(mErr.All, func(e mssql.Error) bool {
-		return e.Number == 35100
+	return slices.ContainsFunc(append([]mssql.Error{mErr}, mErr.All...), func(e mssql.Error) bool {
+		return e.Number == 2627 || e.Number == 2601
 	})
 }
 
@@ -359,8 +359,14 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 				AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())`,
 			key, data, etag, ttlParam)
 	case req.Options.Concurrency == state.FirstWrite:
-		res, err = db.ExecContext(ctx, s.upsertCommand, key, data, etag,
-			sql.Named("FirstWrite", 1), ttlParam)
+		// NOCOUNT keeps the expired row's delete out of RowsAffected.
+		res, err = db.ExecContext(ctx, `SET NOCOUNT ON
+			DELETE FROM `+s.tableFullName()+` WHERE [Key]=@Key AND [ExpireDate] <= GETDATE()
+			SET NOCOUNT OFF
+			INSERT INTO `+s.tableFullName()+` ([Key], [Data], [ExpireDate])
+			SELECT @Key, @Data, `+expireDateValue+`
+			WHERE NOT EXISTS (SELECT 1 FROM `+s.tableFullName()+` WHERE [Key]=@Key)`,
+			key, data, ttlParam)
 		if isFirstWriteConflict(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
@@ -379,7 +385,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if rows != 1 {
-		if req.HasETag() {
+		if req.HasETag() || req.Options.Concurrency == state.FirstWrite {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return errors.New("no item was updated")

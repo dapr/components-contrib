@@ -512,7 +512,7 @@ func (c *StateStore) MultiMaxSize() int {
 
 // Multi performs a transactional operation. Succeeds only if all operations succeed, and fails if one or more operations fail.
 // Note that all operations must be in the same partition.
-// A no-etag delete of a missing item fails the batch, so it's re-sent without it. Rounds aren't atomic with each other.
+// A no-etag delete of a missing item fails the batch, so it's re-sent without the deletes of missing items. Rounds aren't atomic with each other.
 func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
 	if len(request.Operations) == 0 {
 		c.logger.Debugf("No operations provided")
@@ -525,6 +525,7 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		return err
 	}
 
+	checkedDeletes := false
 	for len(ops) > 0 {
 		batch := c.client.NewTransactionalBatch(azcosmos.NewPartitionKeyString(partitionKey))
 		for _, op := range ops {
@@ -561,9 +562,62 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			return err
 		}
 		ops = slices.Delete(ops, drop, drop+1)
+
+		if !checkedDeletes {
+			// Read the other unguarded deletes once, so N missing items cost one more batch instead of N.
+			checkedDeletes = true
+			ops, err = c.dropMissingDeletes(ctx, partitionKey, ops)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
+}
+
+// A delete after a write of the same key isn't read, since the write creates the item first.
+func (c *StateStore) dropMissingDeletes(ctx context.Context, partitionKey string, ops []batchOp) ([]batchOp, error) {
+	pk := azcosmos.NewPartitionKeyString(partitionKey)
+	exists := make(map[string]bool, len(ops))
+	kept := make([]batchOp, 0, len(ops))
+	for _, op := range ops {
+		if op.kind != batchDelete {
+			exists[op.id] = true
+			kept = append(kept, op)
+			continue
+		}
+		if !op.guarded {
+			found, known := exists[op.id]
+			if !known {
+				var err error
+				found, err = c.itemExists(ctx, pk, op.id)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if !found {
+				exists[op.id] = false
+				continue
+			}
+		}
+		exists[op.id] = false
+		kept = append(kept, op)
+	}
+	return kept, nil
+}
+
+func (c *StateStore) itemExists(ctx context.Context, pk azcosmos.PartitionKey, id string) (bool, error) {
+	readCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	_, err := c.client.ReadItem(readCtx, pk, id, nil)
+	if isNotFoundError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to read item %s: %w", id, err)
+	}
+	return true, nil
 }
 
 func (c *StateStore) executeBatch(ctx context.Context, batch azcosmos.TransactionalBatch) (azcosmos.TransactionalBatchResponse, error) {

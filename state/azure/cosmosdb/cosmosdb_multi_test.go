@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -43,6 +44,11 @@ type fakeCosmos struct {
 	items   map[string]string
 	nextTag int
 	batches int
+	reads   int
+	// readStatus fails every item read with this status when set.
+	readStatus int
+	// afterRead runs after each item read, under the lock.
+	afterRead func(items map[string]string)
 }
 
 type fakeBatchOp struct {
@@ -58,7 +64,7 @@ type fakeBatchResult struct {
 }
 
 func (f *fakeCosmos) Do(req *http.Request) (*http.Response, error) {
-	if req.Method == http.MethodGet {
+	if req.Method == http.MethodGet && !strings.Contains(req.URL.Path, "/docs/") {
 		return fakeResponse(req, http.StatusOK, map[string]any{
 			"writableLocations": []map[string]string{{"name": "local", "databaseAccountEndpoint": fakeEndpoint}},
 			"readableLocations": []map[string]string{{"name": "local", "databaseAccountEndpoint": fakeEndpoint}},
@@ -133,6 +139,19 @@ func (f *fakeCosmos) doItem(req *http.Request) (*http.Response, error) {
 		id = doc.ID
 	}
 	cur, exists := f.items[id]
+	if req.Method == http.MethodGet {
+		f.reads++
+		if f.afterRead != nil {
+			defer f.afterRead(f.items)
+		}
+		switch {
+		case f.readStatus != 0:
+			return fakeResponse(req, f.readStatus, map[string]string{"code": "Error"})
+		case !exists:
+			return fakeResponse(req, http.StatusNotFound, map[string]string{"code": "NotFound"})
+		}
+		return fakeResponse(req, http.StatusOK, map[string]string{"id": id, "_etag": cur})
+	}
 	ifMatch := req.Header.Get("If-Match")
 	switch {
 	case req.Method != http.MethodPost && !exists:
@@ -218,6 +237,7 @@ func TestMulti(t *testing.T) {
 		assert.Contains(t, fake.items, "a")
 		assert.NotContains(t, fake.items, "c")
 		assert.Equal(t, 2, fake.batches)
+		assert.Equal(t, 1, fake.reads)
 	})
 
 	t.Run("only deletes of missing items is a no-op", func(t *testing.T) {
@@ -228,7 +248,8 @@ func TestMulti(t *testing.T) {
 		}})
 		require.NoError(t, err)
 		assert.Empty(t, fake.items)
-		assert.Equal(t, 2, fake.batches)
+		assert.Equal(t, 1, fake.batches)
+		assert.Equal(t, 1, fake.reads)
 	})
 
 	t.Run("repeated keys keep order across retries", func(t *testing.T) {
@@ -242,7 +263,93 @@ func TestMulti(t *testing.T) {
 		}})
 		require.NoError(t, err)
 		assert.Contains(t, fake.items, "a")
+		assert.Equal(t, 2, fake.batches)
+		assert.Equal(t, 0, fake.reads)
+	})
+
+	t.Run("every item exists costs one batch and no reads", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"a": "etag-1", "b": "etag-2"})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "c", Value: "v"},
+			state.DeleteRequest{Key: "a"},
+			state.DeleteRequest{Key: "b"},
+		}})
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"c": "etag-101"}, fake.items)
+		assert.Equal(t, 1, fake.batches)
+		assert.Equal(t, 0, fake.reads)
+	})
+
+	t.Run("many deletes of missing items cost one more batch", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"a": "etag-1", "b": "etag-2"})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "m1"},
+			state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("etag-1")},
+			state.DeleteRequest{Key: "m2"},
+			state.DeleteRequest{Key: "b", ETag: ptr.Of("etag-2")},
+			state.DeleteRequest{Key: "m3"},
+			state.DeleteRequest{Key: "m3"},
+			state.SetRequest{Key: "c", Value: "v"},
+		}})
+		require.NoError(t, err)
+		assert.Len(t, fake.items, 2)
+		assert.Contains(t, fake.items, "a")
+		assert.Contains(t, fake.items, "c")
+		assert.Equal(t, 2, fake.batches)
+		assert.Equal(t, 2, fake.reads, "m2 and m3 are read once, etag'd ops aren't read")
+	})
+
+	t.Run("delete after a write of the same key isn't dropped", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "m"},
+			state.SetRequest{Key: "k", Value: "v"},
+			state.DeleteRequest{Key: "k"},
+		}})
+		require.NoError(t, err)
+		assert.Empty(t, fake.items)
+		assert.Equal(t, 2, fake.batches)
+		assert.Equal(t, 0, fake.reads)
+	})
+
+	t.Run("first write delete of an existing item is still a mismatch", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"b": "etag-2"})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "m"},
+			state.DeleteRequest{Key: "b", Options: state.DeleteStateOption{Concurrency: state.FirstWrite}},
+		}})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+		assert.Equal(t, map[string]string{"b": "etag-2"}, fake.items)
+	})
+
+	t.Run("read error fails the transaction", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"b": "etag-2"})
+		fake.readStatus = http.StatusInternalServerError
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "v"},
+			state.DeleteRequest{Key: "m"},
+			state.DeleteRequest{Key: "b"},
+		}})
+		require.Error(t, err)
+		assert.Equal(t, map[string]string{"b": "etag-2"}, fake.items)
+		assert.Equal(t, 1, fake.batches)
+	})
+
+	t.Run("item deleted after the read is dropped on the next round", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"b": "etag-2"})
+		fake.afterRead = func(items map[string]string) { delete(items, "b") }
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "v"},
+			state.DeleteRequest{Key: "m"},
+			state.DeleteRequest{Key: "b"},
+		}})
+		require.NoError(t, err)
+		assert.Contains(t, fake.items, "a")
+		assert.NotContains(t, fake.items, "b")
 		assert.Equal(t, 3, fake.batches)
+		assert.Equal(t, 1, fake.reads)
 	})
 
 	t.Run("etag upsert of a missing item does not create it", func(t *testing.T) {

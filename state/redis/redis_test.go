@@ -869,3 +869,119 @@ func TestKeySlot(t *testing.T) {
 	assert.NotEqual(t, keySlot("x"), keySlot("{}x"))
 	assert.Equal(t, keySlot("bar"), keySlot("foo{bar}{zap}"))
 }
+
+func TestSingleOpETags(t *testing.T) {
+	newStore := func(t *testing.T) (*StateStore, *miniredis.Miniredis) {
+		s, c := setupMiniredis()
+		t.Cleanup(s.Close)
+		ss := &StateStore{
+			client:         c,
+			clientSettings: &rediscomponent.Settings{},
+			json:           jsoniter.ConfigFastest,
+			logger:         logger.NewLogger("test"),
+		}
+		ss.BulkStore = state.NewDefaultBulkStore(ss)
+		return ss, s
+	}
+	requireKind := func(t *testing.T, err error, kind state.ETagErrorKind) {
+		t.Helper()
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, kind, etagErr.Kind())
+	}
+	set := func(ss *StateStore, req state.SetRequest) error {
+		return ss.Set(t.Context(), &req)
+	}
+	del := func(ss *StateStore, req state.DeleteRequest) error {
+		return ss.Delete(t.Context(), &req)
+	}
+	bulkSet := func(ss *StateStore, req state.SetRequest) error {
+		return ss.BulkSet(t.Context(), []state.SetRequest{req}, state.BulkStoreOpts{})
+	}
+	bulkDel := func(ss *StateStore, req state.DeleteRequest) error {
+		return ss.BulkDelete(t.Context(), []state.DeleteRequest{req}, state.BulkStoreOpts{})
+	}
+
+	for name, setFn := range map[string]func(*StateStore, state.SetRequest) error{"set": set, "bulk set": bulkSet} {
+		t.Run(name, func(t *testing.T) {
+			t.Run("etag on a missing key mismatches", func(t *testing.T) {
+				ss, s := newStore(t)
+				requireKind(t, setFn(ss, state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("5")}), state.ETagMismatch)
+				assert.False(t, s.Exists("a"))
+			})
+			t.Run("etag 0 on an existing key mismatches", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, set(ss, state.SetRequest{Key: "a", Value: "v"}))
+				requireKind(t, setFn(ss, state.SetRequest{Key: "a", Value: "w", ETag: ptr.Of("0")}), state.ETagMismatch)
+				assert.JSONEq(t, `"v"`, s.HGet("a", "data"))
+			})
+			t.Run("etag on a hash with no version mismatches", func(t *testing.T) {
+				ss, s := newStore(t)
+				s.HSet("a", "data", `"v"`)
+				requireKind(t, setFn(ss, state.SetRequest{Key: "a", Value: "w", ETag: ptr.Of("1")}), state.ETagMismatch)
+				assert.JSONEq(t, `"v"`, s.HGet("a", "data"))
+			})
+			t.Run("invalid etag", func(t *testing.T) {
+				ss, s := newStore(t)
+				requireKind(t, setFn(ss, state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("x")}), state.ETagInvalid)
+				assert.False(t, s.Exists("a"))
+			})
+			t.Run("matching etag applies", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, set(ss, state.SetRequest{Key: "a", Value: "v"}))
+				require.NoError(t, setFn(ss, state.SetRequest{Key: "a", Value: "w", ETag: ptr.Of("1")}))
+				assert.JSONEq(t, `"w"`, s.HGet("a", "data"))
+				assert.Equal(t, "2", s.HGet("a", "version"))
+			})
+			t.Run("first-write blocks a later unguarded write", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, setFn(ss, state.SetRequest{Key: "a", Value: "v", Options: state.SetStateOption{Concurrency: state.FirstWrite}}))
+				requireKind(t, setFn(ss, state.SetRequest{Key: "a", Value: "w"}), state.ETagMismatch)
+				assert.JSONEq(t, `"v"`, s.HGet("a", "data"))
+			})
+		})
+	}
+
+	for name, delFn := range map[string]func(*StateStore, state.DeleteRequest) error{"delete": del, "bulk delete": bulkDel} {
+		t.Run(name, func(t *testing.T) {
+			t.Run("etag on a missing key mismatches", func(t *testing.T) {
+				ss, _ := newStore(t)
+				requireKind(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("5")}), state.ETagMismatch)
+			})
+			t.Run("etag 0 on an existing key mismatches", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, set(ss, state.SetRequest{Key: "a", Value: "v"}))
+				requireKind(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("0")}), state.ETagMismatch)
+				assert.True(t, s.Exists("a"))
+			})
+			t.Run("etag on a hash with no version mismatches", func(t *testing.T) {
+				ss, s := newStore(t)
+				s.HSet("a", "data", `"v"`)
+				requireKind(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("1")}), state.ETagMismatch)
+				assert.True(t, s.Exists("a"))
+			})
+			t.Run("invalid etag", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, set(ss, state.SetRequest{Key: "a", Value: "v"}))
+				requireKind(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("x")}), state.ETagInvalid)
+				assert.True(t, s.Exists("a"))
+			})
+			t.Run("matching etag deletes", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, set(ss, state.SetRequest{Key: "a", Value: "v"}))
+				require.NoError(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("1")}))
+				assert.False(t, s.Exists("a"))
+			})
+			t.Run("no etag deletes unconditionally", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, set(ss, state.SetRequest{Key: "a", Value: "v", Options: state.SetStateOption{Concurrency: state.FirstWrite}}))
+				s.HSet("b", "data", `"v"`)
+				require.NoError(t, delFn(ss, state.DeleteRequest{Key: "a"}))
+				require.NoError(t, delFn(ss, state.DeleteRequest{Key: "b"}))
+				require.NoError(t, delFn(ss, state.DeleteRequest{Key: "missing"}))
+				assert.False(t, s.Exists("a"))
+				assert.False(t, s.Exists("b"))
+			})
+		})
+	}
+}

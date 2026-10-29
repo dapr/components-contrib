@@ -173,18 +173,26 @@ func (r *StateStore) buildMultiOps(request *state.TransactionalStateRequest) ([]
 			if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && !r.clientHasJSON {
 				return nil, errJSONUnsupported
 			}
-			etag := ""
-			if req.HasETag() {
-				v, err := strconv.ParseInt(*req.ETag, 10, 64)
-				if err != nil {
-					return nil, state.NewETagError(state.ETagInvalid, err)
-				}
-				etag = strconv.FormatInt(v, 10)
+			op, err := deleteOp(&req)
+			if err != nil {
+				return nil, err
 			}
-			ops = append(ops, multiOp{key: req.Key, args: [multiArgsPerOp]any{"d", etag, "0", "", "", "0"}})
+			ops = append(ops, op)
 		}
 	}
 	return ops, nil
+}
+
+func deleteOp(req *state.DeleteRequest) (multiOp, error) {
+	etag := ""
+	if req.HasETag() {
+		v, err := strconv.ParseInt(*req.ETag, 10, 64)
+		if err != nil {
+			return multiOp{}, state.NewETagError(state.ETagInvalid, err)
+		}
+		etag = strconv.FormatInt(v, 10)
+	}
+	return multiOp{key: req.Key, args: [multiArgsPerOp]any{"d", etag, "0", "", "", "0"}}, nil
 }
 
 func (r *StateStore) setOp(req *state.SetRequest, isJSON bool) (multiOp, error) {
@@ -241,22 +249,36 @@ func (r *StateStore) execMulti(ctx context.Context, ops []multiOp) error {
 	}
 
 	for _, batch := range batches {
-		args := make([]any, 0, 3+len(batch)*(multiArgsPerOp+1))
-		args = append(args, "EVAL", multiQuery, len(batch))
-		for _, op := range batch {
-			args = append(args, op.key)
-		}
-		for _, op := range batch {
-			args = append(args, op.args[:]...)
-		}
-		if err := r.client.DoWrite(ctx, args...); err != nil {
-			if strings.HasPrefix(err.Error(), etagMismatchReply) {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
-			return fmt.Errorf("redis transaction failed: %w", err)
+		if err := r.evalOps(ctx, batch); err != nil {
+			return wrapUntyped(err, "redis transaction failed: %w")
 		}
 	}
 	return nil
+}
+
+// evalOps runs ops as one script, which checks every guard before it writes.
+func (r *StateStore) evalOps(ctx context.Context, ops []multiOp) error {
+	args := make([]any, 0, 3+len(ops)*(multiArgsPerOp+1))
+	args = append(args, "EVAL", multiQuery, len(ops))
+	for _, op := range ops {
+		args = append(args, op.key)
+	}
+	for _, op := range ops {
+		args = append(args, op.args[:]...)
+	}
+	err := r.client.DoWrite(ctx, args...)
+	if err != nil && strings.HasPrefix(err.Error(), etagMismatchReply) {
+		return state.NewETagError(state.ETagMismatch, err)
+	}
+	return err
+}
+
+func wrapUntyped(err error, format string, args ...any) error {
+	var etagErr *state.ETagError
+	if errors.As(err, &etagErr) {
+		return err
+	}
+	return fmt.Errorf(format, append(args, err)...)
 }
 
 func groupBySlot(ops []multiOp) [][]multiOp {

@@ -30,59 +30,10 @@ import (
 	daprmetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/components-contrib/state/query"
-	"github.com/dapr/components-contrib/state/utils"
 	"github.com/dapr/kit/logger"
-	"github.com/dapr/kit/ptr"
 )
 
 const (
-	setDefaultQuery = `
-	local etag = redis.pcall("HGET", KEYS[1], "version");
-	if type(etag) == "table" then
-	  redis.call("DEL", KEYS[1]);
-	end;
-	local fwr = redis.pcall("HGET", KEYS[1], "first-write");
-	if not etag or type(etag)=="table" or etag == "" or etag == ARGV[1] or (not fwr and ARGV[1] == "0") then
-	  redis.call("HSET", KEYS[1], "data", ARGV[2]);
-	  if ARGV[3] == "0" then
-	    redis.call("HSET", KEYS[1], "first-write", 0);
-	  end;
-	  return redis.call("HINCRBY", KEYS[1], "version", 1)
-	else
-	  return error("failed to set key " .. KEYS[1])
-	end`
-	delDefaultQuery = `
-	local etag = redis.pcall("HGET", KEYS[1], "version");
-	if not etag or type(etag)=="table" or etag == ARGV[1] or etag == "" or ARGV[1] == "0" then
-	  return redis.call("DEL", KEYS[1])
-	else
-	  return error("failed to delete " .. KEYS[1])
-	end`
-	setJSONQuery = `
-	local etag = redis.pcall("JSON.GET", KEYS[1], ".version");
-	if type(etag) == "table" then
-	  redis.call("JSON.DEL", KEYS[1]);
-	end;
-	if not etag or type(etag)=="table" or etag == "" then
-	  etag = ARGV[1];
-	end;
-	local fwr = redis.pcall("JSON.GET", KEYS[1], ".first-write");
-	if etag == ARGV[1] or ((not fwr or type(fwr) == "table") and ARGV[1] == "0") then
-	  redis.call("JSON.SET", KEYS[1], "$", ARGV[2]);
-	  if ARGV[3] == "0" then
-	    redis.call("JSON.SET", KEYS[1], ".first-write", 0);
-	  end;
-	  return redis.call("JSON.SET", KEYS[1], ".version", (etag+1))
-	else
-	  return error("failed to set key " .. KEYS[1])
-	end`
-	delJSONQuery = `
-	local etag = redis.pcall("JSON.GET", KEYS[1], ".version");
-	if not etag or type(etag)=="table" or etag == ARGV[1] or etag == "" or ARGV[1] == "0" then
-	  return redis.call("JSON.DEL", KEYS[1])
-	else
-	  return error("failed to delete " .. KEYS[1])
-	end`
 	connectedSlavesReplicas  = "connected_slaves:"
 	infoReplicationDelimiter = "\r\n"
 	ttlInSeconds             = "ttlInSeconds"
@@ -204,17 +155,12 @@ func (r *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 		return err
 	}
 
-	if !req.HasETag() {
-		req.ETag = ptr.Of("0")
-	}
-
-	if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON {
-		err = r.client.DoWrite(ctx, "EVAL", delJSONQuery, 1, req.Key, *req.ETag)
-	} else {
-		err = r.client.DoWrite(ctx, "EVAL", delDefaultQuery, 1, req.Key, *req.ETag)
-	}
+	op, err := deleteOp(req)
 	if err != nil {
-		return state.NewETagError(state.ETagMismatch, err)
+		return err
+	}
+	if err = r.evalOps(ctx, []multiOp{op}); err != nil {
+		return wrapUntyped(err, "failed to delete key %s: %w", req.Key)
 	}
 
 	return nil
@@ -336,52 +282,13 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	if err != nil {
 		return err
 	}
-	ver, err := r.parseETag(req)
+	isJSON := req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON
+	op, err := r.setOp(req, isJSON)
 	if err != nil {
 		return err
 	}
-	ttl, err := r.parseTTL(req)
-	if err != nil {
-		return fmt.Errorf("failed to parse ttl from metadata: %w", err)
-	}
-	// apply global TTL
-	if ttl == nil {
-		ttl = r.clientSettings.TTLInSeconds
-	}
-
-	firstWrite := 1
-	if req.Options.Concurrency == state.FirstWrite {
-		firstWrite = 0
-	}
-
-	if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && r.clientHasJSON {
-		bt, _ := utils.Marshal(&jsonEntry{Data: req.Value}, r.json.Marshal)
-		err = r.client.DoWrite(ctx, "EVAL", setJSONQuery, 1, req.Key, ver, bt, firstWrite)
-	} else {
-		bt, _ := utils.Marshal(req.Value, r.json.Marshal)
-		err = r.client.DoWrite(ctx, "EVAL", setDefaultQuery, 1, req.Key, ver, bt, firstWrite)
-	}
-
-	if err != nil {
-		if req.HasETag() {
-			return state.NewETagError(state.ETagMismatch, err)
-		}
-
-		return fmt.Errorf("failed to set key %s: %w", req.Key, err)
-	}
-
-	if ttl != nil && *ttl > 0 {
-		err = r.client.DoWrite(ctx, "EXPIRE", req.Key, *ttl)
-		if err != nil {
-			return fmt.Errorf("failed to set key %s ttl: %w", req.Key, err)
-		}
-	}
-
-	if ttl != nil && *ttl <= 0 {
-		err = r.client.DoWrite(ctx, "PERSIST", req.Key)
-		if err != nil {
-			return fmt.Errorf("failed to persist key %s: %w", req.Key, err)
-		}
+	if err = r.evalOps(ctx, []multiOp{op}); err != nil {
+		return wrapUntyped(err, "failed to set key %s: %w", req.Key)
 	}
 
 	if req.Options.Consistency == state.Strong && r.replicas > 0 {

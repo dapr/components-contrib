@@ -6,3 +6,5 @@ spec:
   features:
     - name: PubSub.Routing
       enabled: true
+    - name: Pubsub.DeadLetterErrorDetails
+      enabled: true

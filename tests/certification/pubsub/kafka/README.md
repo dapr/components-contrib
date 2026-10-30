@@ -75,6 +75,11 @@ These scenarios exercise the component API directly against the cluster (no side
     * Every attempt publishes an output into the batch transaction; a per-entry failure aborts the whole batch, outputs included, and the batch is redelivered
     * Offsets and outputs commit only after the entire batch succeeds
 
+### Skipped tests
+
+* `TestKafkaExhaustedRetriesCommitOffset` — needs a daprd that returns `pubsub.ErrRetriesExhausted` (see components-contrib#4362). Re-enable after bumping `github.com/dapr/dapr` in `tests/certification/go.mod`.
+* `TestKafkaDlqErrorDetails` — needs daprd with the `Pubsub.DeadLetterErrorDetails` preview feature (dapr/dapr#11003 / #8519). Asserts that an app `DROP` response `message` is attached on the dead-letter publish through Kafka for both paths: CloudEvent `errordetails` extension, and rawPayload `__error` metadata (Kafka header → HTTP header). Re-enable after bumping `github.com/dapr/dapr` in `tests/certification/go.mod`. For a local check against a sibling checkout, temporarily add `replace github.com/dapr/dapr => ../../../dapr` to `tests/certification/go.mod` (do not commit the replace) and remove the `t.Skip` in the test.
+
 ## Running locally
 * Navigate to the `tests/certification/pubsub/kafka` folder
 * Run command:

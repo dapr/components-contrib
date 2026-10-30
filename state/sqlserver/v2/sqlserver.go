@@ -21,9 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	mssql "github.com/microsoft/go-mssqldb"
 
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	sqltransactions "github.com/dapr/components-contrib/common/component/sql/transactions"
@@ -214,6 +217,23 @@ func (s *SQLServer) execMultiOperation(ctx context.Context, op state.Transaction
 	default:
 		return fmt.Errorf("unsupported operation: %s", op.Operation())
 	}
+}
+
+func (s *SQLServer) tableFullName() string {
+	return fmt.Sprintf("[%s].[%s]", s.metadata.SchemaName, s.metadata.TableName)
+}
+
+const expireDateValue = "CASE WHEN @TTL IS NULL THEN NULL ELSE DATEADD(SECOND, CAST(@TTL AS INT), GETDATE()) END"
+
+// A concurrent first-write can insert the key between the NOT EXISTS check and the INSERT.
+func isFirstWriteConflict(err error) bool {
+	var mErr mssql.Error
+	if !errors.As(err, &mErr) {
+		return false
+	}
+	return slices.ContainsFunc(append([]mssql.Error{mErr}, mErr.All...), func(e mssql.Error) bool {
+		return e.Number == 2627 || e.Number == 2601
+	})
 }
 
 // Delete removes an entity from the store.
@@ -563,7 +583,7 @@ type dbExecutor interface {
 func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.SetRequest) error {
 	bytes, isBinary := req.Value.([]byte)
 	namedData := sql.Named("Data", nil)
-	namedBinaryData := sql.Named("BinaryData", nil)
+	namedBinaryData := sql.Named("BinaryData", []byte(nil))
 	if !isBinary {
 		bt, err := json.Marshal(req.Value)
 		if err != nil {
@@ -588,26 +608,40 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 		return fmt.Errorf("error parsing TTL: %w", ttlerr)
 	}
 
+	key := sql.Named(keyColumnName, req.Key)
+	namedIsBinary := sql.Named("isBinary", isBinary)
+	ttlParam := sql.Named("TTL", ttl)
+
 	var res sql.Result
 	var err error
-	if req.Options.Concurrency == state.FirstWrite {
+	switch {
+	case req.HasETag():
+		res, err = db.ExecContext(ctx, `UPDATE `+s.tableFullName()+`
+			SET [Data]=@Data, [isBinary]=@isBinary, [BinaryData]=@BinaryData, [UpdateDate]=GETDATE(), [ExpireDate]=`+expireDateValue+`
+			WHERE [Key]=@Key AND [RowVersion]=@RowVersion
+				AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())`,
+			key, namedData, namedBinaryData, namedIsBinary, etag, ttlParam)
+	case req.Options.Concurrency == state.FirstWrite:
+		// NOCOUNT keeps the expired row's delete out of RowsAffected.
+		res, err = db.ExecContext(ctx, `SET NOCOUNT ON
+			DELETE FROM `+s.tableFullName()+` WHERE [Key]=@Key AND [ExpireDate] <= GETDATE()
+			SET NOCOUNT OFF
+			INSERT INTO `+s.tableFullName()+` ([Key], [Data], [BinaryData], [isBinary], [ExpireDate])
+			SELECT @Key, @Data, @BinaryData, @isBinary, `+expireDateValue+`
+			WHERE NOT EXISTS (SELECT 1 FROM `+s.tableFullName()+` WHERE [Key]=@Key)`,
+			key, namedData, namedBinaryData, namedIsBinary, ttlParam)
+		if isFirstWriteConflict(err) {
+			return state.NewETagError(state.ETagMismatch, err)
+		}
+	default:
 		res, err = db.ExecContext(ctx, s.upsertCommand,
-			sql.Named(keyColumnName, req.Key),
+			key,
 			namedData,
 			etag,
 			namedBinaryData,
-			sql.Named("isBinary", isBinary),
-			sql.Named("FirstWrite", 1),
-			sql.Named("TTL", ttl))
-	} else {
-		res, err = db.ExecContext(ctx, s.upsertCommand,
-			sql.Named(keyColumnName, req.Key),
-			namedData,
-			etag,
-			namedBinaryData,
-			sql.Named("isBinary", isBinary),
+			namedIsBinary,
 			sql.Named("FirstWrite", 0),
-			sql.Named("TTL", ttl))
+			ttlParam)
 	}
 
 	if err != nil {
@@ -620,7 +654,7 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	if rows != 1 {
-		if req.HasETag() {
+		if req.HasETag() || req.Options.Concurrency == state.FirstWrite {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return errors.New("no item was updated")

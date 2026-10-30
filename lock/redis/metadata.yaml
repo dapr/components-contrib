@@ -55,6 +55,17 @@ authenticationProfiles:
         sensitive: true
         description: "The Redis client key"
         example: '"-----BEGIN PRIVATE KEY-----\nXXX..."'
+      - name: caCert
+        required: false
+        description: |
+          PEM-encoded CA certificate(s) used to verify the Redis server's TLS certificate, in addition to the
+          system roots. Use it when Redis serves a certificate issued by a private CA. Requires "enableTLS".
+          Can be secretKeyRef to use a secret reference.
+        example: |
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
+        type: string
   - title: "OIDC private_key_jwt"
     description: |
       Authenticate using OpenID Connect with the private_key_jwt client authentication

@@ -14,13 +14,24 @@ limitations under the License.
 package ftp
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
+	"maps"
+	"math/big"
+	"net"
 	"net/textproto"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/bindings"
+	"github.com/dapr/kit/logger"
 )
 
 // fakeConn records calls and serves canned data.
@@ -162,6 +174,7 @@ func TestTLSConfig(t *testing.T) {
 	assert.True(t, cfg.InsecureSkipVerify)
 	assert.Nil(t, cfg.RootCAs)
 	assert.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
+	assert.NotNil(t, cfg.ClientSessionCache, "data connections must resume the control connection's TLS session")
 }
 
 func TestGetPath(t *testing.T) {
@@ -181,6 +194,25 @@ func TestGetPath(t *testing.T) {
 		_, err := ftpMetadata{}.getPath(map[string]string{})
 		require.Error(t, err)
 	})
+}
+
+func TestJoinUnderRoot(t *testing.T) {
+	ok := map[string]string{
+		"sub/a.txt": "/root/sub/a.txt",
+		"a/../b":    "/root/b",
+		"/abs.txt":  "/root/abs.txt",
+		"./c":       "/root/c",
+	}
+	for name, want := range ok {
+		p, err := joinUnderRoot("/root", name)
+		require.NoError(t, err, name)
+		assert.Equal(t, want, p)
+	}
+
+	for _, name := range []string{"..", "../x", "a/../../x", "sub/../../x", "a\r\nDELE /etc/passwd"} {
+		_, err := joinUnderRoot("/root", name)
+		require.Error(t, err, name)
+	}
 }
 
 func TestMergeWithRequestMetadata(t *testing.T) {
@@ -351,6 +383,25 @@ func TestInvoke(t *testing.T) {
 		assert.Equal(t, 0, fc.quits)
 	})
 
+	t.Run("names outside rootPath are rejected", func(t *testing.T) {
+		fc := &fakeConn{}
+		f := newTestBinding(fc)
+
+		_, err := f.Invoke(t.Context(), &bindings.InvokeRequest{
+			Operation: bindings.GetOperation,
+			Metadata:  map[string]string{"fileName": "../secret.txt"},
+		})
+		require.ErrorContains(t, err, "escapes rootPath")
+
+		_, err = f.Invoke(t.Context(), &bindings.InvokeRequest{
+			Operation: renameOperation,
+			Metadata:  map[string]string{"fileName": "old.txt", "newFileName": "../../new.txt"},
+		})
+		require.ErrorContains(t, err, "escapes rootPath")
+
+		assert.Equal(t, 0, fc.quits)
+	})
+
 	t.Run("request rootPath overrides component rootPath", func(t *testing.T) {
 		fc := &fakeConn{}
 		f := newTestBinding(fc)
@@ -383,5 +434,133 @@ func TestInvoke(t *testing.T) {
 		_, err := f.Invoke(t.Context(), &bindings.InvokeRequest{Operation: bindings.ListOperation})
 
 		require.ErrorContains(t, err, "connection refused")
+	})
+}
+
+// serveFakeFTP answers the commands the client sends while connecting and logging in.
+// A silent server accepts connections but never replies.
+func serveFakeFTP(t *testing.T, l net.Listener, silent bool) {
+	t.Cleanup(func() { l.Close() })
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				if silent {
+					_, _ = io.Copy(io.Discard, c)
+					return
+				}
+				fmt.Fprint(c, "220 fake ftp\r\n")
+				r := bufio.NewReader(c)
+				for {
+					line, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					cmd, arg, _ := strings.Cut(strings.TrimSpace(line), " ")
+					switch cmd {
+					case "USER":
+						fmt.Fprint(c, "331 need password\r\n")
+					case "PASS":
+						if arg == "pass" {
+							fmt.Fprint(c, "230 logged in\r\n")
+						} else {
+							fmt.Fprint(c, "530 login incorrect\r\n")
+						}
+					case "FEAT":
+						fmt.Fprint(c, "211 End\r\n")
+					case "TYPE", "PBSZ", "PROT":
+						fmt.Fprint(c, "200 ok\r\n")
+					case "QUIT":
+						fmt.Fprint(c, "221 bye\r\n")
+						return
+					default:
+						fmt.Fprint(c, "502 not implemented\r\n")
+					}
+				}
+			}()
+		}
+	}()
+}
+
+// selfSignedCert returns a certificate for 127.0.0.1 and its PEM, usable as caCert.
+func selfSignedCert(t *testing.T) (tls.Certificate, string) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	require.NoError(t, err)
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
+
+	return cert, string(certPEM)
+}
+
+func TestConnectImplicitTLS(t *testing.T) {
+	cert, caPEM := selfSignedCert(t)
+	l, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12})
+	require.NoError(t, err)
+	serveFakeFTP(t, l, false)
+
+	props := func(overrides map[string]string) bindings.Metadata {
+		p := map[string]string{
+			"address": l.Addr().String(), "username": "foo", "password": "pass",
+			"rootPath": "/", "tlsMode": "implicit", "caCert": caPEM,
+		}
+		maps.Copy(p, overrides)
+		return newMetadata(p)
+	}
+
+	t.Run("handshake with trusted caCert", func(t *testing.T) {
+		require.NoError(t, (&Ftp{logger: logger.NewLogger("test")}).Init(t.Context(), props(nil)))
+	})
+
+	t.Run("untrusted certificate is rejected", func(t *testing.T) {
+		err := (&Ftp{}).Init(t.Context(), props(map[string]string{"caCert": ""}))
+		require.ErrorContains(t, err, "certificate")
+	})
+
+	t.Run("wrong password", func(t *testing.T) {
+		err := (&Ftp{}).Init(t.Context(), props(map[string]string{"password": "nope"}))
+		require.ErrorContains(t, err, "530")
+	})
+}
+
+func TestConnectStalledServer(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	serveFakeFTP(t, l, true)
+	props := map[string]string{"address": l.Addr().String(), "username": "foo", "password": "pass", "rootPath": "/"}
+
+	t.Run("idle timeout", func(t *testing.T) {
+		props["timeout"] = "200ms"
+		start := time.Now()
+		err := (&Ftp{}).Init(t.Context(), newMetadata(props))
+		require.ErrorContains(t, err, "i/o timeout")
+		assert.Less(t, time.Since(start), 5*time.Second)
+	})
+
+	t.Run("cancellation closes the connection", func(t *testing.T) {
+		props["timeout"] = "30s"
+		ctx, cancel := context.WithCancel(t.Context())
+		time.AfterFunc(100*time.Millisecond, cancel)
+		start := time.Now()
+		err := (&Ftp{}).Init(ctx, newMetadata(props))
+		require.Error(t, err)
+		assert.Less(t, time.Since(start), 5*time.Second)
 	})
 }

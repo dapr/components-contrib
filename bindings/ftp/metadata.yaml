@@ -47,7 +47,7 @@ metadata:
     example: "/home/ftpuser"
   - name: fileName
     required: false
-    description: "The file name, relative to rootPath (can be overridden in request metadata)"
+    description: "The file name, relative to rootPath. Request metadata only: a value set on the component is ignored. Names that resolve outside rootPath are rejected"
     example: "data.txt"
   - name: newFileName
     required: false
@@ -75,6 +75,6 @@ metadata:
   - name: timeout
     required: false
     type: duration
-    description: "Timeout for connecting to the server"
+    description: "Timeout for connecting to the server and for each read or write on the control and data connections"
     example: '"30s"'
     default: '"30s"'

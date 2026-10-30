@@ -37,7 +37,8 @@ func TestIntegrationCases(t *testing.T) {
 	cleanUp := setupFtp(t)
 	defer cleanUp()
 
-	// The compose file runs pure-ftpd, which has no implicit FTPS mode; that mode is covered by unit tests only.
+	// The compose file runs pure-ftpd, which has no implicit FTPS mode; that mode is covered by
+	// TestConnectImplicitTLS in ftp_test.go against an in-process TLS server.
 	for _, tlsMode := range []string{"none", "explicit"} {
 		t.Run("File lifecycle tlsMode="+tlsMode, func(t *testing.T) {
 			testFileLifecycle(t, tlsMode)

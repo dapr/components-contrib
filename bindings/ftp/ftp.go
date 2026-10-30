@@ -26,6 +26,8 @@ import (
 	"net/textproto"
 	"path"
 	"reflect"
+	"strings"
+	"sync"
 	"time"
 
 	ftpclient "github.com/jlaffaye/ftp"
@@ -95,10 +97,81 @@ type conn interface {
 
 type serverConn struct {
 	*ftpclient.ServerConn
+	// cancel stops the session watchdog started by connect.
+	cancel context.CancelFunc
 }
 
 func (c serverConn) Retr(p string) (io.ReadCloser, error) {
 	return c.ServerConn.Retr(p)
+}
+
+func (c serverConn) Quit() error {
+	err := c.ServerConn.Quit()
+	c.cancel()
+	return err
+}
+
+// session dials every connection of one FTP session so that a stalled server or a
+// cancelled request cannot hang an invocation: each read and write gets an idle
+// deadline, and closeAll aborts every connection when the context is done.
+type session struct {
+	ctx         context.Context
+	timeout     time.Duration
+	tlsConfig   *tls.Config // nil for plain FTP
+	implicitTLS bool
+
+	mu    sync.Mutex
+	conns []net.Conn
+}
+
+func (s *session) dial(network, address string) (net.Conn, error) {
+	d := net.Dialer{Timeout: s.timeout}
+	raw, err := d.DialContext(s.ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// The client dials the control connection first and, with explicit TLS, upgrades it
+	// itself after AUTH TLS; every other connection must speak TLS from the start.
+	control := len(s.conns) == 0
+	s.conns = append(s.conns, raw)
+
+	c := net.Conn(idleConn{Conn: raw, timeout: s.timeout})
+	if s.tlsConfig != nil && (s.implicitTLS || !control) {
+		c = tls.Client(c, s.tlsConfig)
+	}
+
+	return c, nil
+}
+
+func (s *session) closeAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, c := range s.conns {
+		_ = c.Close()
+	}
+}
+
+// idleConn fails any read or write that makes no progress for timeout.
+type idleConn struct {
+	net.Conn
+	timeout time.Duration
+}
+
+func (c idleConn) Read(b []byte) (int, error) {
+	if err := c.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Read(b)
+}
+
+func (c idleConn) Write(b []byte) (int, error) {
+	if err := c.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Write(b)
 }
 
 // NewFtp returns a new ftp output binding.
@@ -168,6 +241,9 @@ func (f *Ftp) tlsConfig() *tls.Config {
 		RootCAs:            f.rootCAs,
 		InsecureSkipVerify: f.metadata.InsecureSkipVerify, //nolint:gosec
 		MinVersion:         tls.VersionTLS12,
+		// FileZilla Server, vsftpd and ProFTPD reject data connections that do not resume
+		// the control connection's TLS session; the cache is what makes Go resume it.
+		ClientSessionCache: tls.NewLRUClientSessionCache(1),
 	}
 }
 
@@ -175,29 +251,38 @@ func (f *Ftp) tlsConfig() *tls.Config {
 // ponytail: connect-per-op; add a persistent conn or pool if login overhead or server connection limits (421) bite.
 func (f *Ftp) connect(ctx context.Context) (conn, error) {
 	m := f.metadata
-	opts := []ftpclient.DialOption{
-		ftpclient.DialWithContext(ctx),
-		ftpclient.DialWithTimeout(m.Timeout),
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	s := &session{ctx: ctx, timeout: m.Timeout}
+	opts := []ftpclient.DialOption{ftpclient.DialWithDialFunc(s.dial)}
 	switch m.TLSMode {
 	case tlsModeExplicit:
-		opts = append(opts, ftpclient.DialWithExplicitTLS(f.tlsConfig()))
+		s.tlsConfig = f.tlsConfig()
+		opts = append(opts, ftpclient.DialWithExplicitTLS(s.tlsConfig))
 	case tlsModeImplicit:
-		opts = append(opts, ftpclient.DialWithTLS(f.tlsConfig()))
+		s.tlsConfig = f.tlsConfig()
+		s.implicitTLS = true
+		opts = append(opts, ftpclient.DialWithTLS(s.tlsConfig))
 	}
+	// Ends on cancellation or when the session is closed through Quit.
+	go func() {
+		<-ctx.Done()
+		s.closeAll()
+	}()
 
 	c, err := ftpclient.Dial(m.Address, opts...)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("error dialing ftp server %s: %w", m.Address, err)
 	}
 
 	err = c.Login(m.Username, m.Password)
 	if err != nil {
 		_ = c.Quit()
+		cancel()
 		return nil, fmt.Errorf("error logging in to ftp server %s: %w", m.Address, err)
 	}
 
-	return serverConn{c}, nil
+	return serverConn{ServerConn: c, cancel: cancel}, nil
 }
 
 // withConn runs fn on a fresh session and always closes it.
@@ -367,9 +452,16 @@ func (f *Ftp) rename(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if !ok || to == "" {
 		return nil, errors.New("ftp binding error: required metadata newFileName missing")
 	}
-	from, to = path.Join(m.RootPath, from), path.Join(m.RootPath, to)
+	from, err := joinUnderRoot(m.RootPath, from)
+	if err != nil {
+		return nil, fmt.Errorf("ftp binding error: %w", err)
+	}
+	to, err = joinUnderRoot(m.RootPath, to)
+	if err != nil {
+		return nil, fmt.Errorf("ftp binding error: %w", err)
+	}
 
-	err := f.withConn(ctx, func(c conn) error {
+	err = f.withConn(ctx, func(c conn) error {
 		return c.Rename(from, to)
 	})
 	if err != nil {
@@ -415,13 +507,28 @@ func isDirExistsReply(err error) bool {
 }
 
 func (m ftpMetadata) getPath(requestMetadata map[string]string) (string, error) {
-	p := m.RootPath
 	if val, ok := kitmd.GetMetadataProperty(requestMetadata, metadataFileName); ok && val != "" {
-		p = path.Join(m.RootPath, val)
+		return joinUnderRoot(m.RootPath, val)
 	}
 
-	if p == "" {
+	if m.RootPath == "" {
 		return "", errors.New("required metadata rootPath or fileName missing")
+	}
+
+	return m.RootPath, nil
+}
+
+// joinUnderRoot joins name to root, rejecting names that would escape root or that
+// carry CR/LF (FTP command injection; the client rejects those too, this is defense in depth).
+func joinUnderRoot(root, name string) (string, error) {
+	// After Clean every ".." left in a relative path is leading, so this catches any escape.
+	if c := path.Clean(name); c == ".." || strings.HasPrefix(c, "../") {
+		return "", fmt.Errorf("file name %q escapes rootPath", name)
+	}
+
+	p := path.Join(root, name)
+	if strings.ContainsAny(p, "\r\n") {
+		return "", fmt.Errorf("invalid path %q: contains CR or LF", p)
 	}
 
 	return p, nil

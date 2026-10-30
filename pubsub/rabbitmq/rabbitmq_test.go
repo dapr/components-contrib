@@ -478,10 +478,12 @@ func TestSubscribeReconnect(t *testing.T) {
 	assert.Equal(t, int32(4), broker.closeCount.Load())   // two counts for each connection closure - one for connection, one for channel
 }
 
-// mockAcknowledger tracks Ack/Nack calls on an amqp.Delivery for unit tests.
+// mockAcknowledger tracks Ack/Nack/Reject calls on an amqp.Delivery for unit tests.
 type mockAcknowledger struct {
-	nackCalled atomic.Bool
-	ackCalled  atomic.Bool
+	nackCalled   atomic.Bool
+	ackCalled    atomic.Bool
+	rejectCalled atomic.Bool
+	requeue      atomic.Bool
 }
 
 func (m *mockAcknowledger) Ack(_ uint64, _ bool) error {
@@ -489,12 +491,15 @@ func (m *mockAcknowledger) Ack(_ uint64, _ bool) error {
 	return nil
 }
 
-func (m *mockAcknowledger) Nack(_ uint64, _ bool, _ bool) error {
+func (m *mockAcknowledger) Nack(_ uint64, _ bool, requeue bool) error {
 	m.nackCalled.Store(true)
+	m.requeue.Store(requeue)
 	return nil
 }
 
-func (m *mockAcknowledger) Reject(_ uint64, _ bool) error {
+func (m *mockAcknowledger) Reject(_ uint64, requeue bool) error {
+	m.rejectCalled.Store(true)
+	m.requeue.Store(requeue)
 	return nil
 }
 
@@ -555,6 +560,45 @@ func TestHandleMessageSkipsNACKOnContextCanceled(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, ack.ackCalled.Load(), "ACK must be called on success")
 		assert.False(t, ack.nackCalled.Load(), "NACK must not be called on success")
+	})
+}
+
+// TestHandleMessageRequeueInFailureUsesReject verifies that a failed delivery is requeued with basic.reject
+// rather than basic.nack. Since RabbitMQ 4.3, only basic.reject increments a quorum queue's delivery-count,
+// so with basic.nack the delivery-limit never applies and a poison message is redelivered forever.
+func TestHandleMessageRequeueInFailureUsesReject(t *testing.T) {
+	handler := func(_ context.Context, _ *pubsub.NewMessage) error {
+		return errors.New("processing error")
+	}
+
+	t.Run("requeueInFailure=true: Reject with requeue, no Nack", func(t *testing.T) {
+		r := &rabbitMQ{
+			logger:   logger.NewLogger("test"),
+			metadata: &rabbitmqMetadata{RequeueInFailure: true},
+		}
+		ack := &mockAcknowledger{}
+		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
+
+		_ = r.handleMessage(context.Background(), d, "topic", handler)
+		assert.True(t, ack.rejectCalled.Load(), "Reject must be called so RabbitMQ counts the failed delivery")
+		assert.True(t, ack.requeue.Load(), "the message must be requeued")
+		assert.False(t, ack.nackCalled.Load())
+		assert.False(t, ack.ackCalled.Load())
+	})
+
+	t.Run("requeueInFailure=false: Nack without requeue, no Reject", func(t *testing.T) {
+		r := &rabbitMQ{
+			logger:   logger.NewLogger("test"),
+			metadata: &rabbitmqMetadata{RequeueInFailure: false},
+		}
+		ack := &mockAcknowledger{}
+		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
+
+		_ = r.handleMessage(context.Background(), d, "topic", handler)
+		assert.True(t, ack.nackCalled.Load())
+		assert.False(t, ack.requeue.Load(), "the message must not be requeued")
+		assert.False(t, ack.rejectCalled.Load())
+		assert.False(t, ack.ackCalled.Load())
 	})
 }
 

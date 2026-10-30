@@ -16,6 +16,7 @@ package sqlitemigrations
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"time"
 
@@ -57,12 +58,15 @@ func (m *Migrations) Perform(ctx context.Context, migrationFns []commonsql.Migra
 		if success {
 			return
 		}
-		queryCtx, cancel = context.WithTimeout(ctx, time.Minute)
-		_, rollbackErr := m.conn.ExecContext(queryCtx, "ROLLBACK TRANSACTION")
-		cancel()
+		// Detach from ctx: on shutdown it is already cancelled, and the transaction must still be rolled back
+		rollbackCtx, rollbackCancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+		_, rollbackErr := m.conn.ExecContext(rollbackCtx, "ROLLBACK TRANSACTION")
+		rollbackCancel()
 		if rollbackErr != nil {
-			// Panicking here, as this forcibly closes the session and thus ensures we are not leaving transactions open
-			m.Logger.Fatalf("Failed to rollback transaction: %v", rollbackErr)
+			m.Logger.Errorf("Failed to roll back migration transaction: %v", rollbackErr)
+			// The transaction may still be open on this connection. Returning ErrBadConn from Raw makes database/sql
+			// close the connection instead of returning it to the pool; the error Raw returns is that same ErrBadConn.
+			_ = m.conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
 	}()
 

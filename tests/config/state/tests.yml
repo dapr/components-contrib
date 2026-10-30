@@ -135,3 +135,5 @@ components:
     operations: []
   - component: ravendb
     operations: [ "first-write", "etag", "ttl", "transaction" ]
+  - component: aws-floci.dynamodb
+    operations: [ "transaction", "etag", "first-write", "ttl" ]

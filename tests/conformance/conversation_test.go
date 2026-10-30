@@ -26,6 +26,7 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/anthropic"
 	"github.com/dapr/components-contrib/conversation/aws/bedrock"
+	"github.com/dapr/components-contrib/conversation/deepseek"
 	"github.com/dapr/components-contrib/conversation/echo"
 	"github.com/dapr/components-contrib/conversation/googleai"
 	"github.com/dapr/components-contrib/conversation/huggingface"
@@ -114,6 +115,11 @@ func shouldSkipComponent(t *testing.T, componentName string) bool {
 			t.Skipf("Skipping AWS Bedrock conformance test: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables not set")
 			return true
 		}
+	case "deepseek":
+		if os.Getenv("DEEPSEEK_API_KEY") == "" {
+			t.Skipf("Skipping DeepSeek conformance test: DEEPSEEK_API_KEY environment variable not set")
+			return true
+		}
 	}
 	return false
 }
@@ -137,8 +143,7 @@ func loadConversationComponent(name string) conversation.Conversation {
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
 	case "deepseek":
-		testLogger.Infof("TODO add deepseek conformance tests")
-		return nil
+		return deepseek.NewDeepseek(testLogger)
 	default:
 		return nil
 	}

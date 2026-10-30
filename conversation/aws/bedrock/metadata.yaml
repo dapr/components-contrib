@@ -4,7 +4,7 @@ type: conversation
 name: aws.bedrock
 version: v1
 status: alpha
-title: "AWS Bedrock"
+title: "Amazon Bedrock"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-conversation/aws-bedrock/
@@ -34,3 +34,12 @@ metadata:
       The component also supports the legacy key `cacheTTL` via mapstructure aliases.
     type: string
     example: '10m'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level maxTokens value greater than zero overrides this default.
+      When unset, no cap is sent and the provider's own default applies.
+    type: number
+    example: "2048"
+    default: ''

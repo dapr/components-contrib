@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"math"
 	"testing"
 	"time"
 
@@ -156,70 +157,59 @@ func TestGetInitMetadata(t *testing.T) {
 var binStrict []byte
 
 func TestNewModuleConfig(t *testing.T) {
-	type testCase struct {
-		name                     string
-		metadata                 *InitMetadata
-		minDuration, maxDuration time.Duration
-	}
-
-	tests := []testCase{
-		{
-			name:     "strictSandbox = false",
-			metadata: &InitMetadata{Guest: binStrict},
-			// In CI, Nanosleep(50ms) returned after 197ms.
-			// As we can't control the platform clock, we have to be lenient
-			minDuration: 50 * time.Millisecond,
-			maxDuration: 50 * time.Millisecond * 5,
-		},
-		{
-			name:     "strictSandbox = true",
-			metadata: &InitMetadata{StrictSandbox: true, Guest: binStrict},
-			// In strict mode, nanosleep is implemented by an incrementing
-			// number. The resolution of the real clock timing the wasm
-			// invocation is lower resolution in Windows, so we can't verify a
-			// lower bound. In any case, the important part is that we aren't
-			// actually sleeping 50ms, which is what wasm thinks is happening.
-			minDuration: 0,
-			maxDuration: 10 * time.Millisecond,
-		},
-	}
+	// The guest (testdata/strict/main.go) reads the clock, sleeps 50ms, and prints random bytes.
+	const guestSleep = 50 * time.Millisecond
+	// In strict mode the clock and random source are fake, so the output is always the same.
+	const deterministicOut = `2000000
+1000000
+3e0a4fc818
+`
+	// Strict mode is checked over several runs, because only the fastest one is compared to guestSleep.
+	const strictRuns = 5
 
 	ctx := t.Context()
 	rt := wazero.NewRuntime(ctx)
 	defer rt.Close(ctx)
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 
-	for _, tt := range tests {
-		tc := tt
-		t.Run(tc.name, func(t *testing.T) {
-			var out bytes.Buffer
+	// run starts the guest once and returns its output and how long it ran on the host clock.
+	run := func(t *testing.T, m *InitMetadata) (string, time.Duration) {
+		t.Helper()
+		var out bytes.Buffer
+		cfg := NewModuleConfig(m).
+			WithStdout(&out).WithStderr(&out).
+			WithStartFunctions() // don't include instantiation in duration
+		mod, err := rt.InstantiateWithConfig(ctx, m.Guest, cfg)
+		require.NoError(t, err)
+		defer mod.Close(ctx)
 
-			cfg := NewModuleConfig(tc.metadata).
-				WithStdout(&out).WithStderr(&out).
-				WithStartFunctions() // don't include instantiation in duration
-			mod, err := rt.InstantiateWithConfig(ctx, tc.metadata.Guest, cfg)
-			require.NoError(t, err)
-			defer mod.Close(ctx)
-
-			start := time.Now()
-			_, err = mod.ExportedFunction("_start").Call(ctx)
-			// Context: https://github.com/tetratelabs/wazero/pull/2367
-			require.NoError(t, err)
-			duration := time.Since(start)
-
-			// TODO: TinyGo doesn't seem to use monotonic time. Track below:
-			// https://github.com/tinygo-org/tinygo/issues/3776
-			deterministicOut := `2000000
-1000000
-3e0a4fc818
-`
-			if tc.metadata.StrictSandbox {
-				require.Equal(t, deterministicOut, out.String())
-			} else {
-				require.NotEqual(t, deterministicOut, out.String())
-			}
-			require.GreaterOrEqual(t, duration, tc.minDuration)
-			require.LessOrEqual(t, duration, tc.maxDuration)
-		})
+		start := time.Now()
+		_, err = mod.ExportedFunction("_start").Call(ctx)
+		// Context: https://github.com/tetratelabs/wazero/pull/2367
+		require.NoError(t, err)
+		return out.String(), time.Since(start)
 	}
+
+	t.Run("strictSandbox = false", func(t *testing.T) {
+		out, duration := run(t, &InitMetadata{Guest: binStrict})
+
+		// TODO: TinyGo doesn't seem to use monotonic time. Track below:
+		// https://github.com/tinygo-org/tinygo/issues/3776
+		require.NotEqual(t, deterministicOut, out)
+		// A real sleep never returns early. There is no upper bound: how late it returns depends on the host.
+		require.GreaterOrEqual(t, duration, guestSleep)
+	})
+
+	t.Run("strictSandbox = true", func(t *testing.T) {
+		fastest := time.Duration(math.MaxInt64)
+		for range strictRuns {
+			out, duration := run(t, &InitMetadata{StrictSandbox: true, Guest: binStrict})
+			require.Equal(t, deterministicOut, out)
+			fastest = min(fastest, duration)
+		}
+		// Nanosleep returns immediately, so the guest must not really sleep. A real sleep takes at least guestSleep
+		// on every run, while a slow host would have to stall on all of them to fail this.
+		// There is no lower bound: the host clock's resolution on Windows is too coarse to measure a run this short.
+		require.Less(t, fastest, guestSleep)
+	})
 }

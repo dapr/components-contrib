@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: in-memory
+version: v1
+status: stable
+title: "In-memory"
+description: "In-memory binary store. Data is held only in process memory: it is not persisted to disk and does not survive a process restart, and it is not shared across multiple instances of an application."
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/in-memory/
+metadata:
+  - name: prefix
+    required: false
+    description: |
+      An optional prefix prepended to all file names stored by this component.
+    example: '"myprefix"'
+  - name: maxSize
+    type: bytesize
+    required: false
+    default: '"4Mi"'
+    description: |
+      Maximum size of a single file that can be stored, as a byte size
+      quantity. Uploads larger than this are rejected. Must be greater than
+      zero.
+    example: '"8388608" (as bytes), "1Ki", "8Mi", "1Gi"'
+  - name: maxTotalSize
+    type: bytesize
+    required: false
+    default: '"512Mi"'
+    description: |
+      Maximum combined size of all files held by the store, as a byte size
+      quantity. Capacity is reserved as upload data is read, so this bounds
+      stored files and in-flight uploads together; uploads that would exceed
+      the limit are rejected. Overwrites count both the old and new copies
+      until the upload commits, so replacing a file requires free capacity
+      for the new body. Must be greater than zero.
+    example: '"1073741824" (as bytes), "512Mi", "1Gi"'

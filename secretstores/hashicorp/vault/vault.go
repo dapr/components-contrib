@@ -224,7 +224,7 @@ func newClientConfig(m *VaultMetadata) (*api.Config, error) {
 			MinVersion: tls.VersionTLS12,
 		},
 	}
-	if err := http2.ConfigureTransport(transport); err != nil {
+	if err := http2.ConfigureTransport(transport); err != nil { //nolint:staticcheck // SA1019: deprecated by the golang.org/x/net update. Kept to avoid a behavior change in a dependency-only update.
 		return nil, fmt.Errorf("couldn't configure http2: %w", err)
 	}
 

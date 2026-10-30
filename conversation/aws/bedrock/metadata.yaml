@@ -4,7 +4,7 @@ type: conversation
 name: aws.bedrock
 version: v1
 status: alpha
-title: "AWS Bedrock"
+title: "Amazon Bedrock"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-conversation/aws-bedrock/

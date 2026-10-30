@@ -130,6 +130,10 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 
 	// iterate over each message in the request to echo back the content in the response. We respond with the acummulated content of the message parts and tool responses
 	contentFromMessaged := make([]string, 0, len(*r.Message))
+	reasoning := make([]string, 0, 1)
+	if r.ReasoningEffort != nil && *r.ReasoningEffort != "" {
+		reasoning = append(reasoning, "reasoning effort: "+*r.ReasoningEffort)
+	}
 	for _, message := range *r.Message {
 		for _, part := range message.Parts {
 			switch p := part.(type) {
@@ -142,6 +146,9 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 			case llms.ToolCallResponse:
 				// show tool responses on the request like on multi-turn conversations
 				contentFromMessaged = append(contentFromMessaged, fmt.Sprintf("Tool Response for tool ID '%s' with name '%s': %s", p.ToolCallID, p.Name, p.Content))
+			case conversation.ReasoningContent:
+				// reasoning sent back on an assistant message is echoed as reasoning, not as content
+				reasoning = append(reasoning, p.Text)
 			default:
 				return nil, fmt.Errorf("found invalid content type as input for %v", p)
 			}
@@ -184,7 +191,8 @@ func (e *Echo) Converse(ctx context.Context, r *conversation.Request) (res *conv
 		FinishReason: stopReason,
 		Index:        0,
 		Message: conversation.Message{
-			Content: responseContent,
+			Content:   responseContent,
+			Reasoning: strings.Join(reasoning, "\n"),
 		},
 	}
 

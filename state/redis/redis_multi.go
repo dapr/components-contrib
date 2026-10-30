@@ -15,6 +15,8 @@ package redis
 
 import (
 	"context"
+	"crypto/sha1" //nolint:gosec // Redis identifies cached scripts by SHA1.
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -37,6 +39,7 @@ const (
 	multiQuery = `
 local pend = {}
 local nvs = {}
+local kinds = {}
 local function num(s)
   if not string.match(s, "^%-?%d+$") or #s > 15 then return nil end
   return tonumber(s)
@@ -53,17 +56,23 @@ local function cur(key)
   if t == "none" then
     p = {exists=false, vs="", kind="none", fwr=false}
   elseif t == "hash" then
-    local v = redis.call("HGET", key, "version")
-    p = {exists=true, vs=v or "", kind="hash", fwr=(redis.call("HEXISTS", key, "first-write") == 1)}
+    local h = redis.call("HMGET", key, "version", "first-write")
+    p = {exists=true, vs=h[1] or "", kind="hash", fwr=(h[2] ~= false)}
   elseif t == "ReJSON-RL" then
     local v = redis.pcall("JSON.GET", key, ".version")
     if type(v) ~= "string" then v = "" end
-    local f = redis.pcall("JSON.GET", key, ".first-write")
-    p = {exists=true, vs=v, kind=t, fwr=(type(f) == "string")}
+    -- fwr is read by fwr() only when needed
+    p = {exists=true, vs=v, kind=t}
   else
     p = {exists=true, vs="", kind=t, fwr=false}
   end
   return p
+end
+local function fwr(key, p)
+  if p.fwr == nil then
+    p.fwr = type(redis.pcall("JSON.GET", key, ".first-write")) == "string"
+  end
+  return p.fwr
 end
 local n = #KEYS
 for i = 1, n do
@@ -71,13 +80,14 @@ for i = 1, n do
   local b = (i - 1) * 6
   local kind, etag, js, fw = ARGV[b+1], ARGV[b+2], ARGV[b+3], ARGV[b+6]
   local p = cur(key)
+  kinds[i] = p.kind
   local target = "hash"
   if js == "1" then target = "ReJSON-RL" end
   if etag ~= "" then
     if not p.exists or num(p.vs) ~= tonumber(etag) then
       return redis.error_reply("` + etagMismatchReply + ` " .. key)
     end
-  elseif kind == "s" and p.fwr and p.kind == target and p.vs ~= "" then
+  elseif kind == "s" and p.kind == target and p.vs ~= "" and fwr(key, p) then
     return redis.error_reply("` + etagMismatchReply + ` " .. key)
   end
   if kind == "d" then
@@ -105,7 +115,8 @@ for i = 1, n do
   if kind == "d" then
     redis.call("DEL", key)
   else
-    local t = keytype(key)
+    -- the first loop replayed every earlier op, so this is the key's type now
+    local t = kinds[i]
     if js == "1" then
       if t ~= "ReJSON-RL" and t ~= "none" then
         redis.call("DEL", key)
@@ -135,6 +146,11 @@ for i = 1, n do
 end
 return n`
 )
+
+var multiSHA = func() string {
+	sum := sha1.Sum([]byte(multiQuery)) //nolint:gosec // Redis identifies cached scripts by SHA1.
+	return hex.EncodeToString(sum[:])
+}()
 
 var errJSONUnsupported = errors.New("redis transaction: content type application/json requires RedisJSON on the server")
 
@@ -257,9 +273,10 @@ func (r *StateStore) execMulti(ctx context.Context, ops []multiOp) error {
 }
 
 // evalOps runs ops as one script, which checks every guard before it writes.
+// It sends the script by hash, and the full body only when the server has not cached it.
 func (r *StateStore) evalOps(ctx context.Context, ops []multiOp) error {
 	args := make([]any, 0, 3+len(ops)*(multiArgsPerOp+1))
-	args = append(args, "EVAL", multiQuery, len(ops))
+	args = append(args, "EVALSHA", multiSHA, len(ops))
 	for _, op := range ops {
 		args = append(args, op.key)
 	}
@@ -267,6 +284,10 @@ func (r *StateStore) evalOps(ctx context.Context, ops []multiOp) error {
 		args = append(args, op.args[:]...)
 	}
 	err := r.client.DoWrite(ctx, args...)
+	if err != nil && strings.HasPrefix(err.Error(), "NOSCRIPT") {
+		args[0], args[1] = "EVAL", multiQuery
+		err = r.client.DoWrite(ctx, args...)
+	}
 	if err != nil && strings.HasPrefix(err.Error(), etagMismatchReply) {
 		return state.NewETagError(state.ETagMismatch, err)
 	}

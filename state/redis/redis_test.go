@@ -655,6 +655,16 @@ func TestMultiETags(t *testing.T) {
 		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
 	})
 
+	t.Run("flushed script cache", func(t *testing.T) {
+		ss := newStore(t)
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		require.NoError(t, ss.client.DoWrite(t.Context(), "SCRIPT", "FLUSH"))
+		require.NoError(t, multi(ss, state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("1")}))
+		require.NoError(t, ss.client.DoWrite(t.Context(), "SCRIPT", "FLUSH"))
+		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a3", ETag: ptr.Of("1")}), state.ETagMismatch)
+		assert.JSONEq(t, `"a2"`, string(get(t, ss, "a").Data))
+	})
+
 	t.Run("invalid etag", func(t *testing.T) {
 		ss := newStore(t)
 		requireKind(t, multi(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("abc")}), state.ETagInvalid)

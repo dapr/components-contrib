@@ -96,6 +96,7 @@ func TestDeserializeValue(t *testing.T) {
 		srClient:             registryAvroJSON,
 		schemaCachingEnabled: true,
 		logger:               logger.NewLogger("kafka_test"),
+		useAvroJSON:          true,
 	}
 	kAvroJSON.srClient.CodecJsonEnabled(false)
 	schemaAvroJSON, _ := registryAvroJSON.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
@@ -533,6 +534,52 @@ func TestLatestSchemaCaching(t *testing.T) {
 		assertValueSerialized(t, act, valJSON, schema)
 		require.NoError(t, err)
 	})
+}
+
+func TestSerializeDeserializeDecimalSpecCompliant(t *testing.T) {
+	handlerConfig := SubscriptionHandlerConfig{
+		IsBulkSubscribe: false,
+		ValueSchemaType: Avro,
+	}
+	meta := map[string]string{"valueSchemaType": "Avro"}
+
+	// Spec-compliant decimals are applied via NewCodecWithOptions (useAvroJSON=true).
+	// Standard JSON Full cannot take CodecOption on goavro v2.15.0 (linkedin/goavro#315).
+	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	registry.CodecJsonEnabled(false)
+	_, err := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
+	require.NoError(t, err)
+
+	k := Kafka{
+		srClient:                               registry,
+		schemaCachingEnabled:                   false,
+		logger:                                 logger.NewLogger("kafka_test"),
+		useAvroJSON:                            true,
+		enableAvroDecimalSpecCompliantEncoding: true,
+	}
+
+	opt := &goavro.CodecOption{EnableStringNull: true, EnableDecimalBinarySpecCompliantEncoding: true}
+	codec, err := goavro.NewCodecWithOptions(testSchema1, opt)
+	require.NoError(t, err)
+	valueAvroJSON, err := codec.TextualFromNative(nil, testValue1AvroJSON)
+	require.NoError(t, err)
+
+	serialized, err := k.SerializeValue("my-topic", valueAvroJSON, meta)
+	require.NoError(t, err)
+	require.NotNil(t, serialized)
+
+	msg := &sarama.ConsumerMessage{Key: []byte("my_key"), Value: serialized, Topic: "my-topic"}
+	deserialized, err := k.DeserializeValue(msg, handlerConfig)
+	require.NoError(t, err)
+
+	native, _, err := codec.NativeFromTextual(deserialized)
+	require.NoError(t, err)
+	nativeMap, ok := native.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "chocolate", nativeMap["flavor"])
+	rat, ok := nativeMap["weight"].(*big.Rat)
+	require.True(t, ok)
+	require.Equal(t, 0, rat.Cmp(big.NewRat(10024, 100)))
 }
 
 func TestValidateAWS(t *testing.T) {

@@ -431,6 +431,17 @@ metadata:
       Enables Avro JSON schema for serialization. Only applicable when the subscription uses valueSchemaType=Avro
     example: "true"
     default: "false"
+  - name: enableAvroDecimalSpecCompliantEncoding
+    type: bool
+    required: false
+    description: |
+      Enables Avro 1.10.2 spec-compliant encoding for decimal logical types.
+      When true, decimals use two's-complement binary encoding and human-readable JSON strings (for example "40.20").
+      When false (default), legacy goavro decimal encoding is preserved for backwards compatibility.
+      Requires useAvroJSON=true with goavro v2.15.0 (Standard JSON Full does not accept CodecOption yet).
+      Only applicable when schemaRegistryURL is configured and valueSchemaType=Avro.
+    example: "true"
+    default: "false"
   - name: compression
     type: string
     required: false

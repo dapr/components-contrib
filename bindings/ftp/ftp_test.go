@@ -53,7 +53,16 @@ type fakeConn struct {
 	quits    int
 	err      error
 	mkdirErr error
+	closeErr error
 }
+
+// errCloser serves data and then fails on Close, like a transfer the server aborts.
+type errCloser struct {
+	io.Reader
+	err error
+}
+
+func (c errCloser) Close() error { return c.err }
 
 func (f *fakeConn) List(string) ([]*ftpclient.Entry, error) {
 	return f.entries, f.err
@@ -64,7 +73,7 @@ func (f *fakeConn) Retr(p string) (io.ReadCloser, error) {
 		return nil, f.err
 	}
 
-	return io.NopCloser(bytes.NewReader(f.files[p])), nil
+	return errCloser{bytes.NewReader(f.files[p]), f.closeErr}, nil
 }
 
 func (f *fakeConn) Stor(p string, r io.Reader) error {
@@ -209,7 +218,7 @@ func TestJoinUnderRoot(t *testing.T) {
 		assert.Equal(t, want, p)
 	}
 
-	for _, name := range []string{"..", "../x", "a/../../x", "sub/../../x", "a\r\nDELE /etc/passwd"} {
+	for _, name := range []string{"..", "../x", "a/../../x", "sub/../../x", "/../secret.txt", "//../x", "/a/../../x", "a\r\nDELE /etc/passwd"} {
 		_, err := joinUnderRoot("/root", name)
 		require.Error(t, err, name)
 	}
@@ -299,6 +308,21 @@ func TestInvoke(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []byte("content"), resp.Data)
 		assert.Equal(t, 1, fc.quits)
+	})
+
+	t.Run("get reports a transfer aborted on close", func(t *testing.T) {
+		fc := &fakeConn{
+			files:    map[string][]byte{"/root/f.txt": []byte("partial")},
+			closeErr: errors.New("426 Transfer aborted"),
+		}
+		f := newTestBinding(fc)
+
+		_, err := f.Invoke(t.Context(), &bindings.InvokeRequest{
+			Operation: bindings.GetOperation,
+			Metadata:  map[string]string{"fileName": "f.txt"},
+		})
+
+		require.ErrorContains(t, err, "426")
 	})
 
 	t.Run("get propagates errors", func(t *testing.T) {

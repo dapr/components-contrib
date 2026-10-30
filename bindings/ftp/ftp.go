@@ -133,6 +133,11 @@ func (s *session) dial(network, address string) (net.Conn, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// closeAll may already have run between DialContext returning and this lock.
+	if err := s.ctx.Err(); err != nil {
+		_ = raw.Close()
+		return nil, err
+	}
 	// The client dials the control connection first and, with explicit TLS, upgrades it
 	// itself after AUTH TLS; every other connection must speak TLS from the start.
 	control := len(s.conns) == 0
@@ -372,10 +377,9 @@ func (f *Ftp) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.I
 		if rErr != nil {
 			return rErr
 		}
-		defer r.Close()
-
 		data, rErr = io.ReadAll(r)
-		return rErr
+		// Close reads the final transfer status, so an aborted transfer (426) surfaces here.
+		return errors.Join(rErr, r.Close())
 	})
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: error reading file %s: %w", p, err)
@@ -521,8 +525,9 @@ func (m ftpMetadata) getPath(requestMetadata map[string]string) (string, error) 
 // joinUnderRoot joins name to root, rejecting names that would escape root or that
 // carry CR/LF (FTP command injection; the client rejects those too, this is defense in depth).
 func joinUnderRoot(root, name string) (string, error) {
+	// Leading slashes are dropped first because Clean would silently resolve "/../x" to "/x".
 	// After Clean every ".." left in a relative path is leading, so this catches any escape.
-	if c := path.Clean(name); c == ".." || strings.HasPrefix(c, "../") {
+	if c := path.Clean(strings.TrimLeft(name, "/")); c == ".." || strings.HasPrefix(c, "../") {
 		return "", fmt.Errorf("file name %q escapes rootPath", name)
 	}
 

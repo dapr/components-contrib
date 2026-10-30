@@ -58,6 +58,23 @@ This project aims to test the Kafka Pub/Sub component under various conditions.
     * **TODO** Publish various raw events
     * **TODO** App receives Kafka messages and verifies their binary encoding
 
+### Transactions tests (`TestKafkaTransactions`)
+
+These scenarios exercise the component API directly against the cluster (no sidecar), since they certify the component's transactional semantics.
+
+* Transactional bulk publish is atomic (`producerTransactionsEnabled`)
+    * A batch with an oversized entry fails as a whole: nothing becomes visible to read_committed consumers
+    * A valid batch commits and is fully visible
+* Consumer isolation level (`consumerIsolationLevel`)
+    * A record from an aborted transaction is delivered by a read_uncommitted component but never by a read_committed one
+* Consume-transform-produce (`consumerTransactionsEnabled`)
+    * The handler publishes an output carrying the delivery's `__txnToken` and fails twice before succeeding
+    * Exactly one output is visible to read_committed consumers; the aborted attempts' outputs stay hidden
+    * The input offset commits atomically with the output
+* Bulk subscribe is all-or-nothing
+    * Every attempt publishes an output into the batch transaction; a per-entry failure aborts the whole batch, outputs included, and the batch is redelivered
+    * Offsets and outputs commit only after the entire batch succeeds
+
 ## Running locally
 * Navigate to the `tests/certification/pubsub/kafka` folder
 * Run command:

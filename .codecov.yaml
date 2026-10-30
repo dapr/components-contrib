@@ -13,3 +13,9 @@ coverage:
 comment:
   # Update old comment with new coverage information if the PR is changed. Avoids triggering multiple emails.
   behavior: once
+
+ignore:
+  # Conformance, certification, and e2e harness code only compiles under
+  # dedicated build tags in separate workflows; counting it in unit coverage
+  # reports misrepresents patch and project coverage.
+  - "tests"

@@ -57,3 +57,30 @@ metadata:
       - "azure"
     example: 'azure'
     default: 'open_ai'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level maxTokens value greater than zero overrides this default.
+      When unset, no cap is sent and the provider's own default applies.
+    type: number
+    example: "2048"
+    default: ''
+  - name: useLegacyMaxTokensField
+    required: false
+    description: |
+      Send the token cap as max_tokens instead of max_completion_tokens.
+      Set this when endpoint points at an OpenAI-compatible service that does
+      not recognise max_completion_tokens, otherwise the cap is ignored.
+    type: bool
+    example: "true"
+    default: 'false'
+  - name: useResponsesAPI
+    required: false
+    description: |
+      Send requests to OpenAI's Responses API (/v1/responses) instead of the
+      Chat Completions API. Set this to use function tools with reasoning models
+      that reject tools on Chat Completions. Not supported when apiType is azure.
+    type: bool
+    example: "true"
+    default: 'false'

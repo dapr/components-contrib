@@ -1,0 +1,35 @@
+componentType: binarystore
+components:
+  - component: in-memory
+    operations: []
+  # The "prefix" profiles run the same suite against a component configured
+  # with a nested prefix, so each provider's use of binarystore.ObjectPath on
+  # set, get, and delete is exercised end to end.
+  - component: in-memory
+    profile: prefix
+    operations: []
+  - component: azure.blobstorage
+    operations: []
+  - component: azure.blobstorage
+    profile: prefix
+    operations: []
+  - component: azure.datalake
+    operations: []
+  - component: azure.datalake
+    profile: prefix
+    operations: []
+  - component: aws.s3
+    operations: []
+  - component: aws.s3
+    profile: prefix
+    operations: []
+  - component: gcp.bucket
+    operations: []
+  - component: gcp.bucket
+    profile: prefix
+    operations: []
+  - component: oci.objectstorage
+    operations: []
+  - component: oci.objectstorage
+    profile: prefix
+    operations: []

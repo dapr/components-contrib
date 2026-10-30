@@ -16,14 +16,13 @@ package azure
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 
+	spiffeauth "github.com/dapr/components-contrib/common/authentication/spiffe"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 )
 
@@ -54,19 +53,13 @@ func (c SpiffeWorkloadIdentityConfig) GetTokenCredential() (azcore.TokenCredenti
 		}
 	}
 
-	// Create a token provider function that retrieves the JWT from SPIFFE context
+	// Mint a new JWT SVID for every client assertion.
 	tokenProvider := func(ctx context.Context) (string, error) {
-		tknSource, ok := spiffecontext.JWTFrom(ctx)
-		if !ok {
-			return "", errors.New("failed to get JWT SVID source from context")
-		}
-		jwt, err := tknSource.FetchJWTSVID(ctx, jwtsvid.Params{
-			Audience: AzureADTokenExchangeAudience,
-		})
+		minter, err := spiffeauth.MinterFrom(ctx)
 		if err != nil {
-			return "", fmt.Errorf("failed to get JWT SVID: %w", err)
+			return "", err
 		}
-		return jwt.Marshal(), nil
+		return spiffeauth.MintJWT(ctx, minter, AzureADTokenExchangeAudience)
 	}
 
 	cred, err := azidentity.NewClientAssertionCredential(c.TenantID, c.ClientID, tokenProvider, opts)
@@ -79,7 +72,7 @@ func (c SpiffeWorkloadIdentityConfig) GetTokenCredential() (azcore.TokenCredenti
 
 // spiffeCredential wraps a credential that authenticates using a SPIFFE JWT SVID.
 //
-// When no JWT SVID source is present in the context, SPIFFE workload identity is not
+// When no JWT SVID minter is present in the context, SPIFFE workload identity is not
 // configured for this application, so the credential reports itself as unavailable. This
 // allows a ChainedTokenCredential to continue to the next credential in the chain instead
 // of halting: the chain only proceeds past a credential that returns a
@@ -90,8 +83,8 @@ type spiffeCredential struct {
 
 // GetToken implements azcore.TokenCredential.
 func (c *spiffeCredential) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	if _, ok := spiffecontext.JWTFrom(ctx); !ok {
-		return azcore.AccessToken{}, azidentity.NewCredentialUnavailableError("SPIFFE workload identity: no JWT SVID source in the context")
+	if _, ok := spiffecontext.JWTMinterFrom(ctx); !ok {
+		return azcore.AccessToken{}, azidentity.NewCredentialUnavailableError("SPIFFE workload identity: no JWT SVID minter in the context")
 	}
 
 	return c.cred.GetToken(ctx, opts)

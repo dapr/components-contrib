@@ -4,7 +4,7 @@ type: secretstores
 name: aws.parameterstore
 version: v1
 status: alpha
-title: "AWS SSM Parameter Store"
+title: "AWS Systems Manager Parameter Store"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/aws-parameter-store/

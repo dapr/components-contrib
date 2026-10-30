@@ -152,27 +152,35 @@ func (store *InMemoryStore) DeleteWithPrefix(ctx context.Context, req state.Dele
 }
 
 func (store *InMemoryStore) doValidateEtag(key string, etag *string, concurrency string) error {
+	return validateEtag(key, store.liveETag(key), etag, concurrency)
+}
+
+func (store *InMemoryStore) liveETag(key string) *string {
+	item := store.items[key]
+	if item == nil || item.isExpired(store.clock.Now()) {
+		return nil
+	}
+	if item.etag == nil {
+		return ptr.Of("")
+	}
+	return item.etag
+}
+
+func validateEtag(key string, current *string, etag *string, concurrency string) error {
 	hasEtag := etag != nil && *etag != ""
 
-	if concurrency == state.FirstWrite && !hasEtag {
-		item := store.items[key]
-		if item != nil {
+	switch {
+	case concurrency == state.FirstWrite && !hasEtag:
+		if current != nil {
 			return state.NewETagError(state.ETagMismatch, errors.New("item already exists and no etag was passed"))
-		} else {
-			return nil
 		}
-	} else if hasEtag {
-		item := store.items[key]
-		if item == nil {
+	case hasEtag:
+		if current == nil {
 			return state.NewETagError(state.ETagMismatch, fmt.Errorf("state not exist or expired for key=%s", key))
 		}
-		if item.etag == nil {
+		if *current != *etag {
 			return state.NewETagError(state.ETagMismatch, fmt.Errorf(
-				"state etag not match for key=%s: current=nil, expect=%s", key, *etag))
-		}
-		if *item.etag != *etag {
-			return state.NewETagError(state.ETagMismatch, fmt.Errorf(
-				"state etag not match for key=%s: current=%s, expect=%s", key, *item.etag, *etag))
+				"state etag not match for key=%s: current=%s, expect=%s", key, *current, *etag))
 		}
 	}
 	return nil
@@ -290,7 +298,7 @@ func (store *InMemoryStore) Set(ctx context.Context, req *state.SetRequest) erro
 	}
 
 	// this operation won't fail
-	store.doSet(ctx, req.Key, bt, ttlInSeconds)
+	store.doSet(ctx, req.Key, bt, ttlInSeconds, uuid.New().String())
 	return nil
 }
 
@@ -326,8 +334,7 @@ func doParseTTLInSeconds(metadata map[string]string) (int, error) {
 	return i, nil
 }
 
-func (store *InMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int) {
-	etag := uuid.New().String()
+func (store *InMemoryStore) doSet(ctx context.Context, key string, data []byte, ttlInSeconds int, etag string) {
 	el := &inMemStateStoreItem{
 		data: data,
 		etag: &etag,
@@ -348,6 +355,7 @@ type innerSetRequest struct {
 	req  state.SetRequest
 	ttl  int
 	data []byte
+	etag string
 }
 
 // Implements state.TransactionalStateOperation
@@ -385,6 +393,7 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 				req:  req,
 				ttl:  ttlInSeconds,
 				data: bt,
+				etag: uuid.New().String(),
 			}
 			// replace with innerSetRequest
 			request.Operations[i] = innerSetRequest
@@ -400,19 +409,28 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	store.lock.Lock()
 	defer store.lock.Unlock()
 
-	// step2: validate etag if needed
+	// step2: validate etag if needed, in order so each op sees the earlier ones
+	pending := make(map[string]*string, len(request.Operations))
+	current := func(key string) *string {
+		if e, ok := pending[key]; ok {
+			return e
+		}
+		return store.liveETag(key)
+	}
 	for _, o := range request.Operations {
 		switch req := o.(type) {
 		case *innerSetRequest:
-			err := store.doValidateEtag(req.req.Key, req.req.ETag, req.req.Options.Concurrency)
+			err := validateEtag(req.req.Key, current(req.req.Key), req.req.ETag, req.req.Options.Concurrency)
 			if err != nil {
 				return err
 			}
+			pending[req.req.Key] = &req.etag
 		case state.DeleteRequest:
-			err := store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+			err := validateEtag(req.Key, current(req.Key), req.ETag, req.Options.Concurrency)
 			if err != nil {
 				return err
 			}
+			pending[req.Key] = nil
 		}
 	}
 
@@ -421,7 +439,7 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	for _, o := range request.Operations {
 		switch req := o.(type) {
 		case *innerSetRequest:
-			store.doSet(ctx, req.req.Key, req.data, req.ttl)
+			store.doSet(ctx, req.req.Key, req.data, req.ttl, req.etag)
 		case state.DeleteRequest:
 			store.doDelete(ctx, req.Key)
 		}

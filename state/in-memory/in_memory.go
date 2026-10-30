@@ -152,12 +152,12 @@ func (store *InMemoryStore) DeleteWithPrefix(ctx context.Context, req state.Dele
 }
 
 func (store *InMemoryStore) doValidateEtag(key string, etag *string, concurrency string) error {
-	return validateEtag(key, store.liveETag(key), etag, concurrency)
+	return validateEtag(key, store.liveETag(key, store.clock.Now()), etag, concurrency)
 }
 
-func (store *InMemoryStore) liveETag(key string) *string {
+func (store *InMemoryStore) liveETag(key string, now time.Time) *string {
 	item := store.items[key]
-	if item == nil || item.isExpired(store.clock.Now()) {
+	if item == nil || item.isExpired(now) {
 		return nil
 	}
 	if item.etag == nil {
@@ -378,9 +378,11 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	}
 
 	// step1: validate parameters
+	guarded := false
 	for i, o := range request.Operations {
 		switch req := o.(type) {
 		case state.SetRequest:
+			guarded = guarded || req.HasETag() || req.Options.Concurrency == state.FirstWrite
 			ttlInSeconds, err := store.doSetValidateParameters(&req)
 			if err != nil {
 				return err
@@ -398,6 +400,7 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 			// replace with innerSetRequest
 			request.Operations[i] = innerSetRequest
 		case state.DeleteRequest:
+			guarded = guarded || req.HasETag() || req.Options.Concurrency == state.FirstWrite
 			err := state.CheckRequestOptions(&req)
 			if err != nil {
 				return err
@@ -410,27 +413,30 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	defer store.lock.Unlock()
 
 	// step2: validate etag if needed, in order so each op sees the earlier ones
-	pending := make(map[string]*string, len(request.Operations))
-	current := func(key string) *string {
-		if e, ok := pending[key]; ok {
-			return e
+	if guarded {
+		now := store.clock.Now()
+		pending := make(map[string]*string, len(request.Operations))
+		current := func(key string) *string {
+			if e, ok := pending[key]; ok {
+				return e
+			}
+			return store.liveETag(key, now)
 		}
-		return store.liveETag(key)
-	}
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case *innerSetRequest:
-			err := validateEtag(req.req.Key, current(req.req.Key), req.req.ETag, req.req.Options.Concurrency)
-			if err != nil {
-				return err
+		for _, o := range request.Operations {
+			switch req := o.(type) {
+			case *innerSetRequest:
+				err := validateEtag(req.req.Key, current(req.req.Key), req.req.ETag, req.req.Options.Concurrency)
+				if err != nil {
+					return err
+				}
+				pending[req.req.Key] = &req.etag
+			case state.DeleteRequest:
+				err := validateEtag(req.Key, current(req.Key), req.ETag, req.Options.Concurrency)
+				if err != nil {
+					return err
+				}
+				pending[req.Key] = nil
 			}
-			pending[req.req.Key] = &req.etag
-		case state.DeleteRequest:
-			err := validateEtag(req.Key, current(req.Key), req.ETag, req.Options.Concurrency)
-			if err != nil {
-				return err
-			}
-			pending[req.Key] = nil
 		}
 	}
 

@@ -255,13 +255,10 @@ func (d *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	}
 
 	if req.HasETag() {
-		condExpr := "etag = :etag"
-		input.ConditionExpression = &condExpr
-		exprAttrValues := make(map[string]types.AttributeValue)
-		exprAttrValues[":etag"] = &types.AttributeValueMemberS{
-			Value: *req.ETag,
-		}
-		input.ExpressionAttributeValues = exprAttrValues
+		cond := d.etagCondition(*req.ETag)
+		input.ConditionExpression = &cond.expr
+		input.ExpressionAttributeNames = cond.names
+		input.ExpressionAttributeValues = cond.values
 	}
 	_, err := d.dynamodbClient.DeleteItem(ctx, input)
 	if err != nil {
@@ -301,6 +298,22 @@ type condition struct {
 	values map[string]types.AttributeValue
 }
 
+// DynamoDB deletes expired items lazily, so an expired item must not match.
+func (d *StateStore) etagCondition(etag string) *condition {
+	c := &condition{
+		expr: "etag = :etag",
+		values: map[string]types.AttributeValue{
+			":etag": &types.AttributeValueMemberS{Value: etag},
+		},
+	}
+	if d.ttlAttributeName != "" {
+		c.expr += " AND (attribute_not_exists(#ttl) OR #ttl > :now)"
+		c.names = map[string]string{"#ttl": d.ttlAttributeName}
+		c.values[":now"] = &types.AttributeValueMemberN{Value: strconv.FormatInt(time.Now().Unix(), 10)}
+	}
+	return c
+}
+
 // DynamoDB deletes expired items lazily, so an expired item counts as missing.
 func (d *StateStore) firstWriteCondition() *condition {
 	c := &condition{expr: "attribute_not_exists(etag)"}
@@ -314,6 +327,30 @@ func (d *StateStore) firstWriteCondition() *condition {
 	return c
 }
 
+func (d *StateStore) setCondition(req *state.SetRequest) *condition {
+	switch {
+	case req.HasETag():
+		return d.etagCondition(*req.ETag)
+	case req.Options.Concurrency == state.FirstWrite:
+		return d.firstWriteCondition()
+	default:
+		return nil
+	}
+}
+
+func (p putData) withCondition(c *condition) putData {
+	if c == nil {
+		p.ConditionExpression = nil
+		p.ExpressionAttributeNames = nil
+		p.ExpressionAttributeValues = nil
+		return p
+	}
+	p.ConditionExpression = &c.expr
+	p.ExpressionAttributeNames = c.names
+	p.ExpressionAttributeValues = c.values
+	return p
+}
+
 // createPutData creates a DynamoDB put request data from a SetRequest.
 func (d *StateStore) createPutData(req *state.SetRequest) (putData, error) {
 	item, err := d.createItem(req)
@@ -325,21 +362,7 @@ func (d *StateStore) createPutData(req *state.SetRequest) (putData, error) {
 		Item:      item,
 		TableName: ptr.Of(d.table),
 	}
-
-	if req.HasETag() {
-		condExpr := "etag = :etag"
-		pd.ConditionExpression = &condExpr
-		exprAttrValues := make(map[string]types.AttributeValue)
-		exprAttrValues[":etag"] = &types.AttributeValueMemberS{
-			Value: *req.ETag,
-		}
-		pd.ExpressionAttributeValues = exprAttrValues
-	} else if req.Options.Concurrency == state.FirstWrite {
-		cond := d.firstWriteCondition()
-		pd.ConditionExpression = &cond.expr
-		pd.ExpressionAttributeNames = cond.names
-		pd.ExpressionAttributeValues = cond.values
-	}
+	pd = pd.withCondition(d.setCondition(req))
 
 	return pd, nil
 }
@@ -473,27 +496,44 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		return nil
 	}
 
+	// DynamoDB rejects two ops on one item, so send the last op with the first op's guard.
+	last := map[string]int{}
+	guards := map[string]*condition{}
+	for i, o := range request.Operations {
+		key := o.GetKey()
+		prev, seen := last[key]
+		last[key] = i
+
+		var conflict bool
+		switch req := o.(type) {
+		case state.SetRequest:
+			_, prevSet := request.Operations[prev].(state.SetRequest)
+			conflict = req.HasETag() || (prevSet && req.Options.Concurrency == state.FirstWrite)
+			if !seen {
+				guards[key] = d.setCondition(&req)
+			}
+		case state.DeleteRequest:
+			conflict = req.HasETag()
+			if !seen && conflict {
+				guards[key] = d.etagCondition(*req.ETag)
+			}
+		}
+
+		if seen && conflict {
+			return state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s was already written earlier in the transaction", key))
+		}
+	}
+
 	twinput := &dynamodb.TransactWriteItemsInput{
-		TransactItems: make([]types.TransactWriteItem, 0, opns),
+		TransactItems: make([]types.TransactWriteItem, 0, len(last)),
 	}
-
-	// Note: The following is a DynamoDB logic to avoid errors like following,
-	// which happen when the same key is used in multiple operations within a Transaction:
-	//
-	//    ValidationException: Transaction request cannot include multiple operations on one item
-	//
-	// Dedup ops where the last operation with a matching Key takes precedence
-	txs := map[string]int{}
 	for i, o := range request.Operations {
-		txs[o.GetKey()] = i
-	}
-
-	for i, o := range request.Operations {
-		// skip operations removed in simulated set
-		if txs[o.GetKey()] != i {
+		key := o.GetKey()
+		if last[key] != i {
 			continue
 		}
 
+		guard := guards[key]
 		twi := types.TransactWriteItem{}
 		switch req := o.(type) {
 		case state.SetRequest:
@@ -501,6 +541,7 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			if err != nil {
 				return fmt.Errorf("dynamodb error: failed to marshal value for key %s: %w", req.Key, err)
 			}
+			pd = pd.withCondition(guard)
 			twi.Put = pd.ToPut()
 
 		case state.DeleteRequest:
@@ -512,10 +553,24 @@ func (d *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 					},
 				},
 			}
+			if guard != nil {
+				twi.Delete.ConditionExpression = &guard.expr
+				twi.Delete.ExpressionAttributeNames = guard.names
+				twi.Delete.ExpressionAttributeValues = guard.values
+			}
 		}
 		twinput.TransactItems = append(twinput.TransactItems, twi)
 	}
+
 	_, err := d.dynamodbClient.TransactWriteItems(ctx, twinput)
+	var cErr *types.TransactionCanceledException
+	if errors.As(err, &cErr) {
+		for _, r := range cErr.CancellationReasons {
+			if r.Code != nil && *r.Code == "ConditionalCheckFailed" {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+		}
+	}
 
 	return err
 }

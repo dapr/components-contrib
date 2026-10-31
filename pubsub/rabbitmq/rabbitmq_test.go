@@ -1412,3 +1412,12 @@ func TestSubscribeForeverCancelsConsumerWhenConsumeFails(t *testing.T) {
 		require.Containsf(t, cancelled, tag, "consumer %s was registered but never cancelled", tag)
 	}
 }
+
+type fakeConfirmation struct{ acked bool }
+
+func (f fakeConfirmation) Wait() bool { return f.acked }
+
+func TestConfirmationError(t *testing.T) {
+	require.NoError(t, confirmationError(fakeConfirmation{acked: true}))
+	require.Error(t, confirmationError(fakeConfirmation{acked: false}))
+}

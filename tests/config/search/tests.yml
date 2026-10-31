@@ -29,6 +29,15 @@ componentType: search
 #   return-fields       return_fields projection
 #   search-fields       search_fields restriction
 components:
+  - component: in-memory
+    operations:
+      - queued-ack
+      - total-hits
+      - continuation-token
+      - filter
+      - sort
+      - return-fields
+      - search-fields
   - component: meilisearch
     operations:
       - queued-ack

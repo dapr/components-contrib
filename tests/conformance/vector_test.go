@@ -28,6 +28,7 @@ import (
 	"github.com/dapr/components-contrib/tests/conformance/utils"
 	confvector "github.com/dapr/components-contrib/tests/conformance/vector"
 	"github.com/dapr/components-contrib/vector"
+	vectorinmemory "github.com/dapr/components-contrib/vector/in-memory"
 	vectormeilisearch "github.com/dapr/components-contrib/vector/meilisearch"
 )
 
@@ -71,6 +72,8 @@ func vectorShouldSkipComponent(t *testing.T, componentName string) bool {
 
 func loadVectorComponent(name string) vector.Vector {
 	switch name {
+	case "in-memory":
+		return vectorinmemory.NewInMemoryVector(testLogger)
 	case "meilisearch":
 		return vectormeilisearch.NewMeilisearch(testLogger)
 	default:

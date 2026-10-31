@@ -181,3 +181,67 @@ func TestReadAndWrite(t *testing.T) {
 func Test_KeyLike(t *testing.T) {
 	var _ state.KeysLiker = NewInMemoryStateStore(nil).(*InMemoryStore)
 }
+
+func TestETagExpiredAndInOrder(t *testing.T) {
+	newStore := func(t *testing.T) (*InMemoryStore, *clocktesting.FakeClock) {
+		store := newStateStore(logger.NewLogger("test"))
+		fakeClock := clocktesting.NewFakeClock(time.Now())
+		// no Init, so the cleanup thread can't collect the expired item
+		store.clock = fakeClock
+		return store, fakeClock
+	}
+
+	requireMismatch := func(t *testing.T, err error) {
+		t.Helper()
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+	}
+
+	setExpired := func(t *testing.T, store *InMemoryStore, clock *clocktesting.FakeClock) *string {
+		t.Helper()
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1", Metadata: map[string]string{"ttlInSeconds": "1"}}))
+		etag := store.items["a"].etag
+		clock.Step(2 * time.Second)
+		require.NotNil(t, store.items["a"])
+		return etag
+	}
+
+	t.Run("set with etag on expired item", func(t *testing.T) {
+		store, clock := newStore(t)
+		etag := setExpired(t, store, clock)
+		requireMismatch(t, store.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a2", ETag: etag}))
+		requireMismatch(t, store.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "a2", ETag: etag},
+		}}))
+	})
+
+	t.Run("delete with etag on expired item", func(t *testing.T) {
+		store, clock := newStore(t)
+		etag := setExpired(t, store, clock)
+		requireMismatch(t, store.Delete(t.Context(), &state.DeleteRequest{Key: "a", ETag: etag}))
+		requireMismatch(t, store.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "a", ETag: etag},
+		}}))
+	})
+
+	t.Run("etag is checked against earlier ops in the transaction", func(t *testing.T) {
+		store, _ := newStore(t)
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+		etag := store.items["a"].etag
+
+		requireMismatch(t, store.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.SetRequest{Key: "a", Value: "a2", ETag: etag},
+			state.SetRequest{Key: "a", Value: "a3", ETag: etag},
+		}}))
+		requireMismatch(t, store.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "a"},
+			state.DeleteRequest{Key: "a", ETag: etag},
+		}}))
+
+		res, err := store.Get(t.Context(), &state.GetRequest{Key: "a"})
+		require.NoError(t, err)
+		assert.JSONEq(t, `"a1"`, string(res.Data))
+		assert.Equal(t, etag, res.ETag)
+	})
+}

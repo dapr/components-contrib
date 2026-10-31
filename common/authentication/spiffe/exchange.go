@@ -56,9 +56,18 @@ type ExchangeConfig struct {
 // and on every refresh exchanges a newly minted JWT SVID, since providers may
 // reject a JWT that was already exchanged.
 func NewExchangeTokenSource(minter kitspiffe.JWTSVIDMinter, cfg ExchangeConfig) oauth2.TokenSource {
-	if cfg.Client == nil {
-		cfg.Client = http.DefaultClient
+	client := http.DefaultClient
+	if cfg.Client != nil {
+		client = cfg.Client
 	}
+	// A 307 or 308 redirect would resend the JWT SVID in the request body, so
+	// redirects are returned as errors instead of followed.
+	noRedirect := *client
+	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	cfg.Client = &noRedirect
+
 	return oauth2.ReuseTokenSourceWithExpiry(nil, &exchangeSource{minter: minter, cfg: cfg}, earlyExpiry)
 }
 

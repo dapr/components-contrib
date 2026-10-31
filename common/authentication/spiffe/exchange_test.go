@@ -130,6 +130,23 @@ func TestExchangeTokenSource(t *testing.T) {
 		}
 	})
 
+	t.Run("redirects are not followed", func(t *testing.T) {
+		var calls atomic.Int32
+		other := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+		t.Cleanup(other.Close)
+
+		for _, status := range []int{http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, other.URL, status)
+			}))
+			t.Cleanup(srv.Close)
+
+			_, err := NewExchangeTokenSource(new(spiffetest.Minter), ExchangeConfig{TokenURL: srv.URL, Audience: "aud", JWTField: "assertion"}).Token()
+			require.ErrorContains(t, err, "failed with status")
+		}
+		assert.Zero(t, calls.Load(), "the JWT SVID must not be sent to the redirect target")
+	})
+
 	t.Run("mint errors are returned without calling the provider", func(t *testing.T) {
 		var calls atomic.Int32
 		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))

@@ -48,6 +48,7 @@ type fakeConn struct {
 	entries  []*ftpclient.Entry
 	files    map[string][]byte
 	dirs     []string
+	listed   string
 	deleted  string
 	renamed  [2]string
 	quits    int
@@ -64,7 +65,8 @@ type errCloser struct {
 
 func (c errCloser) Close() error { return c.err }
 
-func (f *fakeConn) List(string) ([]*ftpclient.Entry, error) {
+func (f *fakeConn) List(p string) ([]*ftpclient.Entry, error) {
+	f.listed = p
 	return f.entries, f.err
 }
 
@@ -186,21 +188,42 @@ func TestTLSConfig(t *testing.T) {
 	assert.NotNil(t, cfg.ClientSessionCache, "data connections must resume the control connection's TLS session")
 }
 
-func TestGetPath(t *testing.T) {
+func TestFilePath(t *testing.T) {
+	f := &Ftp{metadata: &ftpMetadata{RootPath: "/path"}}
+
+	t.Run("joins file name", func(t *testing.T) {
+		p, err := f.filePath(&bindings.InvokeRequest{Metadata: map[string]string{"fileName": "/sub/file.txt"}})
+		require.NoError(t, err)
+		assert.Equal(t, "/path/sub/file.txt", p)
+	})
+
+	t.Run("file name is required", func(t *testing.T) {
+		_, err := f.filePath(&bindings.InvokeRequest{Metadata: map[string]string{}})
+		require.ErrorContains(t, err, "fileName")
+
+		_, err = f.filePath(&bindings.InvokeRequest{Metadata: map[string]string{"fileName": ""}})
+		require.ErrorContains(t, err, "fileName")
+	})
+}
+
+func TestDirPath(t *testing.T) {
 	t.Run("root path only", func(t *testing.T) {
-		p, err := ftpMetadata{RootPath: "/path"}.getPath(map[string]string{})
+		f := &Ftp{metadata: &ftpMetadata{RootPath: "/path"}}
+		p, err := f.dirPath(&bindings.InvokeRequest{Metadata: map[string]string{}})
 		require.NoError(t, err)
 		assert.Equal(t, "/path", p)
 	})
 
 	t.Run("joins file name", func(t *testing.T) {
-		p, err := ftpMetadata{RootPath: "/path"}.getPath(map[string]string{"fileName": "/sub/file.txt"})
+		f := &Ftp{metadata: &ftpMetadata{RootPath: "/path"}}
+		p, err := f.dirPath(&bindings.InvokeRequest{Metadata: map[string]string{"fileName": "/sub"}})
 		require.NoError(t, err)
-		assert.Equal(t, "/path/sub/file.txt", p)
+		assert.Equal(t, "/path/sub", p)
 	})
 
 	t.Run("error if both empty", func(t *testing.T) {
-		_, err := ftpMetadata{}.getPath(map[string]string{})
+		f := &Ftp{metadata: &ftpMetadata{}}
+		_, err := f.dirPath(&bindings.InvokeRequest{Metadata: map[string]string{}})
 		require.Error(t, err)
 	})
 }
@@ -222,21 +245,6 @@ func TestJoinUnderRoot(t *testing.T) {
 		_, err := joinUnderRoot("/root", name)
 		require.Error(t, err, name)
 	}
-}
-
-func TestMergeWithRequestMetadata(t *testing.T) {
-	m := ftpMetadata{RootPath: "/path", Address: "address", Username: "user"}
-	req := &bindings.InvokeRequest{Metadata: map[string]string{
-		"rootPath": "/changed",
-		"address":  "changedaddress",
-		"username": "changeduser",
-	}}
-
-	merged := m.mergeWithRequestMetadata(req)
-
-	assert.Equal(t, "/changed", merged.RootPath)
-	assert.Equal(t, "address", merged.Address)
-	assert.Equal(t, "user", merged.Username)
 }
 
 func TestOperations(t *testing.T) {
@@ -426,7 +434,9 @@ func TestInvoke(t *testing.T) {
 		assert.Equal(t, 0, fc.quits)
 	})
 
-	t.Run("request rootPath overrides component rootPath", func(t *testing.T) {
+	t.Run("request rootPath is ignored", func(t *testing.T) {
+		// rootPath is the operator's boundary; letting a request move it would defeat the
+		// containment check on fileName.
 		fc := &fakeConn{}
 		f := newTestBinding(fc)
 
@@ -436,7 +446,29 @@ func TestInvoke(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, "/other/test.txt", fc.deleted)
+		assert.Equal(t, "/root/test.txt", fc.deleted)
+	})
+
+	t.Run("create, get and delete require fileName", func(t *testing.T) {
+		for _, op := range []bindings.OperationKind{bindings.CreateOperation, bindings.GetOperation, bindings.DeleteOperation} {
+			fc := &fakeConn{}
+			f := newTestBinding(fc)
+
+			_, err := f.Invoke(t.Context(), &bindings.InvokeRequest{Operation: op, Data: []byte("x")})
+
+			require.ErrorContains(t, err, "required metadata fileName missing", op)
+			assert.Equal(t, 0, fc.quits, "%s must fail before dialing", op)
+		}
+	})
+
+	t.Run("list without fileName lists rootPath", func(t *testing.T) {
+		fc := &fakeConn{}
+		f := newTestBinding(fc)
+
+		_, err := f.Invoke(t.Context(), &bindings.InvokeRequest{Operation: bindings.ListOperation})
+
+		require.NoError(t, err)
+		assert.Equal(t, "/root", fc.listed)
 	})
 
 	t.Run("unsupported operation", func(t *testing.T) {
@@ -561,6 +593,12 @@ func TestConnectImplicitTLS(t *testing.T) {
 	t.Run("wrong password", func(t *testing.T) {
 		err := (&Ftp{}).Init(t.Context(), props(map[string]string{"password": "nope"}))
 		require.ErrorContains(t, err, "530")
+	})
+
+	t.Run("tlsMode is case-insensitive", func(t *testing.T) {
+		f := &Ftp{logger: logger.NewLogger("test")}
+		require.NoError(t, f.Init(t.Context(), props(map[string]string{"tlsMode": "Implicit"})))
+		assert.Equal(t, tlsModeImplicit, f.metadata.TLSMode)
 	})
 }
 

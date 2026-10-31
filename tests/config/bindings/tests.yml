@@ -59,6 +59,11 @@ components:
   - component: kafka
     profile: confluent
     operations: ["create", "operations"]
+  - component: ftp
+    operations: ["create", "operations", "get", "list"]
+    config:
+      output:
+        fileName: $((uuid))
   - component: http
     operations: ["create", "operations"]
     config:

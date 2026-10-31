@@ -43,11 +43,11 @@ metadata:
     example: "ftp.example.com:21"
   - name: rootPath
     required: true
-    description: "The root directory path on the FTP server"
+    description: "The root directory path on the FTP server. Every operation is confined to this directory: it is set on the component only and a rootPath in request metadata is ignored"
     example: "/home/ftpuser"
   - name: fileName
     required: false
-    description: "The file name, relative to rootPath. Request metadata only: a value set on the component is ignored. Names that resolve outside rootPath are rejected"
+    description: "The file name, relative to rootPath. Request metadata only: a value set on the component is ignored. Required by create, get, delete and rename; optional for list, which lists rootPath when it is absent. Names that resolve outside rootPath are rejected"
     example: "data.txt"
   - name: newFileName
     required: false
@@ -55,7 +55,7 @@ metadata:
     example: "renamed.txt"
   - name: tlsMode
     required: false
-    description: "TLS mode: none (plain FTP), explicit (FTPS via AUTH TLS on the FTP port) or implicit (TLS from connection start, usually port 990)"
+    description: "TLS mode, case-insensitive: none (plain FTP), explicit (FTPS via AUTH TLS on the FTP port) or implicit (TLS from connection start, usually port 990)"
     example: "explicit"
     default: "none"
     allowedValues:

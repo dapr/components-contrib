@@ -39,7 +39,6 @@ import (
 )
 
 const (
-	metadataRootPath    = "rootPath"
 	metadataFileName    = "fileName"
 	metadataNewFileName = "newFileName"
 
@@ -184,7 +183,8 @@ func NewFtp(logger logger.Logger) bindings.OutputBinding {
 	return &Ftp{logger: logger}
 }
 
-// Init parses and validates the metadata, then probes the server once.
+// Init parses and validates the metadata, then probes the server once: an unreachable
+// server or bad credentials fail the sidecar at startup instead of at the first invocation.
 func (f *Ftp) Init(ctx context.Context, meta bindings.Metadata) error {
 	m, err := f.parseMetadata(meta)
 	if err != nil {
@@ -196,10 +196,11 @@ func (f *Ftp) Init(ctx context.Context, meta bindings.Metadata) error {
 		return fmt.Errorf("ftp binding error: invalid address %q: %w", m.Address, err)
 	}
 
-	switch m.TLSMode {
+	switch mode := strings.ToLower(m.TLSMode); mode {
 	case "":
 		m.TLSMode = tlsModeNone
 	case tlsModeNone, tlsModeExplicit, tlsModeImplicit:
+		m.TLSMode = mode
 	default:
 		return fmt.Errorf("ftp binding error: invalid tlsMode %q: expected one of none, explicit, implicit", m.TLSMode)
 	}
@@ -253,7 +254,10 @@ func (f *Ftp) tlsConfig() *tls.Config {
 }
 
 // connect opens a fresh authenticated session.
-// ponytail: connect-per-op; add a persistent conn or pool if login overhead or server connection limits (421) bite.
+// Every operation dials and logs in anew, so there is no connection to keep alive and no
+// stale-session handling. The cost is one login round trip per invocation and, on servers
+// with a low per-user connection limit, a 421 under concurrent load. Add a persistent
+// connection or a pool here if either becomes a problem in practice.
 func (f *Ftp) connect(ctx context.Context) (conn, error) {
 	m := f.metadata
 	ctx, cancel := context.WithCancel(ctx)
@@ -329,7 +333,7 @@ func (f *Ftp) Invoke(ctx context.Context, req *bindings.InvokeRequest) (*binding
 }
 
 func (f *Ftp) create(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	p, err := f.metadata.mergeWithRequestMetadata(req).getPath(req.Metadata)
+	p, err := f.filePath(req)
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: %w", err)
 	}
@@ -366,7 +370,7 @@ func (f *Ftp) create(ctx context.Context, req *bindings.InvokeRequest) (*binding
 }
 
 func (f *Ftp) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	p, err := f.metadata.mergeWithRequestMetadata(req).getPath(req.Metadata)
+	p, err := f.filePath(req)
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: %w", err)
 	}
@@ -391,7 +395,7 @@ func (f *Ftp) get(ctx context.Context, req *bindings.InvokeRequest) (*bindings.I
 }
 
 func (f *Ftp) delete(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	p, err := f.metadata.mergeWithRequestMetadata(req).getPath(req.Metadata)
+	p, err := f.filePath(req)
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: %w", err)
 	}
@@ -407,7 +411,7 @@ func (f *Ftp) delete(ctx context.Context, req *bindings.InvokeRequest) (*binding
 }
 
 func (f *Ftp) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	p, err := f.metadata.mergeWithRequestMetadata(req).getPath(req.Metadata)
+	p, err := f.dirPath(req)
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: %w", err)
 	}
@@ -446,8 +450,6 @@ func (f *Ftp) list(ctx context.Context, req *bindings.InvokeRequest) (*bindings.
 
 // rename moves fileName to newFileName; both are relative to rootPath.
 func (f *Ftp) rename(ctx context.Context, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	m := f.metadata.mergeWithRequestMetadata(req)
-
 	from, ok := kitmd.GetMetadataProperty(req.Metadata, metadataFileName)
 	if !ok || from == "" {
 		return nil, errors.New("ftp binding error: required metadata fileName missing")
@@ -456,11 +458,11 @@ func (f *Ftp) rename(ctx context.Context, req *bindings.InvokeRequest) (*binding
 	if !ok || to == "" {
 		return nil, errors.New("ftp binding error: required metadata newFileName missing")
 	}
-	from, err := joinUnderRoot(m.RootPath, from)
+	from, err := joinUnderRoot(f.metadata.RootPath, from)
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: %w", err)
 	}
-	to, err = joinUnderRoot(m.RootPath, to)
+	to, err = joinUnderRoot(f.metadata.RootPath, to)
 	if err != nil {
 		return nil, fmt.Errorf("ftp binding error: %w", err)
 	}
@@ -510,16 +512,28 @@ func isDirExistsReply(err error) bool {
 	return tpErr.Code == ftpclient.StatusFileUnavailable || tpErr.Code == 521
 }
 
-func (m ftpMetadata) getPath(requestMetadata map[string]string) (string, error) {
-	if val, ok := kitmd.GetMetadataProperty(requestMetadata, metadataFileName); ok && val != "" {
-		return joinUnderRoot(m.RootPath, val)
+// filePath resolves the request's fileName under the component's rootPath.
+// fileName is required: without it create, get and delete would act on rootPath itself.
+func (f *Ftp) filePath(req *bindings.InvokeRequest) (string, error) {
+	name, ok := kitmd.GetMetadataProperty(req.Metadata, metadataFileName)
+	if !ok || name == "" {
+		return "", errors.New("required metadata fileName missing")
 	}
 
-	if m.RootPath == "" {
+	return joinUnderRoot(f.metadata.RootPath, name)
+}
+
+// dirPath resolves the request's fileName under rootPath, or rootPath itself when fileName is absent.
+func (f *Ftp) dirPath(req *bindings.InvokeRequest) (string, error) {
+	if name, ok := kitmd.GetMetadataProperty(req.Metadata, metadataFileName); ok && name != "" {
+		return joinUnderRoot(f.metadata.RootPath, name)
+	}
+
+	if f.metadata.RootPath == "" {
 		return "", errors.New("required metadata rootPath or fileName missing")
 	}
 
-	return m.RootPath, nil
+	return f.metadata.RootPath, nil
 }
 
 // joinUnderRoot joins name to root, rejecting names that would escape root or that
@@ -537,15 +551,6 @@ func joinUnderRoot(root, name string) (string, error) {
 	}
 
 	return p, nil
-}
-
-// mergeWithRequestMetadata lets a request override rootPath.
-func (m ftpMetadata) mergeWithRequestMetadata(req *bindings.InvokeRequest) ftpMetadata {
-	if val, ok := kitmd.GetMetadataProperty(req.Metadata, metadataRootPath); ok && val != "" {
-		m.RootPath = val
-	}
-
-	return m
 }
 
 // GetComponentMetadata returns the metadata of the component.

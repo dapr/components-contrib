@@ -174,6 +174,10 @@ const components = {
     'bindings.dubbo': {
         certification: true,
     },
+    'bindings.ftp': {
+        conformance: true,
+        conformanceSetup: 'docker-compose.sh ftp ftp up-wait',
+    },
     'bindings.http': {
         conformance: true,
     },

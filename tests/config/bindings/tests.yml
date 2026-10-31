@@ -60,7 +60,7 @@ components:
     profile: confluent
     operations: ["create", "operations"]
   - component: ftp
-    operations: ["create", "operations", "get", "list"]
+    operations: ["create", "operations", "get"]
     config:
       output:
         fileName: $((uuid))

@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/dapr/components-contrib v1.10.6-0.20230403162214-9ee9d56cb7ea
-	github.com/dapr/kit v0.18.2
+	github.com/dapr/kit v0.19.1-0.20261030175054-be979ab98cc4
 )
 
 require (
@@ -31,6 +31,7 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	k8s.io/apimachinery v0.33.0 // indirect
 )
 

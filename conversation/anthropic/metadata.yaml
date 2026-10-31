@@ -20,6 +20,45 @@ authenticationProfiles:
           API key for Anthropic, or for the Microsoft Foundry resource when apiType is 'foundry'.
         example:  "**********"
         default: ""
+  - title: "Workload identity federation (SPIFFE)"
+    description: |
+      Authenticate without an API key. The Dapr runtime mints a JWT SVID for the app's SPIFFE ID,
+      which is exchanged for a short-lived Anthropic access token. Requires mTLS and Sentry JWT
+      issuing, with Sentry registered as a federation issuer in the Claude Console.
+      Not supported when apiType is 'foundry'.
+    metadata:
+      - name: federationRuleId
+        type: string
+        required: true
+        description: |
+          ID of the Anthropic federation rule that maps the app's SPIFFE ID to a service account.
+        example: '"fdrl_01abc"'
+      - name: organizationId
+        type: string
+        required: true
+        description: |
+          UUID of the Anthropic organization.
+        example: '"00000000-0000-0000-0000-000000000000"'
+      - name: serviceAccountId
+        type: string
+        required: true
+        description: |
+          ID of the Anthropic service account the access token acts as.
+        example: '"svac_01abc"'
+      - name: workspaceId
+        type: string
+        required: false
+        description: |
+          ID of the workspace to scope the access token to. Required when the federation rule is
+          enabled for more than one workspace.
+        example: '"wrkspc_01abc"'
+      - name: audience
+        type: string
+        required: false
+        description: |
+          Audience of the JWT SVID. Must match the audience of the federation rule.
+        example: '"https://api.anthropic.com"'
+        default: '"https://api.anthropic.com"'
 metadata:
   - name: model
     required: false

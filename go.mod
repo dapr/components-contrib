@@ -71,7 +71,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.6.1
 	github.com/dancannon/gorethink v4.0.0+incompatible
 	github.com/dapr/components-contrib/tests/certification v0.0.0-20260219105038-d0cf89ba8acf
-	github.com/dapr/kit v0.18.2
+	github.com/dapr/kit v0.19.1-0.20261030175054-be979ab98cc4
 	github.com/didip/tollbooth/v7 v7.0.1
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/fasthttp-contrib/sessions v0.0.0-20160905201309-74f6ac73d5d5
@@ -520,5 +520,3 @@ replace github.com/apache/thrift => github.com/apache/thrift v0.13.0
 
 // Uncomment for local development for testing with changes in the components-contrib && kit repositories.
 // Don't commit with this uncommented!
-//
-// replace github.com/dapr/kit => ../kit

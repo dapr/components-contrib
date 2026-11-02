@@ -406,7 +406,9 @@ func TestMySQLIntegration(t *testing.T) {
 		}
 
 		err = mys.Set(t.Context(), setReq)
-		require.ErrorContains(t, err, "Duplicate entry")
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 
 		// Insert with invalid etag should fail on existing keys
 		setReq = &state.SetRequest{

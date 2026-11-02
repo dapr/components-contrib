@@ -303,8 +303,8 @@ func (r *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
 func (r *StateStore) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
-	if r.suppressActorStateStoreWarning.CompareAndSwap(false, true) {
-		r.logger.Warn("Redis does not support transaction rollbacks and should not be used in production as an actor state store.")
+	if r.isCluster() && r.suppressActorStateStoreWarning.CompareAndSwap(false, true) {
+		r.logger.Warn("On Redis Cluster a transaction is atomic only when all its keys share a hash tag, otherwise an etag mismatch can leave other slots' writes applied.")
 	}
 
 	ops, err := r.buildMultiOps(request)

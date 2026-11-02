@@ -186,9 +186,6 @@ func (r *StateStore) buildMultiOps(request *state.TransactionalStateRequest) ([]
 			}
 			ops = append(ops, op)
 		case state.DeleteRequest:
-			if req.Metadata[daprmetadata.ContentType] == contenttype.JSONContentType && !r.clientHasJSON {
-				return nil, errJSONUnsupported
-			}
 			op, err := deleteOp(&req)
 			if err != nil {
 				return nil, err

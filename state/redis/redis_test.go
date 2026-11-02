@@ -726,11 +726,14 @@ func TestMultiETags(t *testing.T) {
 			state.SetRequest{Key: "a", Value: "a1"},
 			state.SetRequest{Key: "b", Value: "b1", Metadata: jsonMD},
 		), errJSONUnsupported)
-		require.ErrorIs(t, multi(ss, state.DeleteRequest{Key: "a", Metadata: jsonMD}), errJSONUnsupported)
 		require.ErrorIs(t, ss.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{state.SetRequest{Key: "a", Value: "a1"}},
 			Metadata:   jsonMD,
 		}), errJSONUnsupported)
+		assert.Nil(t, get(t, ss, "a").Data)
+
+		require.NoError(t, multi(ss, state.SetRequest{Key: "a", Value: "a1"}))
+		require.NoError(t, multi(ss, state.DeleteRequest{Key: "a", Metadata: jsonMD}))
 		assert.Nil(t, get(t, ss, "a").Data)
 	})
 

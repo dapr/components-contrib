@@ -277,10 +277,18 @@ func (r *RavenDB) checkMissing(session *ravendb.DocumentSession, key string) err
 	if err := session.Load(&existing, key); err != nil {
 		return fmt.Errorf("error loading data: %w", err)
 	}
-	if existing != nil {
-		return state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
+	if existing == nil {
+		return nil
 	}
-	return nil
+	meta, err := session.Advanced().GetMetadataFor(existing)
+	if err != nil {
+		return fmt.Errorf("error loading metadata: %w", err)
+	}
+	if expiry, ok := expiryFromMetadata(meta); ok && isExpired(expiry) {
+		// Evicted so a store of the key replaces it whole, the client can't drop @expires from a loaded document.
+		return session.Advanced().Evict(existing)
+	}
+	return state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
 }
 
 func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {

@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	ravendb "github.com/ravendb/ravendb-go-client"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,7 @@ type fakeRavenServer struct {
 	commands [][]map[string]any
 	conflict bool
 	existing map[string]string
+	expired  map[string]bool
 }
 
 func (f *fakeRavenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -84,20 +86,25 @@ func (f *fakeRavenServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (f *fakeRavenServer) serveDoc(w http.ResponseWriter, id string) {
 	f.lock.Lock()
 	value, ok := f.existing[id]
+	expired := f.expired[id]
 	f.lock.Unlock()
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	meta := map[string]any{
+		"@id":            id,
+		"@change-vector": "A:1-" + id,
+		"@collection":    "Items",
+	}
+	if expired {
+		meta["@expires"] = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"Results": []map[string]any{{
-			"Value": value,
-			"@metadata": map[string]any{
-				"@id":            id,
-				"@change-vector": "A:1-" + id,
-				"@collection":    "Items",
-			},
+			"Value":     value,
+			"@metadata": meta,
 		}},
 		"Includes": map[string]any{},
 	})
@@ -163,6 +170,23 @@ func TestSetETag(t *testing.T) {
 		}
 	})
 
+	t.Run("first-write on an expired document replaces it", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"a": `"v"`}
+		fake.expired = map[string]bool{"a": true}
+		err := r.Set(t.Context(), &state.SetRequest{
+			Key: "a", Value: "w",
+			Options: state.SetStateOption{Concurrency: state.FirstWrite},
+		})
+		require.NoError(t, err)
+
+		cmd := fake.commandsByID(t)["a"]
+		assert.Equal(t, "PUT", cmd["Type"])
+		doc := cmd["Document"].(map[string]any)
+		assert.Equal(t, `"w"`, doc["Value"])
+		assert.NotContains(t, doc["@metadata"], "@expires")
+	})
+
 	t.Run("first-write on a missing document stores it", func(t *testing.T) {
 		r, fake := newFakeRaven(t)
 		err := r.Set(t.Context(), &state.SetRequest{
@@ -197,6 +221,26 @@ func TestMultiETags(t *testing.T) {
 		assert.Equal(t, "A:2-x", byID["b"]["ChangeVector"])
 		assert.Equal(t, "DELETE", byID["c"]["Type"])
 		assert.Equal(t, "A:3-x", byID["c"]["ChangeVector"])
+	})
+
+	t.Run("first-write on expired documents counts them as missing", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"a": `"v"`, "b": `"v"`}
+		fake.expired = map[string]bool{"a": true, "b": true}
+		firstWrite := state.SetStateOption{Concurrency: state.FirstWrite}
+		err := r.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.SetRequest{Key: "a", Value: "w", Options: firstWrite},
+				state.SetRequest{Key: "b", Value: "w", Options: firstWrite},
+				state.DeleteRequest{Key: "b"},
+			},
+		})
+		require.NoError(t, err)
+
+		byID := fake.commandsByID(t)
+		assert.Equal(t, "PUT", byID["a"]["Type"])
+		assert.NotContains(t, byID["a"]["Document"].(map[string]any)["@metadata"], "@expires")
+		assert.NotContains(t, byID, "b")
 	})
 
 	t.Run("delete etag conflict is an etag mismatch", func(t *testing.T) {

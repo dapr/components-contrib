@@ -399,6 +399,9 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 			}
 			// replace with innerSetRequest
 			request.Operations[i] = innerSetRequest
+		case *innerSetRequest:
+			// a retried request already holds the prepared op
+			guarded = guarded || req.req.HasETag() || req.req.Options.Concurrency == state.FirstWrite
 		case state.DeleteRequest:
 			guarded = guarded || req.HasETag() || req.Options.Concurrency == state.FirstWrite
 			err := state.CheckRequestOptions(&req)

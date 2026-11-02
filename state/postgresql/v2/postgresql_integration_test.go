@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	postgresql "github.com/dapr/components-contrib/common/component/postgresql/v1"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
@@ -52,7 +51,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*postgresql.PostgreSQL)
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*PostgreSQL)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -139,7 +138,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 }
 
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
-func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
+func setGetUpdateDeleteOneItem(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	value := &fakeItem{Color: "yellow"}
 
@@ -156,7 +155,7 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 	deleteItem(t, pgs, key, getResponse.ETag)
 }
 
-func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
+func deleteItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 	// Delete the item with a key not in the store
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
@@ -165,7 +164,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.NoError(t, err)
 }
 
-func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
+func multiWithSetOnly(t *testing.T, pgs *PostgreSQL) {
 	var operations []state.TransactionalStateOperation //nolint:prealloc
 	var setRequests []state.SetRequest                 //nolint:prealloc
 	for range 3 {
@@ -188,7 +187,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 }
 
-func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
+func multiWithDeleteOnly(t *testing.T, pgs *PostgreSQL) {
 	var operations []state.TransactionalStateOperation //nolint:prealloc
 	var deleteRequests []state.DeleteRequest           //nolint:prealloc
 	for range 3 {
@@ -214,7 +213,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 }
 
-func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
+func multiWithDeleteAndSet(t *testing.T, pgs *PostgreSQL) {
 	var operations []state.TransactionalStateOperation //nolint:prealloc
 	var deleteRequests []state.DeleteRequest           //nolint:prealloc
 	for range 3 {
@@ -256,7 +255,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 }
 
-func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func deleteWithInvalidEtagFails(t *testing.T, pgs *PostgreSQL) {
 	// Create new item
 	key := randomKey()
 	value := &fakeItem{Color: "mauve"}
@@ -272,7 +271,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.Error(t, err)
 }
 
-func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func deleteWithNoKeyFails(t *testing.T, pgs *PostgreSQL) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
@@ -281,7 +280,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure.
-func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func newItemWithEtagFails(t *testing.T, pgs *PostgreSQL) {
 	value := &fakeItem{Color: "teal"}
 	invalidEtag := "12345"
 
@@ -295,7 +294,7 @@ func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.Error(t, err)
 }
 
-func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func updateWithOldEtagFails(t *testing.T, pgs *PostgreSQL) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "gray"}
@@ -321,7 +320,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.Error(t, err)
 }
 
-func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
+func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *PostgreSQL) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "hazel"}
@@ -346,7 +345,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist.
-func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
+func getItemThatDoesNotExist(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	response, outputObject := getItem(t, pgs, key)
 	assert.Nil(t, response.Data)
@@ -354,7 +353,7 @@ func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
-func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
+func getItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 	getReq := &state.GetRequest{
 		Key: "",
 	}
@@ -365,7 +364,7 @@ func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // setUpdatesTheUpdatedateField proves that the updateddate is set for an update, and not set upon insert.
-func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQL) {
+func setUpdatesTheUpdatedateField(t *testing.T, pgs *PostgreSQL) {
 	key := randomKey()
 	value := &fakeItem{Color: "orange"}
 	setItem(t, pgs, key, value, nil)
@@ -386,7 +385,7 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQL) {
 	deleteItem(t, pgs, key, nil)
 }
 
-func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
+func setItemWithNoKey(t *testing.T, pgs *PostgreSQL) {
 	setReq := &state.SetRequest{
 		Key: "",
 	}
@@ -396,7 +395,7 @@ func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // Tests valid bulk sets and deletes.
-func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
+func testBulkSetAndBulkDelete(t *testing.T, pgs *PostgreSQL) {
 	setReq := []state.SetRequest{
 		{
 			Key:   randomKey(),
@@ -439,7 +438,7 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name:        "Empty",
 			props:       map[string]string{},
-			expectedErr: errors.New("missing connection string"),
+			expectedErr: errors.New("failed to build connection string"),
 		},
 		{
 			name:        "Valid connection string",
@@ -450,7 +449,7 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger).(*postgresql.PostgreSQL)
+			p := NewPostgreSQLStateStore(logger).(*PostgreSQL)
 			defer p.Close()
 
 			metadata := state.Metadata{
@@ -462,7 +461,7 @@ func testInitConfiguration(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				assert.Equal(t, tt.expectedErr, err)
+				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
 	}
@@ -472,7 +471,7 @@ func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
-func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interface{}, etag *string) {
+func setItem(t *testing.T, pgs *PostgreSQL, key string, value interface{}, etag *string) {
 	setReq := &state.SetRequest{
 		Key:   key,
 		ETag:  etag,
@@ -485,7 +484,7 @@ func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interfa
 	assert.True(t, itemExists)
 }
 
-func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetResponse, *fakeItem) {
+func getItem(t *testing.T, pgs *PostgreSQL, key string) (*state.GetResponse, *fakeItem) {
 	getReq := &state.GetRequest{
 		Key:     key,
 		Options: state.GetStateOption{},
@@ -500,7 +499,7 @@ func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetRe
 	return response, outputObject
 }
 
-func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *string) {
+func deleteItem(t *testing.T, pgs *PostgreSQL, key string, etag *string) {
 	deleteReq := &state.DeleteRequest{
 		Key:     key,
 		ETag:    etag,
@@ -526,13 +525,13 @@ func storeItemExists(t *testing.T, key string) bool {
 	return exists
 }
 
-func getRowData(t *testing.T, key string) (returnValue string, insertdate *time.Time, updatedate *time.Time) {
+func getRowData(t *testing.T, key string) (returnValue []byte, insertdate *time.Time, updatedate *time.Time) {
 	ctx := t.Context()
 	db, err := pgx.Connect(ctx, getConnectionString())
 	require.NoError(t, err)
 	defer db.Close(ctx)
 
-	err = db.QueryRow(ctx, "SELECT value, insertdate, updatedate FROM state WHERE key = $1", key).
+	err = db.QueryRow(ctx, "SELECT value, created_at, updated_at FROM state WHERE key = $1", key).
 		Scan(&returnValue, &insertdate, &updatedate)
 	require.NoError(t, err)
 

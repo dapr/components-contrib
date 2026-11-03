@@ -21,4 +21,14 @@ import (
 type AnthropicLangchainMetadata struct {
 	conversation.LangchainMetadata `json:",inline" mapstructure:",squash"`
 	APIType                        string `json:"apiType" mapstructure:"apiType"`
+
+	// When FederationRuleID is set, the component authenticates with workload
+	// identity federation, exchanging a JWT SVID minted by the Dapr runtime for
+	// an Anthropic access token, instead of using Key.
+	FederationRuleID string `json:"federationRuleId" mapstructure:"federationRuleId"`
+	OrganizationID   string `json:"organizationId" mapstructure:"organizationId"`
+	ServiceAccountID string `json:"serviceAccountId" mapstructure:"serviceAccountId"`
+	WorkspaceID      string `json:"workspaceId" mapstructure:"workspaceId"`
+	// Audience of the JWT SVID. Defaults to https://api.anthropic.com.
+	Audience string `json:"audience" mapstructure:"audience"`
 }

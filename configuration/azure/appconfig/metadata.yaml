@@ -29,6 +29,11 @@ builtinAuthenticationProfiles:
       description: "Endpoint for the Azure App Configuration instance. Mutally exclusive with connectionString field. To be used when Azure Authentication is used"
       example: '"https://dapr.azconfig.io"'
 metadata:
+  - name: resolveKeyVaultReferences
+    description: "Resolve Azure Key Vault references to secret values for reads and subscription updates. Requires Azure authentication with permission to read the referenced secrets, even when App Configuration uses a connection string. References must use HTTPS and belong to the configured Azure environment. Disabled by default to preserve raw reference values. Secret changes are picked up on the next read or sentinel-triggered subscription update."
+    type: bool
+    default: 'false'
+    example: 'true'
   - name: maxRetries
     description: "Maximum number of retries before giving up"
     type: number

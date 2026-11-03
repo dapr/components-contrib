@@ -194,9 +194,19 @@ metadata:
     description: |
       Default queue type for all queues declared by the component, including
       dead letter queues. A `queueType` set on subscription metadata takes
-      precedence for that subscription's queue. Quorum queues require
-      `durable` to be "true" and `deletedWhenUnused` to be "false".
-      Ignored when `queueDeclareMode` is "passive".
+      precedence for that subscription's queue and its dead letter queue.
+      Quorum queues require `durable` to be "true" and `deletedWhenUnused` to
+      be "false". Ignored when `queueDeclareMode` is "passive".
+      RabbitMQ cannot change the type of an existing queue: changing this
+      value on a deployment with existing queues makes their redeclaration
+      fail (PRECONDITION_FAILED) and stops the affected subscriptions until
+      those queues are deleted or migrated.
+      Quorum queues on RabbitMQ 4 have a default delivery limit of 20: a
+      message that keeps being redelivered (for example with
+      `requeueInFailure` "true") is dead lettered after 20 attempts, or
+      dropped when `enableDeadLetter` is "false", whereas classic queues
+      redeliver without a limit. Set a higher delivery-limit policy on the
+      broker if needed.
     default: '"classic"'
     allowedValues:
       - "classic"

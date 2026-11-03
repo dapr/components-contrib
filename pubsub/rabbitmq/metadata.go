@@ -83,7 +83,6 @@ const (
 	metadataExchangeKindKey                       = "exchangeKind"
 	metadataExchangeDeclareModeKey                = "exchangeDeclareMode"
 	metadataQueueDeclareModeKey                   = "queueDeclareMode"
-	metadataQueueTypeKey                          = "queueType"
 	metadataPublisherConfirmKey                   = "publisherConfirm"
 	metadataSaslExternal                          = "saslExternal"
 	metadataMaxPriority                           = "maxPriority"
@@ -186,11 +185,12 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		return &result, err
 	}
 
+	result.QueueType = strings.ToLower(result.QueueType)
 	if !queueTypeValid(result.QueueType) {
 		return &result, fmt.Errorf("%s invalid RabbitMQ queue type %s, accepted values are %s and %s", errorMessagePrefix, result.QueueType, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
 	}
 
-	if result.QueueType == amqp.QueueTypeQuorum {
+	if result.QueueType == amqp.QueueTypeQuorum && !result.isPassiveQueueDeclare() {
 		// quorum queues must be durable and cannot be auto-deleted
 		if !result.Durable {
 			return &result, fmt.Errorf("%s quorum queues require %s to be true", errorMessagePrefix, metadataDurableKey)

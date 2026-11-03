@@ -202,7 +202,7 @@ func TestComponentQueueType(t *testing.T) {
 			metadataHostnameKey:         "anyhost",
 			metadataConsumerIDKey:       "consumer",
 			metadataEnableDeadLetterKey: "true",
-			metadataQueueTypeKey:        "quorum",
+			reqMetadataQueueTypeKey:     "quorum",
 			metadataDeleteWhenUnusedKey: "false",
 		}, nil)
 
@@ -216,12 +216,12 @@ func TestComponentQueueType(t *testing.T) {
 		assert.NotContains(t, dlqArgs, argQueueMode)
 	})
 
-	t.Run("subscription metadata overrides component-level queue type", func(t *testing.T) {
+	t.Run("subscription metadata overrides component-level queue type for the queue and its dead letter queue", func(t *testing.T) {
 		broker := subscribe(t, map[string]string{
 			metadataHostnameKey:         "anyhost",
 			metadataConsumerIDKey:       "consumer",
 			metadataEnableDeadLetterKey: "true",
-			metadataQueueTypeKey:        "quorum",
+			reqMetadataQueueTypeKey:     "quorum",
 			metadataDeleteWhenUnusedKey: "false",
 		}, map[string]string{
 			reqMetadataQueueTypeKey: "classic",
@@ -231,10 +231,29 @@ func TestComponentQueueType(t *testing.T) {
 		require.NotNil(t, mainArgs)
 		assert.Equal(t, amqp.QueueTypeClassic, mainArgs[amqp.QueueTypeArg])
 
-		// dead letter queue is not tied to a subscription, so it follows the component-level type
+		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
+		require.NotNil(t, dlqArgs)
+		assert.NotContains(t, dlqArgs, amqp.QueueTypeArg)
+		assert.Equal(t, queueModeLazy, dlqArgs[argQueueMode])
+	})
+
+	t.Run("subscription-level quorum applies to the dead letter queue too", func(t *testing.T) {
+		broker := subscribe(t, map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+		}, map[string]string{
+			reqMetadataQueueTypeKey: "quorum",
+		})
+
+		mainArgs := broker.declaredQueueArgs["consumer-mytopic"]
+		require.NotNil(t, mainArgs)
+		assert.Equal(t, amqp.QueueTypeQuorum, mainArgs[amqp.QueueTypeArg])
+
 		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
 		require.NotNil(t, dlqArgs)
 		assert.Equal(t, amqp.QueueTypeQuorum, dlqArgs[amqp.QueueTypeArg])
+		assert.NotContains(t, dlqArgs, argQueueMode)
 	})
 }
 
@@ -1320,13 +1339,16 @@ func TestPassiveQueueDeclareIgnoresQueueArguments(t *testing.T) {
 }
 
 // TestActiveQueueDeclareStillValidatesQueueType guards the counterpart: when
-// this component declares the queue, an unsupported type is still rejected.
+// this component declares the queue, an unsupported type is still rejected,
+// and it is rejected before any dead letter object is declared so none is left
+// behind on the broker.
 func TestActiveQueueDeclareStillValidatesQueueType(t *testing.T) {
 	broker := newBroker()
 	r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
 		ExchangeKind:        amqp.ExchangeTopic,
 		ExchangeDeclareMode: exchangeDeclareModeDeclare,
 		QueueDeclareMode:    queueDeclareModeDeclare,
+		EnableDeadLetter:    true,
 	})
 
 	_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{
@@ -1336,6 +1358,10 @@ func TestActiveQueueDeclareStillValidatesQueueType(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), errorInvalidQueueType)
+	assert.NotContains(t, broker.declaredQueueArgs, "dlq-consumer-mytopic")
+	for _, exchange := range broker.declaredExchanges {
+		assert.NotEqual(t, "dlx-consumer-mytopic", exchange.name)
+	}
 }
 
 // TestMustReconnectOnAMQPError verifies that any AMQP error is treated as a

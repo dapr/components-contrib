@@ -494,8 +494,42 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[metadataQueueTypeKey] = amqp.QueueTypeQuorum
+		fakeMetaData.Properties[reqMetadataQueueTypeKey] = amqp.QueueTypeQuorum
 		fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = "false"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Equal(t, amqp.QueueTypeQuorum, m.QueueType)
+	})
+
+	t.Run("queueType is case-insensitive", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[reqMetadataQueueTypeKey] = "Quorum"
+		fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = "false"
+
+		// act
+		m, err := createMetadata(fakeMetaData, log)
+
+		// assert
+		require.NoError(t, err)
+		assert.Equal(t, amqp.QueueTypeQuorum, m.QueueType)
+	})
+
+	t.Run("queueType quorum skips durability constraints in passive queue declare mode", func(t *testing.T) {
+		fakeProperties := getFakeProperties()
+
+		fakeMetaData := pubsub.Metadata{
+			Base: mdata.Base{Properties: fakeProperties},
+		}
+		fakeMetaData.Properties[reqMetadataQueueTypeKey] = amqp.QueueTypeQuorum
+		fakeMetaData.Properties[metadataQueueDeclareModeKey] = queueDeclareModePassive
 
 		// act
 		m, err := createMetadata(fakeMetaData, log)
@@ -511,7 +545,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[metadataQueueTypeKey] = "invalid"
+		fakeMetaData.Properties[reqMetadataQueueTypeKey] = "invalid"
 
 		// act
 		_, err := createMetadata(fakeMetaData, log)
@@ -527,7 +561,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[metadataQueueTypeKey] = amqp.QueueTypeQuorum
+		fakeMetaData.Properties[reqMetadataQueueTypeKey] = amqp.QueueTypeQuorum
 
 		// act
 		_, err := createMetadata(fakeMetaData, log)
@@ -543,7 +577,7 @@ func TestCreateMetadata(t *testing.T) {
 		fakeMetaData := pubsub.Metadata{
 			Base: mdata.Base{Properties: fakeProperties},
 		}
-		fakeMetaData.Properties[metadataQueueTypeKey] = amqp.QueueTypeQuorum
+		fakeMetaData.Properties[reqMetadataQueueTypeKey] = amqp.QueueTypeQuorum
 		fakeMetaData.Properties[metadataDeleteWhenUnusedKey] = "false"
 		fakeMetaData.Properties[metadataDurableKey] = "false"
 

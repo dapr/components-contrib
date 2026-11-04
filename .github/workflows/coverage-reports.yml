@@ -54,9 +54,10 @@ jobs:
             workflow_conclusion: "completed"
             branch: main
             event: schedule
-            if_no_artifact_found: error
+            if_no_artifact_found: fail
             name: .*_cert_code_cov
             name_is_regexp: true
+            search_artifacts: true
             merge_multiple: true
             path: tmp/cert_code_cov
         
@@ -67,9 +68,10 @@ jobs:
             workflow_conclusion: "completed"
             branch: main
             event: schedule
-            if_no_artifact_found: error
+            if_no_artifact_found: fail
             name: .*_conf_code_cov
             name_is_regexp: true
+            search_artifacts: true
             merge_multiple: true
             path: tmp/conf_code_cov
         

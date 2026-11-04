@@ -418,6 +418,10 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		queueType = val
 	}
 
+	if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" && queueType == amqp.QueueTypeQuorum {
+		return nil, fmt.Errorf("%s %s is only supported by %s queues and the queue type for queue '%s' resolved to %s: %w", errorMessagePrefix, metadataMaxPriority, amqp.QueueTypeClassic, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+	}
+
 	var args amqp.Table
 	if r.metadata.EnableDeadLetter {
 		// declare dead letter exchange
@@ -435,7 +439,11 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 		var q amqp.Queue
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
-		if queueType == amqp.QueueTypeQuorum {
+		// the resolved type reaches the dead letter queue only when the
+		// component-level queueType is set: deployments that predate it have a
+		// classic dead letter queue on the broker even when the subscription
+		// sets queueType, and typing it now would fail its redeclaration
+		if r.metadata.queueTypeSet && queueType == amqp.QueueTypeQuorum {
 			dlqArgs[amqp.QueueTypeArg] = amqp.QueueTypeQuorum
 		} else {
 			// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage

@@ -21,6 +21,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
+	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
@@ -50,6 +51,7 @@ type rabbitmqMetadata struct {
 	ExchangeDeclareMode                string                 `mapstructure:"exchangeDeclareMode"`
 	QueueDeclareMode                   string                 `mapstructure:"queueDeclareMode"`
 	QueueType                          string                 `mapstructure:"queueType"`
+	queueTypeSet                       bool                   `mapstructure:"-"`
 	ClientName                         string                 `mapstructure:"clientName"`
 	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
@@ -184,6 +186,8 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 	if err := validateExchangeKind(result.ExchangeKind, result.ExchangeDeclareMode); err != nil {
 		return &result, err
 	}
+
+	_, result.queueTypeSet = common.TryGetProperty(pubSubMetadata.Properties, reqMetadataQueueTypeKey)
 
 	result.QueueType = strings.ToLower(result.QueueType)
 	if !queueTypeValid(result.QueueType) {

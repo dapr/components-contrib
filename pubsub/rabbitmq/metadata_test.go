@@ -486,6 +486,7 @@ func TestCreateMetadata(t *testing.T) {
 		// assert
 		require.NoError(t, err)
 		assert.Equal(t, amqp.QueueTypeClassic, m.QueueType)
+		assert.False(t, m.queueTypeSet)
 	})
 
 	t.Run("queueType quorum with deletedWhenUnused false", func(t *testing.T) {
@@ -503,6 +504,7 @@ func TestCreateMetadata(t *testing.T) {
 		// assert
 		require.NoError(t, err)
 		assert.Equal(t, amqp.QueueTypeQuorum, m.QueueType)
+		assert.True(t, m.queueTypeSet)
 	})
 
 	t.Run("queueType is case-insensitive", func(t *testing.T) {

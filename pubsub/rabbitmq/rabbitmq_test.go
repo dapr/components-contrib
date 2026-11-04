@@ -237,7 +237,7 @@ func TestComponentQueueType(t *testing.T) {
 		assert.Equal(t, queueModeLazy, dlqArgs[argQueueMode])
 	})
 
-	t.Run("subscription-level quorum applies to the dead letter queue too", func(t *testing.T) {
+	t.Run("subscription-level quorum without component-level queueType keeps the dead letter queue classic", func(t *testing.T) {
 		broker := subscribe(t, map[string]string{
 			metadataHostnameKey:         "anyhost",
 			metadataConsumerIDKey:       "consumer",
@@ -252,8 +252,47 @@ func TestComponentQueueType(t *testing.T) {
 
 		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
 		require.NotNil(t, dlqArgs)
+		assert.NotContains(t, dlqArgs, amqp.QueueTypeArg)
+		assert.Equal(t, queueModeLazy, dlqArgs[argQueueMode])
+	})
+
+	t.Run("subscription-level quorum reaches the dead letter queue when component-level queueType is set", func(t *testing.T) {
+		broker := subscribe(t, map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+			reqMetadataQueueTypeKey:     "classic",
+		}, map[string]string{
+			reqMetadataQueueTypeKey: "quorum",
+		})
+
+		mainArgs := broker.declaredQueueArgs["consumer-mytopic"]
+		require.NotNil(t, mainArgs)
+		assert.Equal(t, amqp.QueueTypeQuorum, mainArgs[amqp.QueueTypeArg])
+
+		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
+		require.NotNil(t, dlqArgs)
 		assert.Equal(t, amqp.QueueTypeQuorum, dlqArgs[amqp.QueueTypeArg])
 		assert.NotContains(t, dlqArgs, argQueueMode)
+	})
+
+	t.Run("maxPriority with a quorum queue fails before declaring dead letter objects", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		err := pubsubRabbitMQ.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+			reqMetadataQueueTypeKey:     "quorum",
+			metadataDeleteWhenUnusedKey: "false",
+		}}})
+		require.NoError(t, err)
+
+		err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic", Metadata: map[string]string{metadataMaxPriority: "5"}}, handler)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), metadataMaxPriority)
+		assert.NotContains(t, broker.declaredQueueArgs, "dlq-consumer-mytopic")
+		assert.NotContains(t, broker.declaredQueueArgs, "consumer-mytopic")
 	})
 }
 

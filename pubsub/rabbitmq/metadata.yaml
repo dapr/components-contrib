@@ -194,9 +194,13 @@ metadata:
     description: |
       Default queue type for all queues declared by the component, including
       dead letter queues. A `queueType` set on subscription metadata takes
-      precedence for that subscription's queue and its dead letter queue.
-      Quorum queues require `durable` to be "true" and `deletedWhenUnused` to
-      be "false". Ignored when `queueDeclareMode` is "passive".
+      precedence for that subscription's queue; it also reaches the dead
+      letter queue only when this component-level field is set, so
+      deployments that only set the subscription key keep their existing
+      classic dead letter queues. Quorum queues require `durable` to be
+      "true" and `deletedWhenUnused` to be "false", and do not support
+      `maxPriority`: a subscription that sets it fails when its queue type
+      resolves to "quorum". Ignored when `queueDeclareMode` is "passive".
       RabbitMQ cannot change the type of an existing queue: changing this
       value on a deployment with existing queues makes their redeclaration
       fail (PRECONDITION_FAILED) and stops the affected subscriptions until

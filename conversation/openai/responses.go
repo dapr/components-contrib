@@ -63,7 +63,13 @@ type responsesModel struct {
 
 // newResponsesModel falls back to the same environment variables langchaingo's
 // OpenAI client reads, so switching to the Responses API keeps the same setup.
-func newResponsesModel(model, key, endpoint string) (*responsesModel, error) {
+// A non-nil client sets the credential itself, so no key is needed.
+func newResponsesModel(model, key, endpoint string, client *http.Client) (*responsesModel, error) {
+	if client != nil {
+		key = conversation.PlaceholderToken
+	} else {
+		client = conversation.BuildHTTPClient()
+	}
 	if key == "" {
 		key = os.Getenv("OPENAI_API_KEY")
 	}
@@ -84,7 +90,7 @@ func newResponsesModel(model, key, endpoint string) (*responsesModel, error) {
 		key:          key,
 		organization: os.Getenv("OPENAI_ORGANIZATION"),
 		baseURL:      strings.TrimSuffix(endpoint, "/"),
-		client:       conversation.BuildHTTPClient(),
+		client:       client,
 	}, nil
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/kit/logger"
@@ -78,6 +79,122 @@ func TestConverseResponseModel(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, resp.Model, "Response.Model should be empty when SetModel was not called")
 	})
+}
+
+// TestConverseMaxTokensDefaults verifies the component-level default cap set via
+// SetDefaultMaxTokens and its precedence against the request-level MaxTokens.
+func TestConverseMaxTokensDefaults(t *testing.T) {
+	choice := &llms.ContentChoice{Content: "hello", StopReason: "stop"}
+
+	tests := []struct {
+		name             string
+		defaultMaxTokens *int64
+		requestMaxTokens *int64
+		wantMaxTokens    int
+	}{
+		{name: "no default and no request value leaves max tokens unset", wantMaxTokens: 0},
+		{name: "default applies when request has no value", defaultMaxTokens: ptr.Of(int64(50)), wantMaxTokens: 50},
+		{name: "request value overrides default", defaultMaxTokens: ptr.Of(int64(50)), requestMaxTokens: ptr.Of(int64(100)), wantMaxTokens: 100},
+		{name: "zero default is ignored", defaultMaxTokens: ptr.Of(int64(0)), wantMaxTokens: 0},
+		{name: "negative default is ignored", defaultMaxTokens: ptr.Of(int64(-5)), wantMaxTokens: 0},
+		{name: "explicit zero request value falls back to default", defaultMaxTokens: ptr.Of(int64(50)), requestMaxTokens: ptr.Of(int64(0)), wantMaxTokens: 50},
+		{name: "huge request value is clamped instead of wrapping", requestMaxTokens: ptr.Of(int64(4294967296)), wantMaxTokens: 2147483647},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got llms.CallOptions
+			llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+				got = foldCallOptions(options)
+				return &llms.ContentResponse{Choices: []*llms.ContentChoice{choice}}, nil
+			})
+			llm.SetDefaultMaxTokens(tt.defaultMaxTokens)
+
+			_, err := llm.Converse(t.Context(), &conversation.Request{
+				MaxTokens: tt.requestMaxTokens,
+				Message: &[]llms.MessageContent{
+					{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+				},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMaxTokens, got.MaxTokens)
+		})
+	}
+}
+
+// TestSetDefaultMaxTokensDiscardsNonPositive verifies that a non-positive
+// component default is dropped by the setter itself rather than merely skipped
+// when call options are built, so the stored default is always nil or positive.
+func TestSetDefaultMaxTokensDiscardsNonPositive(t *testing.T) {
+	tests := []struct {
+		name      string
+		maxTokens *int64
+		want      *int64
+	}{
+		{name: "nil stays nil", want: nil},
+		{name: "zero is discarded", maxTokens: ptr.Of(int64(0)), want: nil},
+		{name: "negative is discarded", maxTokens: ptr.Of(int64(-5)), want: nil},
+		{name: "positive is retained", maxTokens: ptr.Of(int64(50)), want: ptr.Of(int64(50))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			llm := New(logger.NewLogger("test"))
+			llm.SetDefaultMaxTokens(tt.maxTokens)
+			assert.Equal(t, tt.want, llm.defaultMaxTokens)
+		})
+	}
+}
+
+// TestConverseNilResponse verifies that a nil model response yields an error
+// instead of a nil-pointer panic, and that the max-tokens cap was still
+// applied to the outgoing call: options are folded before the call is made,
+// so the cap must be present regardless of what the model returns.
+func TestConverseNilResponse(t *testing.T) {
+	var got llms.CallOptions
+	llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+		got = foldCallOptions(options)
+		return nil, nil
+	})
+	llm.SetDefaultMaxTokens(ptr.Of(int64(50)))
+
+	resp, err := llm.Converse(t.Context(), &conversation.Request{
+		MaxTokens: ptr.Of(int64(100)),
+		Message: &[]llms.MessageContent{
+			{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+		},
+	})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Equal(t, 100, got.MaxTokens, "max tokens must be applied to the outgoing call even when the response is nil")
+}
+
+// TestConversePostCallOptionsSurviveRequestMetadata verifies that provider
+// flags carried in CallOptions.Metadata (e.g. openai.WithLegacyMaxTokensField)
+// survive a request that sets its own Metadata: llms.WithMetadata replaces the
+// metadata map wholesale when folded, so post options must be applied last.
+func TestConversePostCallOptionsSurviveRequestMetadata(t *testing.T) {
+	choice := &llms.ContentChoice{Content: "hello", StopReason: "stop"}
+
+	var got llms.CallOptions
+	llm := newLLMWithStub(func(_ context.Context, _ []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
+		got = foldCallOptions(options)
+		return &llms.ContentResponse{Choices: []*llms.ContentChoice{choice}}, nil
+	})
+	llm.SetPostCallOptions(openai.WithLegacyMaxTokensField())
+
+	_, err := llm.Converse(t.Context(), &conversation.Request{
+		MaxTokens: ptr.Of(int64(100)),
+		Metadata:  map[string]string{"trace": "abc"},
+		Message: &[]llms.MessageContent{
+			{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "hi"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 100, got.MaxTokens)
+	assert.Equal(t, "abc", got.Metadata["trace"], "request metadata must still be present")
+	assert.Equal(t, true, got.Metadata["openai:use_legacy_max_tokens"], "legacy flag must survive request metadata")
 }
 
 // TestConverseEmptyResponseWithTools verifies that when tool_choice=required is set and the LLM

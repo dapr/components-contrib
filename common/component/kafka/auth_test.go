@@ -129,6 +129,35 @@ func TestAuth(t *testing.T) {
 		require.Nil(t, mockConfig.Net.TLS.Config)
 	})
 
+	t.Run("mtls without caCert falls back to system CA trust", func(t *testing.T) {
+		clientCertPEM, clientKeyPEM, err := createTestCert()
+		require.NoError(t, err)
+
+		m := getAuthBaseMetadata()
+		m[authType] = mtlsAuthType
+		m[clientCert] = string(clientCertPEM)
+		m[clientKey] = string(clientKeyPEM)
+
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.NotEmpty(t, meta)
+		require.False(t, meta.TLSSkipVerify)
+		require.Empty(t, meta.TLSCaCert)
+
+		mockConfig := &sarama.Config{}
+
+		err = updateTLSConfig(mockConfig, meta)
+		require.NoError(t, err)
+		require.True(t, mockConfig.Net.TLS.Enable)
+		require.Nil(t, mockConfig.Net.TLS.Config)
+
+		err = updateMTLSAuthInfo(mockConfig, meta)
+		require.NoError(t, err)
+		require.NotNil(t, mockConfig.Net.TLS.Config)
+		require.Nil(t, mockConfig.Net.TLS.Config.RootCAs)
+		require.Len(t, mockConfig.Net.TLS.Config.Certificates, 1)
+	})
+
 	t.Run("oidc private key jwt uses flattened audience", func(t *testing.T) {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
 		require.NoError(t, err)

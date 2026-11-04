@@ -18,3 +18,5 @@ components:
   - component: hashicorp.vault
     operations: []
 
+  - component: aws-floci.secretsmanager
+    operations: []

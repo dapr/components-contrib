@@ -25,29 +25,14 @@ GIT_VERSION = $(shell git describe --always --abbrev=7 --dirty)
 CGO ?= 0
 DAPR_PACKAGE ?= $(dapr_package)
 
-LOCAL_ARCH := $(shell uname -m)
-ifeq ($(LOCAL_ARCH),x86_64)
-  TARGET_ARCH_LOCAL=amd64
-else ifeq ($(shell echo $(LOCAL_ARCH) | head -c 5),armv8)
-  TARGET_ARCH_LOCAL=arm64
-else ifeq ($(shell echo $(LOCAL_ARCH) | head -c 4),armv)
-  TARGET_ARCH_LOCAL=arm
-else
-  TARGET_ARCH_LOCAL=amd64
-endif
-export GOARCH ?= $(TARGET_ARCH_LOCAL)
+HOST_GOOS := $(shell go env GOHOSTOS)
+HOST_GOARCH := $(shell go env GOHOSTARCH)
+export GOARCH ?= $(HOST_GOARCH)
+export GOOS ?= $(HOST_GOOS)
+TARGET_ARCH_LOCAL := $(GOARCH)
+TARGET_OS_LOCAL := $(GOOS)
 
-LOCAL_OS := $(shell uname)
-ifeq ($(LOCAL_OS),Linux)
-  TARGET_OS_LOCAL = linux
-else ifeq ($(LOCAL_OS),Darwin)
-  TARGET_OS_LOCAL = darwin
-else
-  TARGET_OS_LOCAL ?= windows
-endif
-export GOOS ?= $(TARGET_OS_LOCAL)
-
-ifeq ($(GOOS),windows)
+ifeq ($(HOST_GOOS),windows)
   FINDBIN := where
   BINARY_EXT_LOCAL:=.exe
   GOLANGCI_LINT:=golangci-lint.exe
@@ -69,7 +54,7 @@ else
 endif
 
 # Build tools
-ifeq ($(TARGET_OS_LOCAL),windows)
+ifeq ($(HOST_GOOS),windows)
 	BUILD_TOOLS_BIN ?= components-contrib-build-tools.exe
 	BUILD_TOOLS ?= ./.build-tools/$(BUILD_TOOLS_BIN)
 	RUN_BUILD_TOOLS ?= cd .build-tools; go.exe run .
@@ -198,9 +183,11 @@ check-mod-diff:
 # Target: compile-build-tools                                                  #
 ################################################################################
 .PHONY: compile-build-tools
+# The build tools binary is executed locally by this Makefile, so it is always
+# built for the host rather than the (possibly cross-compiled) GOOS/GOARCH.
 compile-build-tools:
 ifeq (,$(wildcard $(BUILD_TOOLS)))
-	cd .build-tools; CGO_ENABLED=$(CGO) GOOS=$(TARGET_OS_LOCAL) GOARCH=$(TARGET_ARCH_LOCAL) go build -o $(BUILD_TOOLS_BIN) .
+	cd .build-tools; CGO_ENABLED=$(CGO) GOOS=$(HOST_GOOS) GOARCH=$(HOST_GOARCH) go build -o $(BUILD_TOOLS_BIN) .
 endif
 
 ################################################################################

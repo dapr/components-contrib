@@ -197,6 +197,110 @@ func TestParseMetadataWithInvalidTTL(t *testing.T) {
 	}
 }
 
+func TestQueueArguments(t *testing.T) {
+	testCases := []struct {
+		name             string
+		properties       map[string]string
+		expectedTTL      *int64
+		expectedPriority *uint8
+	}{
+		{
+			name: "unset TTL",
+		},
+		{
+			name:        "one second",
+			properties:  map[string]string{"ttl": "1"},
+			expectedTTL: ptr.Of(int64(1000)),
+		},
+		{
+			name:        "one second alias",
+			properties:  map[string]string{"ttlInSeconds": "1"},
+			expectedTTL: ptr.Of(int64(1000)),
+		},
+		{
+			name:        "below signed 32-bit milliseconds",
+			properties:  map[string]string{"ttl": "2147483646ms"},
+			expectedTTL: ptr.Of(int64(2147483646)),
+		},
+		{
+			name:        "at signed 32-bit milliseconds",
+			properties:  map[string]string{"ttl": "2147483647ms"},
+			expectedTTL: ptr.Of(int64(2147483647)),
+		},
+		{
+			name:        "above signed 32-bit milliseconds",
+			properties:  map[string]string{"ttl": "2147483648ms"},
+			expectedTTL: ptr.Of(int64(2147483648)),
+		},
+		{
+			name:        "thirty days alias",
+			properties:  map[string]string{"ttlInSeconds": "2592000"},
+			expectedTTL: ptr.Of(int64(2592000000)),
+		},
+		{
+			name:        "thirty days duration",
+			properties:  map[string]string{"ttl": "720h"},
+			expectedTTL: ptr.Of(int64(2592000000)),
+		},
+		{
+			name:        "empty TTL",
+			properties:  map[string]string{"ttl": ""},
+			expectedTTL: ptr.Of(int64(0)),
+		},
+		{
+			name:        "zero duration",
+			properties:  map[string]string{"ttl": "0s"},
+			expectedTTL: ptr.Of(int64(0)),
+		},
+		{
+			name:        "zero integer",
+			properties:  map[string]string{"ttl": "0"},
+			expectedTTL: ptr.Of(int64(0)),
+		},
+		{
+			name:        "negative duration",
+			properties:  map[string]string{"ttl": "-1s"},
+			expectedTTL: ptr.Of(int64(0)),
+		},
+		{
+			name:             "priority without TTL",
+			properties:       map[string]string{"maxPriority": "10"},
+			expectedPriority: ptr.Of(uint8(10)),
+		},
+		{
+			name:             "priority with TTL",
+			properties:       map[string]string{"maxPriority": "10", "ttlInSeconds": "2592000"},
+			expectedTTL:      ptr.Of(int64(2592000000)),
+			expectedPriority: ptr.Of(uint8(10)),
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			properties := map[string]string{"queueName": "test-queue", "host": "test-host"}
+			for key, value := range tt.properties {
+				properties[key] = value
+			}
+			r := RabbitMQ{logger: logger.NewLogger("test")}
+			require.NoError(t, r.parseMetadata(bindings.Metadata{
+				Base: metadata.Base{Properties: properties},
+			}))
+
+			args := r.queueArguments()
+			if tt.expectedTTL == nil {
+				assert.NotContains(t, args, rabbitMQQueueMessageTTLKey)
+			} else {
+				assert.IsType(t, int64(0), args[rabbitMQQueueMessageTTLKey])
+				assert.Equal(t, *tt.expectedTTL, args[rabbitMQQueueMessageTTLKey])
+			}
+			if tt.expectedPriority == nil {
+				assert.NotContains(t, args, rabbitMQMaxPriorityKey)
+			} else {
+				assert.Equal(t, *tt.expectedPriority, args[rabbitMQMaxPriorityKey])
+			}
+		})
+	}
+}
+
 func TestParseMetadataWithInvalidMaxPriority(t *testing.T) {
 	const queueName = "test-queue"
 	const host = "test-host"

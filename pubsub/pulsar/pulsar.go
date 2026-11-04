@@ -31,6 +31,7 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar/crypto"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/linkedin/goavro/v2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/dapr/components-contrib/common/authentication/oauth2"
 	"github.com/dapr/components-contrib/metadata"
@@ -135,10 +136,14 @@ const (
 type ProcessMode string
 
 type Pulsar struct {
-	logger      logger.Logger
-	client      pulsar.Client
-	metadata    pulsarMetadata
-	cache       *lru.Cache[string, pulsar.Producer]
+	logger   logger.Logger
+	client   pulsar.Client
+	metadata pulsarMetadata
+	cache    *lru.Cache[string, pulsar.Producer]
+	// producerGroup makes concurrent cache misses for a topic share one CreateProducer call.
+	producerGroup singleflight.Group
+	// producersMu orders adding a producer to the cache against Close closing the cached producers.
+	producersMu sync.Mutex
 	closed      atomic.Bool
 	closeCh     chan struct{}
 	wg          sync.WaitGroup
@@ -406,41 +411,60 @@ func (p *Pulsar) Publish(ctx context.Context, req *pubsub.PublishRequest) error 
 	sm, hasSchema := p.metadata.internalTopicSchemas[req.Topic]
 
 	if !ok || producer == nil {
-		p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
-		opts := pulsar.ProducerOptions{
-			Topic:                   topic,
-			DisableBatching:         p.metadata.DisableBatching,
-			BatchingMaxPublishDelay: p.metadata.BatchingMaxPublishDelay,
-			BatchingMaxMessages:     p.metadata.BatchingMaxMessages,
-			BatchingMaxSize:         p.metadata.BatchingMaxSize,
-			CompressionType:         getCompressionType(p.metadata.CompressionType),
-			CompressionLevel:        getCompressionLevel(p.metadata.CompressionLevel),
-		}
-
-		if hasSchema {
-			opts.Schema = getRegistrationSchema(sm)
-		}
-
-		if p.useProducerEncryption() {
-			var reader crypto.KeyReader
-			if isValidPEM(p.metadata.PublicKey) {
-				reader = NewDataKeyReader(p.metadata.PublicKey, "")
-			} else {
-				reader = crypto.NewFileKeyReader(p.metadata.PublicKey, "")
+		var v any
+		v, err, _ = p.producerGroup.Do(topic, func() (any, error) {
+			// A call that finished between our Get and Do may have cached the producer already.
+			if cached, found := p.cache.Get(topic); found && cached != nil {
+				return cached, nil
 			}
 
-			opts.Encryption = &pulsar.ProducerEncryptionInfo{
-				KeyReader: reader,
-				Keys:      strings.Split(p.metadata.Keys, ","),
+			p.logger.Debugf("creating producer for topic %s, full topic name in pulsar is %s", req.Topic, topic)
+			opts := pulsar.ProducerOptions{
+				Topic:                   topic,
+				DisableBatching:         p.metadata.DisableBatching,
+				BatchingMaxPublishDelay: p.metadata.BatchingMaxPublishDelay,
+				BatchingMaxMessages:     p.metadata.BatchingMaxMessages,
+				BatchingMaxSize:         p.metadata.BatchingMaxSize,
+				CompressionType:         getCompressionType(p.metadata.CompressionType),
+				CompressionLevel:        getCompressionLevel(p.metadata.CompressionLevel),
 			}
-		}
 
-		producer, err = p.client.CreateProducer(opts)
+			if hasSchema {
+				opts.Schema = getRegistrationSchema(sm)
+			}
+
+			if p.useProducerEncryption() {
+				var reader crypto.KeyReader
+				if isValidPEM(p.metadata.PublicKey) {
+					reader = NewDataKeyReader(p.metadata.PublicKey, "")
+				} else {
+					reader = crypto.NewFileKeyReader(p.metadata.PublicKey, "")
+				}
+
+				opts.Encryption = &pulsar.ProducerEncryptionInfo{
+					KeyReader: reader,
+					Keys:      strings.Split(p.metadata.Keys, ","),
+				}
+			}
+
+			created, createErr := p.client.CreateProducer(opts)
+			if createErr != nil {
+				return nil, pubsub.NewRetriableError(createErr)
+			}
+
+			p.producersMu.Lock()
+			defer p.producersMu.Unlock()
+			if p.closed.Load() {
+				created.Close()
+				return nil, pubsub.NewTerminalError(errors.New("component is closed"))
+			}
+			p.cache.Add(topic, created)
+			return created, nil
+		})
 		if err != nil {
-			return pubsub.NewRetriableError(err)
+			return err
 		}
-
-		p.cache.Add(topic, producer)
+		producer = v.(pulsar.Producer)
 	}
 
 	msg, err = parsePublishMetadata(req, sm)
@@ -1027,6 +1051,7 @@ func (p *Pulsar) Close() error {
 		close(p.closeCh)
 	}
 
+	p.producersMu.Lock()
 	for _, k := range p.cache.Keys() {
 		producer, _ := p.cache.Peek(k)
 		if producer != nil {
@@ -1034,6 +1059,7 @@ func (p *Pulsar) Close() error {
 			producer.Close()
 		}
 	}
+	p.producersMu.Unlock()
 	p.client.Close()
 
 	return nil

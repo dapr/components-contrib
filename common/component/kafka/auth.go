@@ -46,6 +46,11 @@ func updateMTLSAuthInfo(config *sarama.Config, metadata *KafkaMetadata) error {
 	if err != nil {
 		return fmt.Errorf("unable to load client certificate and key pair. Err: %w", err)
 	}
+	if config.Net.TLS.Config == nil {
+		// updateTLSConfig leaves this nil when caCert is omitted and skipVerify is
+		// false, so the sidecar falls back to the OS trust store (RootCAs unset).
+		config.Net.TLS.Config = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 	config.Net.TLS.Config.Certificates = []tls.Certificate{cert}
 	return nil
 }

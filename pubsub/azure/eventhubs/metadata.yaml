@@ -35,14 +35,6 @@ builtinAuthenticationProfiles:
         example: "false"
         description: |
           Allow management of the Event Hub namespace and storage account.
-      - name: enableInOrderMessageDelivery
-        type: bool
-        required: false
-        default: "false"
-        example: "false"
-        description: |
-          Enable in order processing of messages within a partition.
-
       # The following four properties are needed only if enableEntityManagement is set to true
       - name: resourceGroupName
         type: string
@@ -74,6 +66,27 @@ builtinAuthenticationProfiles:
           Number of partitions for the new Event Hub namespace. Used only when
           entity management is enabled.
 metadata:
+  - name: enableInOrderMessageDelivery
+    type: bool
+    required: false
+    default: "false"
+    example: "false"
+    description: |
+      Enable in order processing of messages within a partition. Checkpoints advance
+      only through contiguous successfully processed batches in both modes. When false,
+      handler calls run concurrently up to `maxConcurrentHandlers`.
+  - name: maxConcurrentHandlers
+    type: number
+    required: false
+    default: "100"
+    example: "10"
+    description: |
+      Maximum number of batches per partition that can be received but are not yet
+      included in the in-memory contiguous-success prefix. This limits concurrent
+      handler calls and pauses receives at capacity. The persisted checkpoint can lag
+      behind this prefix according to `checkPointFrequencyPerPartition`, so restart
+      replay may include additional successful batches. Applies when
+      `enableInOrderMessageDelivery` is false and must be greater than 0.
   - name: storageAccountKey
     type: string
     required: false
@@ -110,6 +123,17 @@ metadata:
     description: |
       The name of the Event Hubs Consumer Group to listen on.
     example: '"group1"'
+  - name: checkPointFrequencyPerPartition
+    type: number
+    required: false
+    default: "1"
+    description: |
+      Subscription metadata only. Set this value on the subscription, not in the
+      component spec. Update the checkpoint for a partition starting with the first
+      batch, then every N contiguous successfully processed batches. Set to 0 to stop
+      writing checkpoints. This does not delete an existing checkpoint. If no
+      checkpoint exists, consumption starts from the earliest retained event.
+    example: "1"
   - name: getAllMessageProperties
     required: false
     default: "false"

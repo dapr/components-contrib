@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: standard-binding
+spec:
+  type: bindings.sqlserver
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "server=localhost;user id=sa;password=Pass@Word1;port=1433;database=dapr_test;Connection Timeout=5;"

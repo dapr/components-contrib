@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -38,6 +39,7 @@ type StateStore struct {
 	state.BulkStore
 
 	getFileNameFn   func(string) string
+	metadata        *blobstoragecommon.BlobStorageMetadata
 	containerClient *container.Client
 	logger          logger.Logger
 }
@@ -54,7 +56,7 @@ func NewAzureBlobStorageStore(logger logger.Logger, getFileNameFn func(string) s
 // Init the connection to blob storage, optionally creates a blob container if it doesn't exist.
 func (r *StateStore) Init(ctx context.Context, metadata state.Metadata) error {
 	var err error
-	r.containerClient, _, err = blobstoragecommon.CreateContainerStorageClient(ctx, r.logger, metadata.Properties)
+	r.containerClient, r.metadata, err = blobstoragecommon.CreateContainerStorageClient(ctx, r.logger, metadata.Properties)
 	if err != nil {
 		return err
 	}
@@ -95,8 +97,16 @@ func (r *StateStore) GetComponentMetadata() (metadataInfo mdutils.MetadataMap) {
 	return
 }
 
+func (r *StateStore) getBlobName(key string) string {
+	fileName := r.getFileNameFn(key)
+	if r.metadata == nil || r.metadata.Prefix == "" {
+		return fileName
+	}
+	return strings.TrimSuffix(r.metadata.Prefix, "/") + "/" + strings.TrimPrefix(fileName, "/")
+}
+
 func (r *StateStore) readFile(ctx context.Context, req *state.GetRequest) (*state.GetResponse, error) {
-	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getFileNameFn(req.Key))
+	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getBlobName(req.Key))
 	blobDownloadResponse, err := blockBlobClient.DownloadStream(ctx, nil)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -146,7 +156,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 		HTTPHeaders: &blobHTTPHeaders,
 	}
 
-	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getFileNameFn(req.Key))
+	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getBlobName(req.Key))
 	_, err = blockBlobClient.UploadBuffer(ctx, r.marshal(req), &uploadOptions)
 	if err != nil {
 		// Check if the error is due to ETag conflict
@@ -161,7 +171,7 @@ func (r *StateStore) writeFile(ctx context.Context, req *state.SetRequest) error
 }
 
 func (r *StateStore) deleteFile(ctx context.Context, req *state.DeleteRequest) error {
-	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getFileNameFn(req.Key))
+	blockBlobClient := r.containerClient.NewBlockBlobClient(r.getBlobName(req.Key))
 
 	modifiedAccessConditions := blob.ModifiedAccessConditions{}
 	if req.HasETag() {

@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binarystore-aws-s3
+spec:
+  type: binarystore.aws.s3
+  version: v1
+  metadata:
+  - name: bucket
+    value: ${{AWSS3Bucket}}
+  - name: region
+    value: ${{AWS_REGION}}

@@ -14,6 +14,7 @@ limitations under the License.
 package redis
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -106,13 +107,18 @@ type Settings struct {
 	// The consumer identifier
 	ConsumerID string `mapstructure:"consumerID" mdonly:"pubsub"`
 	// The interval between checking for pending messages to redelivery (0 disables redelivery)
-	RedeliverInterval time.Duration `mapstructure:"-" mdonly:"pubsub"`
+	RedeliverInterval time.Duration `mapstructure:"redeliverInterval" mdonly:"pubsub"`
 	// The amount time a message must be pending before attempting to redeliver it (0 disables redelivery)
 	ProcessingTimeout time.Duration `mapstructure:"processingTimeout" mdonly:"pubsub"`
 	// The size of the message queue for processing
 	QueueDepth uint `mapstructure:"queueDepth" mdonly:"pubsub"`
 	// The number of concurrent workers that are processing messages
 	Concurrency uint `mapstructure:"concurrency" mdonly:"pubsub"`
+
+	// The interval at which the component resets the idle time of the pending entries it
+	// currently holds, so that they are not reclaimed while this consumer is still working on
+	// them. Defaults to half of ProcessingTimeout; 0 disables the keep-alive.
+	EntryKeepAliveInterval time.Duration `mapstructure:"entryKeepAliveInterval" mdonly:"pubsub"`
 
 	// The max len of stream
 	MaxLenApprox int64 `mapstructure:"maxLenApprox" mdonly:"pubsub"`
@@ -149,6 +155,23 @@ type Settings struct {
 	OidcCACert string `mapstructure:"oidcCACert"`
 
 	internalOidcScopes []string `mapstructure:"-"`
+
+	// fetchToken returns a current auth token and its expiry. It is set when
+	// useEntraID or useOIDC is enabled, so that every new connection
+	// authenticates with a fresh token rather than one snapshotted at init.
+	fetchToken func(ctx context.Context) (string, time.Time, error) `mapstructure:"-"`
+}
+
+// credentialsProvider returns the username and a fresh token for each new
+// connection, or nil when token authentication is not enabled.
+func (s *Settings) credentialsProvider() func(ctx context.Context) (string, string, error) {
+	if s.fetchToken == nil {
+		return nil
+	}
+	return func(ctx context.Context) (string, string, error) {
+		token, _, err := s.fetchToken(ctx)
+		return s.Username, token, err
+	}
 }
 
 func (s *Settings) Decode(in interface{}) error {

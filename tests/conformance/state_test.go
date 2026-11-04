@@ -145,6 +145,8 @@ func loadStateStore(name string) state.Store {
 		return s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "aws.dynamodb.terraform":
 		return s_awsdynamodb.NewDynamoDBStateStore(testLogger)
+	case "aws-floci.dynamodb":
+		return s_awsdynamodb.NewDynamoDBStateStore(testLogger)
 	case "etcd.v1":
 		return s_etcd.NewEtcdStateStoreV1(testLogger)
 	case "etcd.v2":

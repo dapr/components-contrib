@@ -22,7 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: pubsub v1 is deprecated in favor of pubsub/v2. Kept to avoid a behavior change in a dependency-only update.
 	"google.golang.org/api/option"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -113,7 +113,7 @@ func (g *GCPPubSub) Init(ctx context.Context, metadata bindings.Metadata) error 
 			Type:                pubsubMeta.Type,
 		}
 		gcpCompatibleJSON, _ := json.Marshal(authJSON)
-		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
+		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON) //nolint:staticcheck // SA1019: deprecated by the google.golang.org/api update. Kept to avoid a behavior change in a dependency-only update.
 		pubsubClient, err = pubsub.NewClient(ctx, pubsubMeta.ProjectID, clientOptions)
 		if err != nil {
 			return fmt.Errorf("error creating pubsub client: %s", err)

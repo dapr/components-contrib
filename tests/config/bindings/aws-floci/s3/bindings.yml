@@ -1,0 +1,27 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: aws-s3
+  namespace: default
+spec:
+  type: bindings.aws.s3
+  version: v1
+  metadata:
+    - name: bucket
+      value: ${{BINDINGS_AWS_S3_BUCKET}}
+    - name: endpoint
+      value: ${{FLOCI_ENDPOINT}}
+    - name: accessKey
+      value: "test"
+    - name: secretKey
+      value: "test"
+    - name: region
+      value: "us-east-1"
+    - name: decodeBase64
+      value: false
+    - name: encodeBase64
+      value: false
+    - name: forcePathStyle
+      value: true
+    - name: disableSSL
+      value: true

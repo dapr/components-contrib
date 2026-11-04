@@ -64,6 +64,10 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	g.Model = llm
 	g.SetModel(model)
+	g.SetDefaultMaxTokens(md.MaxTokens)
+	// Gemini's OpenAI-compatible endpoint documents the legacy max_tokens
+	// field, not max_completion_tokens; use it so the cap is honored.
+	g.SetPostCallOptions(openai.WithLegacyMaxTokensField())
 
 	if md.ResponseCacheTTL != nil {
 		cachedModel, cacheErr := conversation.CacheResponses(ctx, md.ResponseCacheTTL, g.Model)

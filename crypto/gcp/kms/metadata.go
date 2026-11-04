@@ -74,7 +74,7 @@ func (m *kmsMetadata) InitWithMetadata(meta contribCrypto.Metadata) error {
 
 // Returns true when the component is configured with explicit service account credentials,
 // rather than relying on Application Default Credentials.
-func (m kmsMetadata) hasExplicitCredentials() bool {
+func (m *kmsMetadata) hasExplicitCredentials() bool {
 	return m.PrivateKeyID != ""
 }
 
@@ -113,12 +113,12 @@ func (id keyID) Cacheable() bool {
 }
 
 // Returns the full resource name of the crypto key.
-func (m kmsMetadata) cryptoKeyPath(id keyID) string {
+func (m *kmsMetadata) cryptoKeyPath(id keyID) string {
 	return fmt.Sprintf("projects/%s/locations/%s/keyRings/%s/cryptoKeys/%s", m.ProjectID, m.Location, m.KeyRing, id.Name)
 }
 
 // Returns the full resource name of a crypto key version, which asymmetric operations require.
-func (m kmsMetadata) cryptoKeyVersionPath(id keyID) (string, error) {
+func (m *kmsMetadata) cryptoKeyVersionPath(id keyID) (string, error) {
 	if err := id.validate(true); err != nil {
 		return "", err
 	}

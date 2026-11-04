@@ -90,13 +90,16 @@ func (k *kmsCrypto) Init(ctx context.Context, metadata contribCrypto.Metadata) e
 
 	var opts []option.ClientOption
 	if k.md.hasExplicitCredentials() {
+		if k.md.Type != "service_account" {
+			return errors.New("explicit credentials must use type service_account")
+		}
 		// Explicit authentication, with the service account credentials in the component metadata
 		var creds []byte
 		creds, err = json.Marshal(k.md)
 		if err != nil {
 			return fmt.Errorf("failed to encode the credentials: %w", err)
 		}
-		opts = append(opts, option.WithCredentialsJSON(creds))
+		opts = append(opts, option.WithAuthCredentialsJSON(option.ServiceAccount, creds))
 	}
 	// Otherwise, implicit authentication with GCP Application Default Credentials (ADC):
 	// https://cloud.google.com/docs/authentication/application-default-credentials#order

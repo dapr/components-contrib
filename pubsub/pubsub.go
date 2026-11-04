@@ -24,6 +24,19 @@ import (
 
 var ErrGracefulShutdown = errors.New("pubsub shutdown")
 
+// ErrRetriesExhausted is returned by a Handler when the caller has
+// permanently given up on a message: its inbound retry policy ran out of
+// attempts and there was no dead letter topic to divert it to. Redelivering
+// it would only repeat the same exhausted cycle, so a component that tracks
+// its own delivery position (such as Kafka committing a partition offset)
+// should record the message as handled and move on.
+//
+// It is deliberately distinct from a plain delivery error, which still means
+// "redeliver this". A cancelled context, for instance, is returned routinely
+// during a consumer group rebalance and must leave the message unacknowledged
+// for whichever consumer takes the partition over next.
+var ErrRetriesExhausted = errors.New("pubsub retries exhausted")
+
 // PubSub is the interface for message buses.
 type PubSub interface {
 	metadata.ComponentWithMetadata

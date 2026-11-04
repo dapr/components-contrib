@@ -25,6 +25,8 @@ import (
 	"github.com/dapr/components-contrib/common/component/kafka"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	kitmd "github.com/dapr/kit/metadata"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 const (
@@ -55,6 +57,15 @@ func NewKafka(logger logger.Logger) bindings.InputOutputBinding {
 }
 
 func (b *Binding) Init(ctx context.Context, metadata bindings.Metadata) error {
+	// Consumer transactions rely on the delivery's transaction token being
+	// echoed back on a publish through the same component instance; input and
+	// output bindings are separate instances, so the round trip cannot work.
+	// IsTruthy matches the truthiness the shared metadata decoder applies
+	// ("true", "yes", "on", ...), so no spelling can slip past this guard.
+	if val, ok := kitmd.GetMetadataProperty(metadata.Properties, "consumerTransactionsEnabled"); ok && kitstrings.IsTruthy(val) {
+		return errors.New("kafka error: 'consumerTransactionsEnabled' is not supported for the Kafka binding; use the Kafka pubsub component")
+	}
+
 	err := b.kafka.Init(ctx, metadata.Properties)
 	if err != nil {
 		return err

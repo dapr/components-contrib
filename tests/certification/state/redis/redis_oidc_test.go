@@ -177,9 +177,10 @@ func TestRedisOIDC(t *testing.T) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 
-	// The initial token expires in 310s: the background refresh runs 5 minutes
-	// before expiry, so the first refresh fires ~10s after init.
-	idp := &mockIdentityProvider{publicKey: &key.PublicKey, token: oidcTokenOne, expiresIn: 310}
+	// The refresh grace period scales with the token lifetime, and a token this
+	// short-lived is refreshed at its midpoint, so the first refresh fires ~10s
+	// after init and every ~10s after that until the token is rotated below.
+	idp := &mockIdentityProvider{publicKey: &key.PublicKey, token: oidcTokenOne, expiresIn: 20}
 	idpServer := httptest.NewServer(idp)
 	defer idpServer.Close()
 
@@ -276,13 +277,32 @@ func TestRedisOIDC(t *testing.T) {
 		deadline := time.Now().Add(90 * time.Second)
 		for time.Now().Before(deadline) {
 			if idp.lastIssuedToken() == oidcTokenTwo {
-				// Give the AuthACL re-authentication a moment to complete
+				// Give the re-authentication a moment to complete
 				time.Sleep(2 * time.Second)
 				return nil
 			}
 			time.Sleep(time.Second)
 		}
 		return errors.New("timed out waiting for the background token refresh")
+	}
+
+	// Once the refresh has completed, revoke the initial token and drop the
+	// component's connections, so the next request must dial and authenticate
+	// with the refreshed token (dapr/components-contrib#3554).
+	revokeTokenOne := func(ctx flow.Context) error {
+		rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379", Password: oidcTokenTwo})
+		defer rdb.Close()
+		if err := rdb.Do(ctx, "ACL", "SETUSER", "default", "resetpass", ">"+oidcTokenTwo).Err(); err != nil {
+			return fmt.Errorf("failed to revoke the initial token: %w", err)
+		}
+		killed, err := rdb.Do(ctx, "CLIENT", "KILL", "TYPE", "normal").Int()
+		if err != nil {
+			return err
+		}
+		if killed == 0 {
+			return errors.New("expected the component to hold at least one connection")
+		}
+		return nil
 	}
 
 	assertWireFormat := func(ctx flow.Context) error {
@@ -333,6 +353,8 @@ func TestRedisOIDC(t *testing.T) {
 		Step("Rotate the identity provider token", rotateToken).
 		Step("Wait for the background token refresh", waitForTokenRefresh).
 		Step("Run basic test after the token refresh", basicTest("refreshed")).
+		Step("Revoke the initial token and drop the component's connections", revokeTokenOne).
+		Step("Run basic test on new connections after the initial token was revoked", basicTest("reconnected")).
 		Step("Assert the private_key_jwt wire format", assertWireFormat).
 		Step("stop dapr", sidecar.Stop(sidecarNamePrefix+"oidc")).
 		Run()

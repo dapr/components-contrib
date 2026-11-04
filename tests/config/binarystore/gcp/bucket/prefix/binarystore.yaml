@@ -1,0 +1,12 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binarystore-gcp-bucket-prefix
+spec:
+  type: binarystore.gcp.bucket
+  version: v1
+  metadata:
+  - name: bucket
+    value: ${{GCPBucket}}
+  - name: prefix
+    value: conf-prefix/nested

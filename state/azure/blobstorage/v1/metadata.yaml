@@ -65,6 +65,11 @@ metadata:
       Optional custom endpoint URL. This is useful when using the Azurite emulator or when using custom domains for Azure Storage (although this is not officially supported). The endpoint must be the full base URL, including the protocol (http:// or https://), the IP or FQDN, and optional port.
     required: false
     example: '"http://127.0.0.1:10000"'
+  - name: prefix
+    type: string
+    required: false
+    description: "An optional prefix prepended to all blob names stored by this component."
+    example: '"myprefix"'
   - name: retryCount
     # getBlobRetryCount is a deprecated alias for this field
     type: number

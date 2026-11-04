@@ -130,11 +130,8 @@ func federationTokenSource(ctx context.Context, md GoogleAILangchainMetadata) (o
 
 	// The token source keeps the given context for every refresh, so it must
 	// not be the Init context, which is cancelled once Init returns. The STS
-	// and impersonation requests use this client: the impersonation client is
-	// built from its transport alone, so the transport carries a timeout too.
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.ResponseHeaderTimeout = spiffeauth.ExchangeTimeout
-	client := &http.Client{Transport: transport, Timeout: spiffeauth.ExchangeTimeout}
+	// and impersonation requests both use this client and its timeout.
+	client := &http.Client{Timeout: spiffeauth.ExchangeTimeout}
 
 	return externalaccount.NewTokenSource(context.WithValue(context.Background(), oauth2.HTTPClient, client), cfg)
 }

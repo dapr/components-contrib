@@ -154,6 +154,13 @@ func (k *kmsCrypto) getPublicKey(parentCtx context.Context, kid keyID) (jwk.Key,
 		return nil, fmt.Errorf("failed to parse the public key returned by Cloud KMS: %w", err)
 	}
 
+	algorithm, err := cloudKMSAlgorithm(res.GetAlgorithm())
+	if err != nil {
+		return nil, err
+	}
+	if err = pubKey.Set(jwk.AlgorithmKey, algorithm); err != nil {
+		return nil, fmt.Errorf("failed to retain key algorithm: %w", err)
+	}
 	return pubKey, nil
 }
 
@@ -174,19 +181,25 @@ func (k *kmsCrypto) getKeyCacheFn(ctx context.Context, key string) func(resolve 
 // Symmetric keys are used through Cloud KMS, while data encrypted with an asymmetric key is
 // encrypted locally with the public key, because Cloud KMS only offers asymmetric decryption.
 func (k *kmsCrypto) Encrypt(parentCtx context.Context, plaintext []byte, algorithm string, key string, nonce []byte, associatedData []byte) (ciphertext []byte, tag []byte, err error) {
+	if len(nonce) > 0 {
+		return nil, nil, errors.New("nonce is not supported by Cloud KMS crypto operations")
+	}
 	switch algorithm {
 	case AlgorithmSymmetric:
-		if len(nonce) > 0 {
-			return nil, nil, errors.New("nonce is not supported with symmetric keys: Cloud KMS manages the nonce internally")
-		}
-
 		kid := newKeyID(key)
 		if err = kid.validate(false); err != nil {
 			return nil, nil, err
 		}
+		name := k.md.cryptoKeyPath(kid)
+		if kid.Version != "" {
+			name, err = k.md.cryptoKeyVersionPath(kid)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
 		res, rErr := k.client.Encrypt(ctx, &kmspb.EncryptRequest{
-			Name:                        k.md.cryptoKeyPath(kid),
+			Name:                        name,
 			Plaintext:                   plaintext,
 			AdditionalAuthenticatedData: associatedData,
 		})
@@ -208,6 +221,10 @@ func (k *kmsCrypto) Encrypt(parentCtx context.Context, plaintext []byte, algorit
 			return nil, nil, fmt.Errorf("failed to retrieve public key: %w", pkErr)
 		}
 
+		if err = validatePublicKeyAlgorithm(pk, algorithm); err != nil {
+			return nil, nil, err
+		}
+
 		ciphertext, err = internals.EncryptPublicKey(plaintext, algorithm, pk, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to encrypt data: %w", err)
@@ -221,6 +238,12 @@ func (k *kmsCrypto) Encrypt(parentCtx context.Context, plaintext []byte, algorit
 
 // Decrypt a small message and returns the plaintext.
 func (k *kmsCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, algorithm string, key string, nonce []byte, tag []byte, associatedData []byte) (plaintext []byte, err error) {
+	if len(nonce) > 0 {
+		return nil, errors.New("nonce is not supported by Cloud KMS crypto operations")
+	}
+	if len(tag) > 0 {
+		return nil, errors.New("separate authentication tags are not supported: Cloud KMS includes tags in ciphertext")
+	}
 	kid := newKeyID(key)
 
 	switch algorithm {
@@ -249,6 +272,9 @@ func (k *kmsCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, algori
 		name, nErr := k.md.cryptoKeyVersionPath(kid)
 		if nErr != nil {
 			return nil, nErr
+		}
+		if err = k.validateKeyAlgorithm(parentCtx, key, algorithm); err != nil {
+			return nil, err
 		}
 
 		ctx, cancel := context.WithTimeout(parentCtx, k.md.RequestTimeout)
@@ -307,6 +333,9 @@ func (k *kmsCrypto) Sign(parentCtx context.Context, digest []byte, algorithm str
 
 	req.Name, err = k.md.cryptoKeyVersionPath(newKeyID(key))
 	if err != nil {
+		return nil, err
+	}
+	if err = k.validateKeyAlgorithm(parentCtx, key, algorithm); err != nil {
 		return nil, err
 	}
 
@@ -370,6 +399,10 @@ func (k *kmsCrypto) Verify(parentCtx context.Context, digest []byte, signature [
 	pk, err := k.GetKey(parentCtx, key)
 	if err != nil {
 		return false, fmt.Errorf("failed to retrieve public key: %w", err)
+	}
+
+	if err = validatePublicKeyAlgorithm(pk, algorithm); err != nil {
+		return false, fmt.Errorf("failed to verify signature: %w", err)
 	}
 
 	valid, err = internals.VerifyPublicKey(digest, signature, algorithm, pk)

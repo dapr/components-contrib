@@ -16,6 +16,7 @@ package kms
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -46,14 +47,16 @@ const (
 
 // Cloud KMS client double, recording the last request of each kind.
 type fakeClient struct {
-	publicKeyPEM      string
-	publicKeyCalls    int
-	encryptRequest    *kmspb.EncryptRequest
-	decryptRequest    *kmspb.DecryptRequest
-	asymDecryptReq    *kmspb.AsymmetricDecryptRequest
-	asymSignRequest   *kmspb.AsymmetricSignRequest
-	returnedSignature []byte
-	err               error
+	publicKeyPEM       string
+	publicKeyAlgorithm kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm
+	publicKeys         map[string]*kmspb.PublicKey
+	publicKeyCalls     int
+	encryptRequest     *kmspb.EncryptRequest
+	decryptRequest     *kmspb.DecryptRequest
+	asymDecryptReq     *kmspb.AsymmetricDecryptRequest
+	asymSignRequest    *kmspb.AsymmetricSignRequest
+	returnedSignature  []byte
+	err                error
 }
 
 func (f *fakeClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyRequest, _ ...gax.CallOption) (*kmspb.PublicKey, error) {
@@ -61,7 +64,13 @@ func (f *fakeClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyRequ
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &kmspb.PublicKey{Name: req.GetName(), Pem: f.publicKeyPEM}, nil
+	if f.publicKeys != nil {
+		if key, ok := f.publicKeys[req.GetName()]; ok {
+			return key, nil
+		}
+		return nil, errors.New("unexpected key version")
+	}
+	return &kmspb.PublicKey{Name: req.GetName(), Pem: f.publicKeyPEM, Algorithm: f.publicKeyAlgorithm}, nil
 }
 
 func (f *fakeClient) Encrypt(_ context.Context, req *kmspb.EncryptRequest, _ ...gax.CallOption) (*kmspb.EncryptResponse, error) {
@@ -186,12 +195,13 @@ func TestKeyID(t *testing.T) {
 func TestGetKey(t *testing.T) {
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	client := &fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public())}
+	client := &fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256}
 	k := newTestComponent(client)
 
 	pubKey, err := k.GetKey(t.Context(), "mykey/1")
 	require.NoError(t, err)
 	assert.Equal(t, jwa.EC, pubKey.KeyType())
+	assert.Equal(t, internals.Algorithm_ES256, pubKey.Algorithm().String())
 
 	// Keys pinned to a version are immutable, so they are only fetched once
 	_, err = k.GetKey(t.Context(), "mykey/1")
@@ -236,7 +246,7 @@ func TestSymmetricEncryptDecrypt(t *testing.T) {
 	ciphertext, tag, err := k.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey", nil, []byte("aad"))
 	require.NoError(t, err)
 	assert.Nil(t, tag, "Cloud KMS includes the authentication tag in the ciphertext")
-	// Symmetric operations address the crypto key, not one of its versions
+	// Unversioned symmetric encryption selects the primary version
 	assert.Equal(t, testKeyPath, client.encryptRequest.GetName())
 	assert.Equal(t, []byte("aad"), client.encryptRequest.GetAdditionalAuthenticatedData())
 
@@ -271,7 +281,7 @@ func TestSymmetricEncryptDecrypt(t *testing.T) {
 func TestAsymmetricEncryptDecrypt(t *testing.T) {
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	client := &fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public())}
+	client := &fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_2048_SHA256}
 	k := newTestComponent(client)
 
 	// Encryption happens locally, with the public key retrieved from Cloud KMS
@@ -351,8 +361,30 @@ func TestWrapUnwrapKey(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
-	client := &fakeClient{returnedSignature: []byte("signature")}
+	ec256, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ec384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	rsa4096, err := rsa.GenerateKey(rand.Reader, 4096)
+	require.NoError(t, err)
+	edPublic, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	client := &fakeClient{returnedSignature: []byte("signature"), publicKeys: map[string]*kmspb.PublicKey{}}
 	k := newTestComponent(client)
+	for _, key := range []struct {
+		name      string
+		public    any
+		algorithm kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm
+	}{
+		{"mykey/1", ec256.Public(), kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+		{"ec384/1", ec384.Public(), kmspb.CryptoKeyVersion_EC_SIGN_P384_SHA384},
+		{"ps512/1", rsa4096.Public(), kmspb.CryptoKeyVersion_RSA_SIGN_PSS_4096_SHA512},
+		{"ed25519/1", edPublic, kmspb.CryptoKeyVersion_EC_SIGN_ED25519},
+	} {
+		name, pathErr := k.md.cryptoKeyVersionPath(newKeyID(key.name))
+		require.NoError(t, pathErr)
+		client.publicKeys[name] = &kmspb.PublicKey{Name: name, Pem: publicKeyPEM(t, key.public), Algorithm: key.algorithm}
+	}
 
 	t.Run("digest is sent in the field matching the algorithm", func(t *testing.T) {
 		digest := make([]byte, 32)
@@ -362,17 +394,17 @@ func TestSign(t *testing.T) {
 		assert.Equal(t, testKeyVersionPath, client.asymSignRequest.GetName())
 		assert.Equal(t, digest, client.asymSignRequest.GetDigest().GetSha256())
 
-		_, err = k.Sign(t.Context(), make([]byte, 48), internals.Algorithm_ES384, "mykey/1")
+		_, err = k.Sign(t.Context(), make([]byte, 48), internals.Algorithm_ES384, "ec384/1")
 		require.NoError(t, err)
 		assert.Len(t, client.asymSignRequest.GetDigest().GetSha384(), 48)
 
-		_, err = k.Sign(t.Context(), make([]byte, 64), internals.Algorithm_PS512, "mykey/1")
+		_, err = k.Sign(t.Context(), make([]byte, 64), internals.Algorithm_PS512, "ps512/1")
 		require.NoError(t, err)
 		assert.Len(t, client.asymSignRequest.GetDigest().GetSha512(), 64)
 	})
 
 	t.Run("Ed25519 signs the message rather than a digest", func(t *testing.T) {
-		_, err := k.Sign(t.Context(), []byte("a message of any length"), internals.Algorithm_EdDSA, "mykey/1")
+		_, err := k.Sign(t.Context(), []byte("a message of any length"), internals.Algorithm_EdDSA, "ed25519/1")
 		require.NoError(t, err)
 		assert.Equal(t, []byte("a message of any length"), client.asymSignRequest.GetData())
 		assert.Nil(t, client.asymSignRequest.GetDigest())
@@ -402,7 +434,7 @@ func TestSign(t *testing.T) {
 	})
 
 	t.Run("empty signatures are rejected", func(t *testing.T) {
-		empty := newTestComponent(&fakeClient{})
+		empty := newTestComponent(&fakeClient{publicKeyPEM: publicKeyPEM(t, ec256.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256})
 		_, err := empty.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1")
 		require.Error(t, err)
 		require.ErrorContains(t, err, "does not contain a signature")
@@ -412,7 +444,7 @@ func TestSign(t *testing.T) {
 func TestVerify(t *testing.T) {
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	k := newTestComponent(&fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public())})
+	k := newTestComponent(&fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256})
 
 	digest := sha256.Sum256([]byte("hello"))
 	signature, err := ecdsa.SignASN1(rand.Reader, privKey, digest[:])

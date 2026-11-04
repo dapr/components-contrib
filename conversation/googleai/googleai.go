@@ -17,6 +17,7 @@ package googleai
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"reflect"
 
 	"github.com/tmc/langchaingo/llms/openai"
@@ -54,8 +55,11 @@ const (
 	cloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
 )
 
-// gcpSTSTokenURL is a variable so tests can point it at a fake.
-var gcpSTSTokenURL = "https://sts.googleapis.com/v1/token" //nolint:gosec
+// These are variables so tests can point them at a fake.
+var (
+	gcpSTSTokenURL       = "https://sts.googleapis.com/v1/token"       //nolint:gosec
+	gcpIAMCredentialsURL = "https://iamcredentials.googleapis.com/v1/" //nolint:gosec
+)
 
 func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	md := GoogleAILangchainMetadata{}
@@ -125,7 +129,7 @@ func federationTokenSource(ctx context.Context, md GoogleAILangchainMetadata) (o
 		Scopes:               []string{cloudPlatformScope},
 	}
 	if md.ServiceAccountEmail != "" {
-		cfg.ServiceAccountImpersonationURL = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/" + md.ServiceAccountEmail + ":generateAccessToken"
+		cfg.ServiceAccountImpersonationURL = gcpIAMCredentialsURL + "projects/-/serviceAccounts/" + url.PathEscape(md.ServiceAccountEmail) + ":generateAccessToken"
 	}
 
 	// The token source keeps the given context for every refresh, so it must

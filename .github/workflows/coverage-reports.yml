@@ -51,22 +51,26 @@ jobs:
           uses: dawidd6/action-download-artifact@v25
           with:
             workflow: certification.yml
-            workflow_conclusion: "success"
+            workflow_conclusion: "completed"
             branch: main
             event: schedule
             if_no_artifact_found: error
-            name: cert_code_cov
+            name: .*_cert_code_cov
+            name_is_regexp: true
+            merge_multiple: true
             path: tmp/cert_code_cov
         
         - name: Download workflow artifact
           uses: dawidd6/action-download-artifact@v25
           with:
             workflow: conformance.yml
-            workflow_conclusion: "success"
+            workflow_conclusion: "completed"
             branch: main
             event: schedule
             if_no_artifact_found: error
-            name: conf_code_cov
+            name: .*_conf_code_cov
+            name_is_regexp: true
+            merge_multiple: true
             path: tmp/conf_code_cov
         
         - name: list all downloaded artifacts

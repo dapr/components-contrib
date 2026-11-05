@@ -112,6 +112,16 @@ For more details on the parameters, run the script with the `--help` flag.
 
 3. Under the Actions tab, enable the "Components Conformance Tests" workflow and [manually trigger the workflow](https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow#running-a-workflow).
 
+The ADLS binary-store conformance job uses `AZURE_CREDENTIALS` and the existing
+`AzureResourceGroupName` Key Vault secret to create an isolated storage account
+with hierarchical namespaces enabled. It does not reuse or modify the shared Blob
+Storage account. The identity must be able to create and delete storage accounts
+and list their keys in that resource group; `setup-azure-conf-test.sh` grants
+Contributor access at this scope. Both ADLS profiles use the generated account credentials,
+and teardown deletes only the generated account and its test data, not the resource
+group. Local runs instead require `AzureDataLakeStorageAccount` and
+`AzureDataLakeStorageAccessKey` for an existing HNS-enabled account.
+
 ## Tearing down Azure resources after use
 
 Run the teardown `<prefix>-teardown-conf-test.sh` script generated to the output path for `setup-azure-conf-test.sh`. Using the defaults from the setup example, this would be:

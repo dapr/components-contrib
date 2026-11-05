@@ -7,9 +7,9 @@ spec:
   version: v1
   metadata:
   - name: accountName
-    value: ${{AzureBlobStorageAccount}}
+    value: ${{AzureDataLakeStorageAccount}}
   - name: accountKey
-    value: ${{AzureBlobStorageAccessKey}}
+    value: ${{AzureDataLakeStorageAccessKey}}
   - name: fileSystemName
     value: binarystore-conf-datalake
   - name: prefix

@@ -20,22 +20,25 @@ const components = {
     },
     'binarystore.azure.datalake': {
         conformance: true,
-        requiredSecrets: [
-            'AzureBlobStorageAccount',
-            'AzureBlobStorageAccessKey',
-        ],
+        requiredSecrets: ['AzureResourceGroupName'],
+        conformanceSetup: 'conformance-binarystore.azure.datalake-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.azure.datalake-destroy.sh',
         sourcePkg: ['binarystore/azure/datalake', 'common/component/azure/datalake'],
     },
     'binarystore.aws.s3': {
         conformance: true,
         requireAWSCredentials: true,
-        requiredSecrets: ['AWSS3Bucket'],
+        requireTerraform: true,
+        conformanceSetup: 'conformance-binarystore.aws.s3-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.aws.s3-destroy.sh',
         sourcePkg: ['binarystore/aws/s3', 'common/aws'],
     },
     'binarystore.gcp.bucket': {
         conformance: true,
         requireGCPCredentials: true,
-        requiredSecrets: ['GCPBucket'],
+        requireTerraform: true,
+        conformanceSetup: 'conformance-binarystore.gcp.bucket-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.gcp.bucket-destroy.sh',
         sourcePkg: ['binarystore/gcp/bucket'],
     },
     'binarystore.oci.objectstorage': {
@@ -43,8 +46,9 @@ const components = {
         requiredSecrets: [
             'OCIConfigFile',
             'OCICompartmentOCID',
-            'OCIBucketName',
         ],
+        conformanceSetup: 'conformance-binarystore.oci.objectstorage-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.oci.objectstorage-destroy.sh',
         sourcePkg: ['binarystore/oci/objectstorage'],
     },
     // requireDocker excludes cloud-scheduled runs.

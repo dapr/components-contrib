@@ -25,6 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestReadAndWrite(t *testing.T) {
@@ -180,4 +181,24 @@ func TestReadAndWrite(t *testing.T) {
 
 func Test_KeyLike(t *testing.T) {
 	var _ state.KeysLiker = NewInMemoryStateStore(nil).(*InMemoryStore)
+}
+
+func TestMultiRetriedRequestChecksETag(t *testing.T) {
+	store := newStateStore(logger.NewLogger("test"))
+	require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+
+	for _, req := range []*state.TransactionalStateRequest{
+		{Operations: []state.TransactionalStateOperation{state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("stale")}}},
+		{Operations: []state.TransactionalStateOperation{state.SetRequest{Key: "a", Value: "a2", Options: state.SetStateOption{Concurrency: state.FirstWrite}}}},
+	} {
+		for range 2 {
+			var etagErr *state.ETagError
+			require.ErrorAs(t, store.Multi(t.Context(), req), &etagErr)
+			assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+		}
+	}
+
+	res, err := store.Get(t.Context(), &state.GetRequest{Key: "a"})
+	require.NoError(t, err)
+	assert.JSONEq(t, `"a1"`, string(res.Data))
 }

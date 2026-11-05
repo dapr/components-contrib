@@ -370,9 +370,11 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	}
 
 	// step1: validate parameters
+	guarded := false
 	for i, o := range request.Operations {
 		switch req := o.(type) {
 		case state.SetRequest:
+			guarded = guarded || req.HasETag() || req.Options.Concurrency == state.FirstWrite
 			ttlInSeconds, err := store.doSetValidateParameters(&req)
 			if err != nil {
 				return err
@@ -388,7 +390,11 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 			}
 			// replace with innerSetRequest
 			request.Operations[i] = innerSetRequest
+		case *innerSetRequest:
+			// a retried request already holds the prepared op
+			guarded = guarded || req.req.HasETag() || req.req.Options.Concurrency == state.FirstWrite
 		case state.DeleteRequest:
+			guarded = guarded || req.HasETag() || req.Options.Concurrency == state.FirstWrite
 			err := state.CheckRequestOptions(&req)
 			if err != nil {
 				return err
@@ -401,17 +407,19 @@ func (store *InMemoryStore) Multi(ctx context.Context, request *state.Transactio
 	defer store.lock.Unlock()
 
 	// step2: validate etag if needed
-	for _, o := range request.Operations {
-		switch req := o.(type) {
-		case *innerSetRequest:
-			err := store.doValidateEtag(req.req.Key, req.req.ETag, req.req.Options.Concurrency)
-			if err != nil {
-				return err
-			}
-		case state.DeleteRequest:
-			err := store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
-			if err != nil {
-				return err
+	if guarded {
+		for _, o := range request.Operations {
+			switch req := o.(type) {
+			case *innerSetRequest:
+				err := store.doValidateEtag(req.req.Key, req.req.ETag, req.req.Options.Concurrency)
+				if err != nil {
+					return err
+				}
+			case state.DeleteRequest:
+				err := store.doValidateEtag(req.Key, req.ETag, req.Options.Concurrency)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

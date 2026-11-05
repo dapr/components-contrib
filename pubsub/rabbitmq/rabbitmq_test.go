@@ -89,8 +89,9 @@ func TestPublishAndSubscribeWithPriorityQueue(t *testing.T) {
 	pubsubRabbitMQ := newRabbitMQTest(broker)
 	metadata := pubsub.Metadata{Base: mdata.Base{
 		Properties: map[string]string{
-			metadataHostnameKey:   "anyhost",
-			metadataConsumerIDKey: "consumer",
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataDeleteWhenUnusedKey: "false",
 		},
 	}}
 	err := pubsubRabbitMQ.Init(t.Context(), metadata)
@@ -242,6 +243,7 @@ func TestComponentQueueType(t *testing.T) {
 			metadataHostnameKey:         "anyhost",
 			metadataConsumerIDKey:       "consumer",
 			metadataEnableDeadLetterKey: "true",
+			metadataDeleteWhenUnusedKey: "false",
 		}, map[string]string{
 			reqMetadataQueueTypeKey: "quorum",
 		})
@@ -256,12 +258,13 @@ func TestComponentQueueType(t *testing.T) {
 		assert.Equal(t, queueModeLazy, dlqArgs[argQueueMode])
 	})
 
-	t.Run("subscription-level quorum reaches the dead letter queue when component-level queueType is set", func(t *testing.T) {
+	t.Run("component-level classic keeps the dead letter queue classic even when the subscription sets quorum", func(t *testing.T) {
 		broker := subscribe(t, map[string]string{
 			metadataHostnameKey:         "anyhost",
 			metadataConsumerIDKey:       "consumer",
 			metadataEnableDeadLetterKey: "true",
 			reqMetadataQueueTypeKey:     "classic",
+			metadataDeleteWhenUnusedKey: "false",
 		}, map[string]string{
 			reqMetadataQueueTypeKey: "quorum",
 		})
@@ -272,8 +275,39 @@ func TestComponentQueueType(t *testing.T) {
 
 		dlqArgs := broker.declaredQueueArgs["dlq-consumer-mytopic"]
 		require.NotNil(t, dlqArgs)
-		assert.Equal(t, amqp.QueueTypeQuorum, dlqArgs[amqp.QueueTypeArg])
-		assert.NotContains(t, dlqArgs, argQueueMode)
+		assert.NotContains(t, dlqArgs, amqp.QueueTypeArg)
+		assert.Equal(t, queueModeLazy, dlqArgs[argQueueMode])
+	})
+
+	t.Run("subscription-level queue type is case-insensitive", func(t *testing.T) {
+		broker := subscribe(t, map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataDeleteWhenUnusedKey: "false",
+		}, map[string]string{
+			reqMetadataQueueTypeKey: "Quorum",
+		})
+
+		mainArgs := broker.declaredQueueArgs["consumer-mytopic"]
+		require.NotNil(t, mainArgs)
+		assert.Equal(t, amqp.QueueTypeQuorum, mainArgs[amqp.QueueTypeArg])
+	})
+
+	t.Run("subscription-level quorum with deletedWhenUnused true fails before declaring anything", func(t *testing.T) {
+		broker := newBroker()
+		pubsubRabbitMQ := newRabbitMQTest(broker)
+		err := pubsubRabbitMQ.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{
+			metadataHostnameKey:         "anyhost",
+			metadataConsumerIDKey:       "consumer",
+			metadataEnableDeadLetterKey: "true",
+		}}})
+		require.NoError(t, err)
+
+		err = pubsubRabbitMQ.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic", Metadata: map[string]string{reqMetadataQueueTypeKey: "quorum"}}, handler)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), metadataDeleteWhenUnusedKey)
+		assert.NotContains(t, broker.declaredQueueArgs, "dlq-consumer-mytopic")
+		assert.NotContains(t, broker.declaredQueueArgs, "consumer-mytopic")
 	})
 
 	t.Run("maxPriority with a quorum queue fails before declaring dead letter objects", func(t *testing.T) {

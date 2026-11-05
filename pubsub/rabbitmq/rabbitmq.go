@@ -411,15 +411,23 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 	}
 
 	queueType := r.metadata.QueueType
-	if val := req.Metadata[reqMetadataQueueTypeKey]; val != "" {
+	if val := strings.ToLower(req.Metadata[reqMetadataQueueTypeKey]); val != "" {
 		if !queueTypeValid(val) {
 			return nil, fmt.Errorf("invalid queue type %s. Valid types are %s and %s", val, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
 		}
 		queueType = val
 	}
 
-	if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" && queueType == amqp.QueueTypeQuorum {
-		return nil, fmt.Errorf("%s %s is only supported by %s queues and the queue type for queue '%s' resolved to %s: %w", errorMessagePrefix, metadataMaxPriority, amqp.QueueTypeClassic, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+	if queueType == amqp.QueueTypeQuorum {
+		if !r.metadata.Durable {
+			return nil, fmt.Errorf("%s quorum queues require %s to be true and queue '%s' resolved to %s: %w", errorMessagePrefix, metadataDurableKey, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+		}
+		if r.metadata.DeleteWhenUnused {
+			return nil, fmt.Errorf("%s quorum queues require %s to be false and queue '%s' resolved to %s: %w", errorMessagePrefix, metadataDeleteWhenUnusedKey, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+		}
+		if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" {
+			return nil, fmt.Errorf("%s %s is only supported by %s queues and queue '%s' resolved to %s: %w", errorMessagePrefix, metadataMaxPriority, amqp.QueueTypeClassic, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+		}
 	}
 
 	var args amqp.Table
@@ -439,11 +447,11 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 		var q amqp.Queue
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
-		// the resolved type reaches the dead letter queue only when the
-		// component-level queueType is set: deployments that predate it have a
+		// the dead letter queue is quorum only when the component-level
+		// queueType is quorum: deployments that predate this field have a
 		// classic dead letter queue on the broker even when the subscription
 		// sets queueType, and typing it now would fail its redeclaration
-		if r.metadata.queueTypeSet && queueType == amqp.QueueTypeQuorum {
+		if r.metadata.QueueType == amqp.QueueTypeQuorum && queueType == amqp.QueueTypeQuorum {
 			dlqArgs[amqp.QueueTypeArg] = amqp.QueueTypeQuorum
 		} else {
 			// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage

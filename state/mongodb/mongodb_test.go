@@ -456,6 +456,50 @@ func TestETagWrites(t *testing.T) {
 		assert.Equal(mt, ttlFilter.Key, q[len(q)-1].Key)
 	})
 
+	mt.Run("delete with etag on a server that allows $$NOW in delete", func(mt *mtest.T) {
+		newDeleteStore := func(mt *mtest.T) *MongoDB {
+			m := newStore(mt)
+			m.deleteWithNow = true
+			return m
+		}
+		requireDeleteFilter := func(mt *mtest.T) {
+			mt.Helper()
+			started := mt.GetStartedEvent()
+			require.Equal(mt, "delete", started.CommandName)
+			var q bson.D
+			require.NoError(mt, bson.Unmarshal(started.Command.Lookup("deletes").Array().Index(0).Value().Document().Lookup("q").Document(), &q))
+			assert.Contains(mt, q, bson.E{Key: etag, Value: "e"})
+			assert.Equal(mt, ttlFilter.Key, q[len(q)-1].Key)
+		}
+
+		mt.Run("deletes a matching doc", func(mt *mtest.T) {
+			mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 1}))
+
+			require.NoError(mt, newDeleteStore(mt).Delete(mt.Context(), &state.DeleteRequest{Key: "k", ETag: ptr.Of("e")}))
+			requireDeleteFilter(mt)
+		})
+
+		mt.Run("no doc deleted is a mismatch", func(mt *mtest.T) {
+			mt.AddMockResponses(mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 0}))
+
+			err := newDeleteStore(mt).Delete(mt.Context(), &state.DeleteRequest{Key: "k", ETag: ptr.Of("e")})
+			var etagErr *state.ETagError
+			require.ErrorAs(mt, err, &etagErr)
+			assert.Equal(mt, state.ETagMismatch, etagErr.Kind())
+			requireDeleteFilter(mt)
+		})
+
+		mt.Run("command errors are returned", func(mt *mtest.T) {
+			mt.AddMockResponses(mtest.CreateCommandErrorResponse(mtest.CommandError{Code: 2, Name: "BadValue", Message: "delete failed"}))
+
+			err := newDeleteStore(mt).Delete(mt.Context(), &state.DeleteRequest{Key: "k", ETag: ptr.Of("e")})
+			require.ErrorContains(mt, err, "delete failed")
+			var etagErr *state.ETagError
+			require.NotErrorAs(mt, err, &etagErr)
+			requireDeleteFilter(mt)
+		})
+	})
+
 	mt.Run("multi with etag on missing key fails", func(mt *mtest.T) {
 		mt.AddMockResponses(
 			mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 0}, bson.E{Key: "nModified", Value: 0}),

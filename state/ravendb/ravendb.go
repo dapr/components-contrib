@@ -220,6 +220,15 @@ func (r *RavenDB) Ping(ctx context.Context) error {
 }
 
 func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	// Parsed before collapsing so a dropped set's invalid TTL still fails the transaction.
+	for _, op := range request.Operations {
+		if req, ok := op.(state.SetRequest); ok {
+			if _, err := stateutils.ParseTTL(req.Metadata); err != nil {
+				return fmt.Errorf("failed to parse TTL: %w", err)
+			}
+		}
+	}
+
 	// The session rejects a second op on one document with an untyped error.
 	ops, err := stateutils.CollapseOps(request.Operations)
 	if err != nil {
@@ -240,7 +249,7 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 			var concurrency string
 			req.ETag, concurrency = guardOf(o.Guard)
 			if !req.HasETag() && concurrency == state.FirstWrite {
-				err = r.checkMissing(session, req.Key)
+				_, err = r.checkMissing(session, req.Key)
 			} else {
 				err = r.deleteInternal(ctx, &req, session, true)
 			}
@@ -272,23 +281,28 @@ func guardOf(op state.TransactionalStateOperation) (*string, string) {
 	return nil, ""
 }
 
-func (r *RavenDB) checkMissing(session *ravendb.DocumentSession, key string) error {
+// checkMissing returns the change vector of an expired document, so a store can replace exactly that version.
+func (r *RavenDB) checkMissing(session *ravendb.DocumentSession, key string) (string, error) {
 	var existing *Item
 	if err := session.Load(&existing, key); err != nil {
-		return fmt.Errorf("error loading data: %w", err)
+		return "", fmt.Errorf("error loading data: %w", err)
 	}
 	if existing == nil {
-		return nil
+		return "", nil
 	}
 	meta, err := session.Advanced().GetMetadataFor(existing)
 	if err != nil {
-		return fmt.Errorf("error loading metadata: %w", err)
+		return "", fmt.Errorf("error loading metadata: %w", err)
 	}
 	if expiry, ok := expiryFromMetadata(meta); ok && isExpired(expiry) {
+		cv, err := session.Advanced().GetChangeVectorFor(existing)
+		if err != nil {
+			return "", fmt.Errorf("error loading change vector: %w", err)
+		}
 		// Evicted so a store of the key replaces it whole, the client can't drop @expires from a loaded document.
-		return session.Advanced().Evict(existing)
+		return *cv, session.Advanced().Evict(existing)
 	}
-	return state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
+	return "", state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
 }
 
 func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
@@ -418,11 +432,16 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 			return fmt.Errorf("error storing data: %w", err)
 		}
 	case req.Options.Concurrency == state.FirstWrite:
-		err = r.checkMissing(session, req.Key)
+		var cv string
+		cv, err = r.checkMissing(session, req.Key)
 		if err != nil {
 			return err
 		}
-		err = session.Store(item)
+		if cv != "" {
+			err = session.StoreWithChangeVectorAndID(item, cv, req.Key)
+		} else {
+			err = session.Store(item)
+		}
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
 		}

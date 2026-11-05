@@ -182,9 +182,24 @@ func TestSetETag(t *testing.T) {
 
 		cmd := fake.commandsByID(t)["a"]
 		assert.Equal(t, "PUT", cmd["Type"])
+		assert.Equal(t, "A:1-a", cmd["ChangeVector"])
 		doc := cmd["Document"].(map[string]any)
 		assert.Equal(t, `"w"`, doc["Value"])
 		assert.NotContains(t, doc["@metadata"], "@expires")
+	})
+
+	t.Run("first-write on an expired document replaced concurrently is an etag mismatch", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"a": `"v"`}
+		fake.expired = map[string]bool{"a": true}
+		fake.conflict = true
+		err := r.Set(t.Context(), &state.SetRequest{
+			Key: "a", Value: "w",
+			Options: state.SetStateOption{Concurrency: state.FirstWrite},
+		})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
 	})
 
 	t.Run("first-write on a missing document stores it", func(t *testing.T) {
@@ -239,8 +254,22 @@ func TestMultiETags(t *testing.T) {
 
 		byID := fake.commandsByID(t)
 		assert.Equal(t, "PUT", byID["a"]["Type"])
+		assert.Equal(t, "A:1-a", byID["a"]["ChangeVector"])
 		assert.NotContains(t, byID["a"]["Document"].(map[string]any)["@metadata"], "@expires")
 		assert.NotContains(t, byID, "b")
+	})
+
+	t.Run("invalid TTL on a set replaced later in the transaction fails it", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		err := r.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.SetRequest{Key: "a", Value: "v", Metadata: map[string]string{"ttlInSeconds": "invalid"}},
+				state.DeleteRequest{Key: "a"},
+				state.SetRequest{Key: "b", Value: "v"},
+			},
+		})
+		require.ErrorContains(t, err, "failed to parse TTL")
+		assert.Empty(t, fake.commands)
 	})
 
 	t.Run("delete etag conflict is an etag mismatch", func(t *testing.T) {

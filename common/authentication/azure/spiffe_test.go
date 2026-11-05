@@ -15,7 +15,6 @@ package azure
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -23,10 +22,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/common/authentication/spiffe/spiffetest"
 	spiffecontext "github.com/dapr/kit/crypto/spiffe/context"
 )
 
@@ -39,14 +38,6 @@ type stubCredential struct {
 func (c *stubCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
 	c.called = true
 	return azcore.AccessToken{Token: c.token, ExpiresOn: time.Now().Add(time.Hour)}, nil
-}
-
-// stubJWTSource is a jwtsvid.Source that is only used to signal that SPIFFE is configured; the
-// credential under test does not fetch from it.
-type stubJWTSource struct{}
-
-func (stubJWTSource) FetchJWTSVID(context.Context, jwtsvid.Params) (*jwtsvid.SVID, error) {
-	return nil, errors.New("not implemented")
 }
 
 func TestSpiffeWorkloadIdentityGetTokenCredential(t *testing.T) {
@@ -73,13 +64,13 @@ func TestSpiffeWorkloadIdentityGetTokenCredential(t *testing.T) {
 	})
 }
 
-// TestSpiffeCredentialUnavailableWithoutJWTSource asserts that the credential reports itself as
+// TestSpiffeCredentialUnavailableWithoutJWTMinter asserts that the credential reports itself as
 // unavailable, rather than failing fatally, when SPIFFE workload identity is not configured. The
 // distinction is only observable through a chain: ChainedTokenCredential surfaces a
 // credentialUnavailableError verbatim but wraps any other error in an AuthenticationFailedError,
 // so the assertion fails if the credential returns a plain error. It also asserts that no token
 // request is attempted.
-func TestSpiffeCredentialUnavailableWithoutJWTSource(t *testing.T) {
+func TestSpiffeCredentialUnavailableWithoutJWTMinter(t *testing.T) {
 	inner := &stubCredential{token: "token-from-inner-credential"}
 
 	chain, err := azidentity.NewChainedTokenCredential(
@@ -87,7 +78,7 @@ func TestSpiffeCredentialUnavailableWithoutJWTSource(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// The context carries no JWT SVID source.
+	// The context carries no JWT SVID minter.
 	_, err = chain.GetToken(context.Background(), policy.TokenRequestOptions{
 		Scopes: []string{"https://vault.azure.net/.default"},
 	})
@@ -100,7 +91,7 @@ func TestSpiffeCredentialUnavailableWithoutJWTSource(t *testing.T) {
 }
 
 // TestSpiffeCredentialChainFallsThrough is the regression test for the credential chain halting at
-// the SPIFFE step: with no JWT SVID source in the context, the chain must continue to the next
+// the SPIFFE step: with no JWT SVID minter in the context, the chain must continue to the next
 // credential instead of aborting.
 func TestSpiffeCredentialChainFallsThrough(t *testing.T) {
 	spiffeCred, err := newTestSpiffeCredential()
@@ -122,19 +113,19 @@ func TestSpiffeCredentialChainFallsThrough(t *testing.T) {
 	assert.Equal(t, "token-from-next-credential", token.Token)
 }
 
-// TestSpiffeCredentialDelegatesWithJWTSource asserts that once a JWT SVID source is available the
+// TestSpiffeCredentialDelegatesWithJWTMinter asserts that once a JWT SVID minter is available the
 // credential delegates to the underlying credential rather than reporting itself as unavailable.
-func TestSpiffeCredentialDelegatesWithJWTSource(t *testing.T) {
+func TestSpiffeCredentialDelegatesWithJWTMinter(t *testing.T) {
 	inner := &stubCredential{token: "token-from-inner-credential"}
 	cred := &spiffeCredential{cred: inner}
 
-	ctx := spiffecontext.WithJWT(context.Background(), stubJWTSource{})
+	ctx := spiffecontext.WithJWTMinter(context.Background(), new(spiffetest.Minter))
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{"https://vault.azure.net/.default"},
 	})
 	require.NoError(t, err)
 
-	assert.True(t, inner.called, "the credential must delegate when a JWT SVID source is present")
+	assert.True(t, inner.called, "the credential must delegate when a JWT SVID minter is present")
 	assert.Equal(t, "token-from-inner-credential", token.Token)
 }
 

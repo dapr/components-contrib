@@ -17,6 +17,7 @@ locals {
   roles = toset([
     "roles/pubsub.admin",
     "roles/datastore.owner",
+    "roles/storage.admin",
   ])
 }
 

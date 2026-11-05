@@ -605,7 +605,7 @@ func (m *MongoDB) getMongoDBClient(ctx context.Context) (*mongo.Client, error) {
 	uri := m.metadata.getMongoConnectionString()
 
 	// Set client options
-	clientOptions := options.Client().ApplyURI(uri)
+	clientOptions := options.Client().ApplyURI(uri).SetPoolMonitor(newPoolMonitor(m.logger))
 	m.isReplicaSet = clientOptions.ReplicaSet != nil
 
 	// Connect to MongoDB

@@ -610,6 +610,10 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 
 	key := sql.Named(keyColumnName, req.Key)
 	namedIsBinary := sql.Named("isBinary", isBinary)
+	// -1 means no expiry.
+	if ttl != nil && *ttl == -1 {
+		ttl = nil
+	}
 	ttlParam := sql.Named("TTL", ttl)
 
 	var res sql.Result

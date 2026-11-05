@@ -14,6 +14,8 @@ limitations under the License.
 package sqlserver
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"testing"
 
@@ -161,4 +163,30 @@ func TestETagDeleteSkipsExpiredRows(t *testing.T) {
 	err := s.Delete(t.Context(), &state.DeleteRequest{Key: "a", ETag: ptr.Of("00000000000007d1")})
 	requireETagErr(t, err, state.ETagMismatch)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestNegativeTTLClearsExpiry(t *testing.T) {
+	noTTL := map[string]string{"ttlInSeconds": "-1"}
+	for name, tc := range map[string]struct {
+		query string
+		args  int
+		req   *state.SetRequest
+	}{
+		"etag":        {etagUpdateQuery, 4, &state.SetRequest{Key: "a", Value: "a", ETag: ptr.Of("00000000000007d1"), Metadata: noTTL}},
+		"first-write": {firstWriteQuery, 3, &state.SetRequest{Key: "a", Value: "a", Options: state.SetStateOption{Concurrency: state.FirstWrite}, Metadata: noTTL}},
+		"procedure":   {`sp_Upsert_v5_state`, 5, &state.SetRequest{Key: "a", Value: "a", Metadata: noTTL}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, mock := newETagTestStore(t)
+			args := make([]driver.Value, tc.args)
+			for i := range args {
+				args[i] = sqlmock.AnyArg()
+			}
+			args[len(args)-1] = sql.Named("TTL", nil)
+			mock.ExpectExec(tc.query).WithArgs(args...).WillReturnResult(sqlmock.NewResult(0, 1))
+
+			require.NoError(t, s.Set(t.Context(), tc.req))
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }

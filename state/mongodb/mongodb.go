@@ -86,9 +86,10 @@ type MongoDB struct {
 	operationTimeout time.Duration
 	metadata         mongoDBMetadata
 
-	features     []state.Feature
-	logger       logger.Logger
-	isReplicaSet bool
+	features      []state.Feature
+	logger        logger.Logger
+	isReplicaSet  bool
+	deleteWithNow bool
 }
 
 type mongoDBMetadata struct {
@@ -147,6 +148,14 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 
 	if err = client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", m.metadata.Host, err)
+	}
+
+	// Only MongoDB 4.4 and later accept $$NOW in the delete command.
+	var build struct {
+		VersionArray []int32 `bson:"versionArray"`
+	}
+	if client.Database("admin").RunCommand(ctx, bson.D{{Key: "buildInfo", Value: 1}}).Decode(&build) == nil && len(build.VersionArray) >= 2 {
+		m.deleteWithNow = build.VersionArray[0] > 4 || (build.VersionArray[0] == 4 && build.VersionArray[1] >= 4)
 	}
 
 	// get the write concern
@@ -500,6 +509,13 @@ func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) 
 	filter := bson.D{{Key: id, Value: req.Key}}
 	if req.HasETag() {
 		filter = append(filter, bson.E{Key: etag, Value: *req.ETag}, getFilterTTL()[0])
+		if m.deleteWithNow {
+			res, err := m.collection.DeleteOne(ctx, filter)
+			if err == nil && res.DeletedCount == 0 {
+				return state.NewETagError(state.ETagMismatch, nil)
+			}
+			return err
+		}
 		// MongoDB 4.2 rejects $$NOW in the delete command but allows it in findAndModify.
 		err := m.collection.FindOneAndDelete(ctx, filter, options.FindOneAndDelete().SetProjection(bson.D{{Key: id, Value: 1}})).Err()
 		if errors.Is(err, mongo.ErrNoDocuments) {

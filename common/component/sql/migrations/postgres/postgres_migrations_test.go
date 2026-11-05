@@ -19,11 +19,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	pgxmock "github.com/pashagolub/pgxmock/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pginterfaces "github.com/dapr/components-contrib/common/component/postgresql/interfaces"
 	commonsql "github.com/dapr/components-contrib/common/component/sql"
 	"github.com/dapr/kit/logger"
 )
@@ -124,4 +127,67 @@ func TestPerformReleasesLockWithoutExiting(t *testing.T) {
 		assert.Len(t, rec.errors, 1)
 		assert.Empty(t, rec.fatals)
 	})
+}
+
+// TestEnsureMetadataTableConcurrentCreate covers sidecars starting together
+// against a new database: a CREATE TABLE IF NOT EXISTS racing another one
+// fails with 23505, 42P07 or 42710, and the retry then finds the table.
+func TestEnsureMetadataTableConcurrentCreate(t *testing.T) {
+	for name, code := range map[string]string{
+		"unique violation": pgerrcode.UniqueViolation,
+		"duplicate table":  pgerrcode.DuplicateTable,
+		"duplicate type":   pgerrcode.DuplicateObject,
+	} {
+		t.Run(name, func(t *testing.T) {
+			m, db, _ := newTestMigrations(t)
+			db.ExpectExec("CREATE TABLE IF NOT EXISTS " + testMetadataTable).WillReturnError(&pgconn.PgError{Code: code})
+			db.ExpectExec("CREATE TABLE IF NOT EXISTS " + testMetadataTable).WillReturnResult(pgxmock.NewResult("CREATE TABLE", 0))
+
+			require.NoError(t, m.EnsureMetadataTable(t.Context()))
+			require.NoError(t, db.ExpectationsWereMet())
+		})
+	}
+
+	t.Run("other errors abort", func(t *testing.T) {
+		m, db, _ := newTestMigrations(t)
+		db.ExpectExec("CREATE TABLE IF NOT EXISTS " + testMetadataTable).WillReturnError(&pgconn.PgError{Code: pgerrcode.InsufficientPrivilege})
+
+		require.ErrorContains(t, m.EnsureMetadataTable(t.Context()), "failed to create metadata table")
+		require.NoError(t, db.ExpectationsWereMet())
+	})
+}
+
+// cancelAfterExec cancels the context once an Exec returns. pgxmock answers
+// an Exec on an already-cancelled context with either its expectation or
+// ErrCancelled at random, so the test cancels between attempts instead.
+type cancelAfterExec struct {
+	pginterfaces.PGXPoolConn
+	cancel context.CancelFunc
+}
+
+func (c cancelAfterExec) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	defer c.cancel()
+	return c.PGXPoolConn.Exec(ctx, sql, args...)
+}
+
+func TestEnsureMetadataTableCancelledRetry(t *testing.T) {
+	m, db, _ := newTestMigrations(t)
+	db.ExpectExec("CREATE TABLE IF NOT EXISTS " + testMetadataTable).WillReturnError(&pgconn.PgError{Code: pgerrcode.DuplicateTable})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	m.DB = cancelAfterExec{PGXPoolConn: db, cancel: cancel}
+	require.ErrorIs(t, m.EnsureMetadataTable(ctx), context.Canceled)
+	require.NoError(t, db.ExpectationsWereMet(), "a cancelled retry must not issue another create")
+}
+
+func TestIsConcurrentCreateError(t *testing.T) {
+	for code, want := range map[string]bool{
+		pgerrcode.UniqueViolation:       true,
+		pgerrcode.DuplicateTable:        true,
+		pgerrcode.DuplicateObject:       true,
+		pgerrcode.InsufficientPrivilege: false,
+	} {
+		assert.Equal(t, want, isConcurrentCreateError(fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: code})), code)
+	}
+	assert.False(t, isConcurrentCreateError(errors.New("connection refused")))
 }

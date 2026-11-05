@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	gcppubsub "cloud.google.com/go/pubsub"
+	gcppubsub "cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: pubsub v1 is deprecated in favor of pubsub/v2. Kept to avoid a behavior change in a dependency-only update.
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -193,7 +193,7 @@ func (g *GCPPubSub) getPubSubClient(ctx context.Context, metadata *metadata) (*g
 		}
 		gcpCompatibleJSON, _ := json.Marshal(authJSON)
 		g.logger.Debugf("Using explicit credentials for GCP")
-		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON)
+		clientOptions := option.WithCredentialsJSON(gcpCompatibleJSON) //nolint:staticcheck // SA1019: deprecated by the google.golang.org/api update. Kept to avoid a behavior change in a dependency-only update.
 		pubsubClient, err = gcppubsub.NewClient(context.Background(), metadata.ProjectID, clientOptions)
 		if err != nil {
 			return pubsubClient, err

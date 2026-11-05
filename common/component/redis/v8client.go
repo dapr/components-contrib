@@ -336,13 +336,34 @@ func (c v8Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
-func (c v8Client) AuthACL(ctx context.Context, username, password string) error {
-	// AuthACL is only exposed on the Pipeliner, so we queue it on a pipeline and
-	// Exec it. Without the Exec the command is never sent, making AUTH a no-op.
-	pipeline := c.client.Pipeline()
-	pipeline.AuthACL(ctx, username, password)
-	_, err := pipeline.Exec(ctx)
-	return err
+// v8OnConnect authenticates each new connection with a fresh token, or returns
+// nil when token authentication is not enabled. go-redis v8 has no credentials
+// provider, and it runs SELECT before OnConnect, so callers zero the DB option
+// and the hook selects db after AUTH. It is not used for failover, because
+// FailoverOptions copies OnConnect onto Sentinel connections.
+func (s *Settings) v8OnConnect(db int) func(ctx context.Context, cn *v8.Conn) error {
+	creds := s.credentialsProvider()
+	if creds == nil {
+		return nil
+	}
+	return func(ctx context.Context, cn *v8.Conn) error {
+		username, token, err := creds(ctx)
+		if err != nil {
+			return err
+		}
+		_, err = cn.Pipelined(ctx, func(pipe v8.Pipeliner) error {
+			if username == "" {
+				pipe.Auth(ctx, token)
+			} else {
+				pipe.AuthACL(ctx, username, token)
+			}
+			if db > 0 {
+				pipe.Select(ctx, db)
+			}
+			return nil
+		})
+		return err
+	}
 }
 
 func newV8FailoverClient(s *Settings) (RedisClient, error) {
@@ -426,6 +447,7 @@ func newV8Client(s *Settings) (RedisClient, error) {
 			PoolTimeout:        time.Duration(s.PoolTimeout),
 			IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
 			IdleTimeout:        time.Duration(s.IdleTimeout),
+			OnConnect:          s.v8OnConnect(0),
 		}
 		/* #nosec */
 		if s.EnableTLS {
@@ -465,6 +487,9 @@ func newV8Client(s *Settings) (RedisClient, error) {
 		PoolTimeout:        time.Duration(s.PoolTimeout),
 		IdleCheckFrequency: time.Duration(s.IdleCheckFrequency),
 		IdleTimeout:        time.Duration(s.IdleTimeout),
+	}
+	if options.OnConnect = s.v8OnConnect(s.DB); options.OnConnect != nil {
+		options.DB = 0
 	}
 
 	/* #nosec */

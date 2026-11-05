@@ -374,7 +374,7 @@ func TestOAuthTokenSourcePrivateKeyJWT(t *testing.T) {
 	})
 }
 
-func TestGetOIDCTokenSourceAndSetInitialTokenAsPassword(t *testing.T) {
+func TestGetOIDCTokenSource(t *testing.T) {
 	certPEM, keyPEM := createTestCertAndKey(t)
 	logger := kitlogger.NewLogger("test")
 
@@ -434,24 +434,28 @@ func TestGetOIDCTokenSourceAndSetInitialTokenAsPassword(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				s := validSettings("https://idp.example.com/token")
 				tt.modify(s)
-				_, _, err := s.GetOIDCTokenSourceAndSetInitialTokenAsPassword(context.Background(), &logger)
+				_, _, err := s.GetOIDCTokenSource(context.Background(), &logger)
 				require.ErrorContains(t, err, tt.err)
 			})
 		}
 	})
 
-	t.Run("happy path sets the token as password and leaves the username empty", func(t *testing.T) {
+	t.Run("happy path serves the token per connection and leaves the username empty", func(t *testing.T) {
 		var hits atomic.Int32
 		var form sync.Map
 		server := newTokenEndpointStub(t, &hits, &form)
 		defer server.Close()
 
 		s := validSettings(server.URL)
-		tokenSource, expiry, err := s.GetOIDCTokenSourceAndSetInitialTokenAsPassword(context.Background(), &logger)
+		tokenSource, expiry, err := s.GetOIDCTokenSource(context.Background(), &logger)
 		require.NoError(t, err)
 		require.NotNil(t, tokenSource)
 		require.True(t, expiry.After(time.Now()))
-		require.Equal(t, "test-token", s.Password)
+		// The token is fetched per connection, never snapshotted as the password.
+		require.Empty(t, s.Password)
+		token, _, err := s.fetchToken(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, "test-token", token)
 		// No explicit username: kept empty so the client uses the 1-argument
 		// AUTH <token> form for maximum RESP compatibility.
 		require.Empty(t, s.Username)
@@ -469,7 +473,7 @@ func TestGetOIDCTokenSourceAndSetInitialTokenAsPassword(t *testing.T) {
 		s := validSettings(server.URL)
 		s.Username = "my-user"
 		s.OidcScopes = "openid,redis-prod"
-		_, _, err := s.GetOIDCTokenSourceAndSetInitialTokenAsPassword(context.Background(), &logger)
+		_, _, err := s.GetOIDCTokenSource(context.Background(), &logger)
 		require.NoError(t, err)
 		require.Equal(t, "my-user", s.Username)
 		require.Equal(t, []string{"openid", "redis-prod"}, s.internalOidcScopes)
@@ -483,7 +487,7 @@ func TestGetOIDCTokenSourceAndSetInitialTokenAsPassword(t *testing.T) {
 		defer server.Close()
 
 		s := validSettings(server.URL)
-		_, _, err := s.GetOIDCTokenSourceAndSetInitialTokenAsPassword(context.Background(), &logger)
+		_, _, err := s.GetOIDCTokenSource(context.Background(), &logger)
 		require.ErrorContains(t, err, "redis client configuration error")
 	})
 }

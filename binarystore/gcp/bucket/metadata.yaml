@@ -25,3 +25,13 @@ metadata:
     description: |
       An optional prefix prepended to all file names stored by this component.
     example: '"myprefix"'
+  - name: partSize
+    type: bytesize
+    required: false
+    default: '"16Mi"'
+    description: |
+      Resumable upload chunk size, as a byte size quantity. Must be a positive
+      multiple of 256 KiB. Larger chunks reduce request overhead at the cost
+      of more memory per in-flight upload; the maximum object size stays 5
+      TiB regardless.
+    example: '"64Mi"'

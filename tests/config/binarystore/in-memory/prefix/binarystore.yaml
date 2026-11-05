@@ -8,3 +8,7 @@ spec:
   metadata:
   - name: prefix
     value: conf-prefix/nested
+  # Raised above the conformance suite's large-payload size
+  # (2*DefaultUploadPartSize + 1MiB = 33 MiB) so the streaming test can run.
+  - name: maxSize
+    value: 48Mi

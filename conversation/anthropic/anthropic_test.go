@@ -14,6 +14,11 @@ limitations under the License.
 package anthropic
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/dapr/components-contrib/conversation"
@@ -22,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tmc/langchaingo/llms"
 )
 
 func TestInit(t *testing.T) {
@@ -138,4 +144,75 @@ func TestEndpointInMetadata(t *testing.T) {
 
 	_, exists = md["apiType"]
 	assert.True(t, exists, "apiType field should exist in metadata")
+}
+
+// TestConverseKeepsEveryToolCall sends messages shaped the way daprd builds
+// them (an assistant turn as text, then one ToolCall part per call) and checks
+// that every tool_use reaches Anthropic. Otherwise the following tool_result
+// blocks have nothing to match and Anthropic rejects the request.
+func TestConverseKeepsEveryToolCall(t *testing.T) {
+	var body struct {
+		Messages []struct {
+			Role    string           `json:"role"`
+			Content []map[string]any `json:"content"`
+		} `json:"messages"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		w.Header().Set("content-type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"m","type":"message","role":"assistant","model":"x",`+
+			`"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn",`+
+			`"usage":{"input_tokens":1,"output_tokens":1}}`)
+	}))
+	defer srv.Close()
+
+	a := NewAnthropic(logger.NewLogger("test"))
+	require.NoError(t, a.Init(t.Context(), conversation.Metadata{Base: metadata.Base{
+		Properties: map[string]string{"key": "x", "endpoint": srv.URL},
+	}}))
+
+	call := func(id, path string) llms.ToolCall {
+		return llms.ToolCall{ID: id, Type: "function", FunctionCall: &llms.FunctionCall{
+			Name: "read", Arguments: `{"path":"` + path + `"}`,
+		}}
+	}
+	msgs := []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeHuman, "read a and b"),
+		{Role: llms.ChatMessageTypeAI, Parts: []llms.ContentPart{
+			llms.TextContent{Text: "Reading both."}, call("t1", "a"), call("t2", "b"),
+		}},
+		{Role: llms.ChatMessageTypeTool, Parts: []llms.ContentPart{
+			llms.ToolCallResponse{ToolCallID: "t1", Name: "read", Content: "A"},
+		}},
+		{Role: llms.ChatMessageTypeTool, Parts: []llms.ContentPart{
+			llms.ToolCallResponse{ToolCallID: "t2", Name: "read", Content: "B"},
+		}},
+	}
+	tools := []llms.Tool{{Type: "function", Function: &llms.FunctionDefinition{
+		Name: "read", Parameters: map[string]any{"type": "object"},
+	}}}
+	auto := "auto" // daprd sets this whenever tools are present
+	_, err := a.Converse(t.Context(), &conversation.Request{Message: &msgs, Tools: &tools, ToolChoice: &auto})
+	require.NoError(t, err)
+
+	// One entry per content block, so this holds whether the blocks of a turn
+	// are sent as one message or as consecutive same-role messages.
+	var blocks []string
+	for _, m := range body.Messages {
+		for _, block := range m.Content {
+			id, _ := block["id"].(string)
+			if id == "" {
+				id, _ = block["tool_use_id"].(string)
+			}
+			blocks = append(blocks, strings.TrimSpace(m.Role+" "+block["type"].(string)+" "+id))
+		}
+	}
+	assert.Equal(t, []string{
+		"user text",
+		"assistant text",
+		"assistant tool_use t1",
+		"assistant tool_use t2",
+		"user tool_result t1",
+		"user tool_result t2",
+	}, blocks)
 }

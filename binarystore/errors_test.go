@@ -33,6 +33,8 @@ func TestSentinelErrorsWrap(t *testing.T) {
 		"ErrInvalidFileName":     ErrInvalidFileName,
 		"ErrInvalidPrefix":       ErrInvalidPrefix,
 		"ErrReaderNotResettable": ErrReaderNotResettable,
+		"ErrFileTooLarge":        ErrFileTooLarge,
+		"ErrStoreFull":           ErrStoreFull,
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.ErrorIs(t, fmt.Errorf("provider context: %w", err), err)
@@ -48,6 +50,8 @@ func TestSentinelErrorsAreDistinct(t *testing.T) {
 		ErrInvalidFileName,
 		ErrInvalidPrefix,
 		ErrReaderNotResettable,
+		ErrFileTooLarge,
+		ErrStoreFull,
 	}
 	for i, outer := range all {
 		for j, inner := range all {

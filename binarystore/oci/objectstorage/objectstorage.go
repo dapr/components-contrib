@@ -42,11 +42,30 @@ const (
 	bucketNameKey                      = "bucketName"
 )
 
+const (
+	// maxObjectSizeLimit is the maximum size of a single OCI object: 10 TiB.
+	maxObjectSizeLimit int64 = 10 << 40
+	// maxMultipartParts is the maximum number of parts in an OCI multipart
+	// upload.
+	maxMultipartParts int64 = 10_000
+	// minPartSize and maxPartSize bound the OCI multipart part size.
+	minPartSize int64 = 10 << 20
+	maxPartSize int64 = 50 << 30
+)
+
+// effectiveMaxObjectSize returns the largest object uploadable with the
+// given part size: an upload is limited to 10,000 parts and an object to
+// 10 TiB.
+func effectiveMaxObjectSize(partSize int64) int64 {
+	return min(maxObjectSizeLimit, maxMultipartParts*partSize)
+}
+
 // ObjectStorage implements binarystore.BinaryStore using OCI Object Storage.
 type ObjectStorage struct {
-	metadata *objectStoreMetadata
-	client   objectStoreClient
-	logger   logger.Logger
+	metadata      *objectStoreMetadata
+	client        objectStoreClient
+	logger        logger.Logger
+	maxObjectSize int64
 }
 
 type objectStoreMetadata struct {
@@ -63,6 +82,12 @@ type objectStoreMetadata struct {
 	ConfigFileProfile               string `json:"configFileProfile" mapstructure:"configFileProfile"`
 	InstancePrincipalAuthentication bool   `json:"instancePrincipalAuthentication,string" mapstructure:"instancePrincipalAuthentication"`
 	ConfigFileAuthentication        bool   `json:"configFileAuthentication,string" mapstructure:"configFileAuthentication"`
+	// PartSize is the multipart upload part size, as a byte size quantity.
+	// Larger parts raise the maximum uploadable object size (10,000 parts per
+	// upload) at the cost of more memory per in-flight upload.
+	PartSize kitmd.ByteSize `json:"partSize" mapstructure:"partSize"`
+
+	partSizeBytes int64
 }
 
 // NewOCIObjectStorage returns a new OCI Object Storage binary store.
@@ -83,15 +108,27 @@ func (o *ObjectStorage) Init(ctx context.Context, md binarystore.Metadata) error
 	}
 
 	o.metadata = m
+	o.maxObjectSize = effectiveMaxObjectSize(m.partSizeBytes)
 	o.client = client
 	return nil
 }
 
 func parseMetadata(meta map[string]string) (*objectStoreMetadata, error) {
-	m := objectStoreMetadata{}
+	m := objectStoreMetadata{
+		PartSize: kitmd.NewByteSize(binarystore.DefaultUploadPartSize),
+	}
 	if err := kitmd.DecodeMetadata(meta, &m); err != nil {
 		return nil, err
 	}
+
+	partSize, err := m.PartSize.GetBytes()
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for partSize: %w", err)
+	}
+	if partSize < minPartSize || partSize > maxPartSize {
+		return nil, fmt.Errorf("partSize must be between %d and %d bytes", minPartSize, maxPartSize)
+	}
+	m.partSizeBytes = partSize
 
 	if m.ConfigFileAuthentication {
 		var err error
@@ -169,7 +206,7 @@ func (o *ObjectStorage) Set(ctx context.Context, req *binarystore.SetRequest) er
 	if err != nil {
 		return err
 	}
-	if err = o.client.putObject(ctx, name, req.Data, req.Overwrite); err != nil {
+	if err = o.client.putObject(ctx, name, binarystore.NewSizeLimitReader(req.Data, o.maxObjectSize), req.Overwrite); err != nil {
 		// Only a create-only write can fail because the object already
 		// exists; when overwriting, a precondition failure signals an
 		// unrelated condition that must be surfaced to the caller.

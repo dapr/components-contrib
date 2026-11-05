@@ -41,6 +41,14 @@ var (
 	// ErrReaderNotResettable is returned when a Set request cannot be rewound
 	// for a retry.
 	ErrReaderNotResettable = errors.New("data reader cannot be reset")
+
+	// ErrFileTooLarge is returned by Set when the file exceeds the maximum
+	// object size supported by the provider or configured on the component.
+	ErrFileTooLarge = errors.New("file too large")
+
+	// ErrStoreFull is returned by Set when the store cannot accept the file
+	// without exceeding its configured total capacity.
+	ErrStoreFull = errors.New("store is full")
 )
 
 // SetRequest is the request object for the Set operation.

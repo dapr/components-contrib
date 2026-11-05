@@ -38,8 +38,9 @@ func newTestStore(client objectStoreClient, prefix string) *ObjectStorage {
 			Namespace:  "test-namespace",
 			Prefix:     prefix,
 		},
-		client: client,
-		logger: logger.NewLogger("test"),
+		client:        client,
+		logger:        logger.NewLogger("test"),
+		maxObjectSize: effectiveMaxObjectSize(binarystore.DefaultUploadPartSize),
 	}
 }
 
@@ -122,6 +123,24 @@ func TestSetOverwriteDoesNotMaskPreconditionErrors(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
+}
+
+func TestSetEnforcesObjectSizeLimit(t *testing.T) {
+	client := newFakeOCIClient()
+	store := newTestStore(client, "")
+	store.maxObjectSize = 7
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "allowed.bin",
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "large.bin",
+		Data:     bytes.NewReader([]byte("too large")),
+	})
+	require.ErrorIs(t, err, binarystore.ErrFileTooLarge)
+	assert.NotContains(t, client.objects, "large.bin")
 }
 
 // --- metadata ---

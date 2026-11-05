@@ -339,15 +339,6 @@ func (c v9Client) TTLResult(ctx context.Context, key string) (time.Duration, err
 	return c.client.TTL(writeCtx, key).Result()
 }
 
-func (c v9Client) AuthACL(ctx context.Context, username, password string) error {
-	// AuthACL is only exposed on the Pipeliner, so we queue it on a pipeline and
-	// Exec it. Without the Exec the command is never sent, making AUTH a no-op.
-	pipeline := c.client.Pipeline()
-	pipeline.AuthACL(ctx, username, password)
-	_, err := pipeline.Exec(ctx)
-	return err
-}
-
 func newV9FailoverClient(s *Settings) (RedisClient, error) {
 	if s == nil {
 		return nil, nil
@@ -373,6 +364,7 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 		ConnMaxIdleTime:       time.Duration(s.IdleTimeout),
 		ContextTimeoutEnabled: true,
 	}
+	opts.CredentialsProviderContext = s.credentialsProvider()
 
 	/* #nosec */
 	if s.EnableTLS {
@@ -432,6 +424,7 @@ func newV9Client(s *Settings) (RedisClient, error) {
 			ConnMaxIdleTime:       time.Duration(s.IdleTimeout),
 			ContextTimeoutEnabled: true,
 		}
+		options.CredentialsProviderContext = s.credentialsProvider()
 		/* #nosec */
 		if s.EnableTLS {
 			/* #nosec */
@@ -472,6 +465,7 @@ func newV9Client(s *Settings) (RedisClient, error) {
 		ConnMaxIdleTime:       time.Duration(s.IdleTimeout),
 		ContextTimeoutEnabled: true,
 	}
+	options.CredentialsProviderContext = s.credentialsProvider()
 
 	if s.EnableTLS {
 		/* #nosec */

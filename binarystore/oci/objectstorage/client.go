@@ -47,6 +47,7 @@ type ociObjectStoreClient struct {
 	objectClient *ociobjectstorage.ObjectStorageClient
 	httpClient   *http.Client
 	logger       logger.Logger
+	partSize     int64
 }
 
 // newOCIObjectStoreClient builds an OCI Object Storage client from the parsed
@@ -65,6 +66,7 @@ func newOCIObjectStoreClient(ctx context.Context, meta *objectStoreMetadata, log
 
 	c := &ociObjectStoreClient{
 		metadata:     meta,
+		partSize:     meta.partSizeBytes,
 		objectClient: objectClient,
 		httpClient:   httpClient,
 		logger:       log,
@@ -193,6 +195,15 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 		streamReader = io.MultiReader(bytes.NewReader(peek[:n]), data)
 	}
 
+	// The pinned SDK's splitStreamToParts stops reading the stream only on
+	// io.EOF and discards any other read error, which would loop forever on
+	// the sticky ErrFileTooLarge from the size limit reader. eofOnError
+	// converts such errors to io.EOF, captures the real error, and cancels
+	// the upload so a truncated object is not committed.
+	uploadCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	src := &eofOnError{r: streamReader, cancel: cancel}
+
 	req := transfer.UploadStreamRequest{
 		UploadRequest: transfer.UploadRequest{
 			NamespaceName:       &c.metadata.Namespace,
@@ -201,18 +212,24 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 			ObjectStorageClient: c.objectClient,
 			// Set explicitly so buffering matches the other binary store
 			// providers rather than the SDK defaults (10 MiB parts, 5
-			// goroutines). The shared part size is deliberately at or above
+			// goroutines). The shared default is deliberately at or above
 			// OCI's 10 MiB minimum for non-final multipart parts.
-			PartSize:           common.Int64(binarystore.DefaultUploadPartSize),
+			PartSize:           common.Int64(c.partSize),
 			NumberOfGoroutines: common.Int(binarystore.DefaultUploadConcurrency),
 		},
-		StreamReader: streamReader,
+		StreamReader: src,
 	}
 	if !overwrite {
 		req.IfNoneMatch = common.String("*")
 	}
 
-	resp, err := transfer.NewUploadManager().UploadStream(ctx, req)
+	resp, err := transfer.NewUploadManager().UploadStream(uploadCtx, req)
+	if src.err != nil {
+		// The SDK cannot see the source error (it only observes the io.EOF
+		// the wrapper fed it), so surface it here. The abort below cleans up
+		// the interrupted multipart upload.
+		err = src.err
+	}
 	if err != nil && resp.MultipartUploadResponse != nil && resp.UploadID != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
@@ -228,6 +245,33 @@ func (c *ociObjectStoreClient) putObject(ctx context.Context, name string, data 
 		}
 	}
 	return err
+}
+
+// eofOnError converts non-EOF read errors into io.EOF: the pinned OCI SDK's
+// splitStreamToParts loop stops reading the upload stream only on io.EOF and
+// turns any other error into a zero-length part, so a failing source (such as
+// the size limit reader, whose error is sticky) would otherwise emit empty
+// parts until the upload hangs or fails at the service. The first source
+// error is captured in err for putObject to return, and the upload context is
+// cancelled so the SDK does not commit a truncated object.
+type eofOnError struct {
+	r      io.Reader
+	cancel context.CancelFunc
+	err    error
+}
+
+func (e *eofOnError) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		if e.err == nil {
+			e.err = err
+		}
+		if e.cancel != nil {
+			e.cancel()
+		}
+		return n, io.EOF
+	}
+	return n, err
 }
 
 func (c *ociObjectStoreClient) getObject(ctx context.Context, name string) (io.ReadCloser, error) {

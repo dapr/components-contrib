@@ -90,23 +90,36 @@ func TestAzureCosmosDBStorage(t *testing.T) {
 			}
 			defer client.Close()
 
-			err = client.ExecuteStateTransaction(ctx, statestore, nil, []*daprClient.StateOperation{
-				{
-					Type: daprClient.StateOperationTypeUpsert,
-					Item: &daprClient.SetStateItem{
-						Key:   "reqKey1",
-						Value: []byte("reqVal1"),
-						Etag: &daprClient.ETag{
-							Value: "test",
-						},
-						Metadata: map[string]string{
-							"ttlInSeconds": "60",
-							"partitionKey": "txpartition",
+			txMeta := map[string]string{"partitionKey": "txpartition"}
+			err = client.SaveState(ctx, statestore, "reqKey1", []byte("reqVal0"), txMeta)
+			require.NoError(t, err)
+			item, err := client.GetState(ctx, statestore, "reqKey1", txMeta)
+			require.NoError(t, err)
+
+			upsertWithETag := func(etag string) error {
+				return client.ExecuteStateTransaction(ctx, statestore, txMeta, []*daprClient.StateOperation{
+					{
+						Type: daprClient.StateOperationTypeUpsert,
+						Item: &daprClient.SetStateItem{
+							Key:   "reqKey1",
+							Value: []byte("reqVal1"),
+							Etag: &daprClient.ETag{
+								Value: etag,
+							},
+							Metadata: map[string]string{
+								"ttlInSeconds": "60",
+								"partitionKey": "txpartition",
+							},
 						},
 					},
-				},
-			})
+				})
+			}
+			require.Error(t, upsertWithETag("test"))
+			require.NoError(t, upsertWithETag(item.Etag))
+
+			item, err = client.GetState(ctx, statestore, "reqKey1", txMeta)
 			require.NoError(t, err)
+			assert.Equal(t, "reqVal1", string(item.Value))
 
 			return nil
 		}

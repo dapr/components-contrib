@@ -1,0 +1,23 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: ftp
+  namespace: default
+spec:
+  type: bindings.ftp
+  version: v1
+  metadata:
+  - name: address
+    value: localhost:2121
+  - name: username
+    value: foo
+  - name: password
+    value: pass
+  - name: rootPath
+    value: /upload
+  # The compose file runs pure-ftpd with a self-signed certificate: explicit FTPS exercises
+  # the TLS session resumption that data connections need, insecureSkipVerify trusts the cert.
+  - name: tlsMode
+    value: explicit
+  - name: insecureSkipVerify
+    value: "true"

@@ -35,6 +35,7 @@ type SubscriptionManager struct {
 	logger            logger.Logger
 	consumeCancelFunc context.CancelFunc
 	closeCh           chan struct{}
+	controllerDoneCh  chan struct{}
 	topicsChangeCh    chan changeSubscriptionTopicHandler
 	topicsHandlers    *xsync.MapOf[string, *SubscriptionTopicHandler]
 	lock              sync.Mutex
@@ -54,6 +55,7 @@ func NewSubscriptionMgmt(log logger.Logger) SubscriptionManagement {
 		logger:            log,
 		consumeCancelFunc: func() {}, // noop until we (re)start sqs consumption
 		closeCh:           make(chan struct{}),
+		controllerDoneCh:  make(chan struct{}),
 		topicsChangeCh:    make(chan changeSubscriptionTopicHandler),
 		topicsHandlers:    xsync.NewMapOf[string, *SubscriptionTopicHandler](),
 	}
@@ -81,6 +83,8 @@ func (sm *SubscriptionManager) Init(queueInfo *sqsQueueInfo, dlqInfo *sqsQueueIn
 // it is also responsible for managing the lifecycle of the subscription handlers.
 func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(context.Context)) {
 	ctx := context.Background()
+	// signals pending unsubscribe senders that no one will receive their events anymore
+	defer close(sm.controllerDoneCh)
 
 	for {
 		select {
@@ -106,11 +110,27 @@ func (sm *SubscriptionManager) queueConsumerController(queueConsumerCbk func(con
 					go queueConsumerCbk(subCtx)
 				}
 			case Unsubscribe:
-				sm.topicsHandlers.Delete(topic)
+				// only delete the topic's handler if it is still the exact handler this unsubscribe event
+				// was created for. a stale, delayed unsubscribe for a handler that has since been replaced
+				// by a newer Subscribe must not remove the newer handler.
+				deleted := false
+				sm.topicsHandlers.Compute(topic, func(oldValue *SubscriptionTopicHandler, loaded bool) (*SubscriptionTopicHandler, bool) {
+					if !loaded {
+						// nothing stored for this topic; "delete" is a safe no-op and, unlike
+						// "store", never inserts a new (nil) entry for a missing key.
+						return oldValue, true
+					}
+					if oldValue != changeEvent.handler {
+						// a newer subscription already owns this topic; leave it untouched.
+						return oldValue, false
+					}
+					deleted = true
+					return oldValue, true
+				})
 				// for idempotency, we check the size of the map after the delete operation, as we might have already deleted the subscription
 				afterDelete := sm.topicsHandlers.Size()
 				// if before we've removed this subscription we had one (last) subscription, this signals us to stop sqs consumption
-				if current == 1 && afterDelete == 0 {
+				if deleted && current == 1 && afterDelete == 0 {
 					sm.logger.Info("Last subscription removed. no more handlers are mapped to topics. stopping SQS consumption")
 					sm.consumeCancelFunc()
 				}
@@ -143,21 +163,21 @@ func (sm *SubscriptionManager) createSubscribeListener(topicHandler *Subscriptio
 	sm.topicsChangeCh <- changeSubscriptionTopicHandler{Subscribe, topicHandler}
 	closeCh := make(chan struct{})
 	// the unsubscriber is expected to be terminated by the dapr runtime as it cancels the context upon unsubscribe
-	go sm.createUnsubscribeListener(topicHandler.ctx, topicHandler.topic, closeCh)
+	go sm.createUnsubscribeListener(topicHandler, closeCh)
 	// if the SubscriptinoManager is being closed and somehow the dapr runtime did not call unsubscribe, we close the control
 	// channel here to terminate the unsubscriber and return
 	defer close(closeCh)
 	<-sm.closeCh
 }
 
-// ctx is a context provided by daprd per subscription. unrelated to the consuming sm.baseCtx
-func (sm *SubscriptionManager) createUnsubscribeListener(ctx context.Context, topic string, closeCh <-chan struct{}) {
-	sm.logger.Debug("Creating an unsubscribe listener for topic: ", topic)
+// topicHandler.ctx is a context provided by daprd per subscription. unrelated to the consuming sm.baseCtx
+func (sm *SubscriptionManager) createUnsubscribeListener(topicHandler *SubscriptionTopicHandler, closeCh <-chan struct{}) {
+	sm.logger.Debug("Creating an unsubscribe listener for topic: ", topicHandler.topic)
 
-	defer sm.unsubscribe(topic)
+	defer sm.unsubscribe(topicHandler)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-topicHandler.ctx.Done():
 			return
 		case <-closeCh:
 			return
@@ -165,11 +185,18 @@ func (sm *SubscriptionManager) createUnsubscribeListener(ctx context.Context, to
 	}
 }
 
-func (sm *SubscriptionManager) unsubscribe(topic string) {
-	sm.logger.Debug("Unsubscribing from topic: ", topic)
+// unsubscribe carries the exact handler this subscription registered with, rather than re-resolving
+// whatever is currently stored for the topic, so a delayed unsubscribe can't be mistaken for a newer
+// subscription's handler.
+func (sm *SubscriptionManager) unsubscribe(topicHandler *SubscriptionTopicHandler) {
+	sm.logger.Debug("Unsubscribing from topic: ", topicHandler.topic)
 
-	if value, ok := sm.GetSubscriptionTopicHandler(topic); ok {
-		sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, value}
+	// the controller only exits once the handlers map is empty, so any event still pending at that point is
+	// for a handler that was already replaced or removed. abort the send instead of blocking forever.
+	select {
+	case sm.topicsChangeCh <- changeSubscriptionTopicHandler{Unsubscribe, topicHandler}:
+	case <-sm.controllerDoneCh:
+	    sm.logger.Debugf("Skipping unsubscribe for topic %s: controller stopped", topicHandler.topic)
 	}
 }
 

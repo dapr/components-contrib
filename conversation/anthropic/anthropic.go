@@ -58,6 +58,11 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 func (a *Anthropic) buildClientOptions(ctx context.Context, md AnthropicLangchainMetadata) (string, []anthropic.Option, error) {
 	model := conversation.GetAnthropicModel(md.Model)
 
+	headers, err := conversation.ParseHeaders(md.Headers)
+	if err != nil {
+		return "", nil, err
+	}
+
 	options := []anthropic.Option{
 		anthropic.WithModel(model),
 	}
@@ -76,7 +81,7 @@ func (a *Anthropic) buildClientOptions(ctx context.Context, md AnthropicLangchai
 	if md.FederationRuleID == "" {
 		options = append(options,
 			anthropic.WithToken(md.Key),
-			anthropic.WithHTTPClient(conversation.BuildHTTPClient()),
+			anthropic.WithHTTPClient(conversation.WithHeaders(conversation.BuildHTTPClient(), headers)),
 		)
 		return model, options, nil
 	}
@@ -90,7 +95,7 @@ func (a *Anthropic) buildClientOptions(ctx context.Context, md AnthropicLangchai
 	}
 	options = append(options,
 		anthropic.WithToken(conversation.PlaceholderToken),
-		anthropic.WithHTTPClient(conversation.BuildBearerHTTPClient(ts)),
+		anthropic.WithHTTPClient(conversation.WithHeaders(conversation.BuildBearerHTTPClient(ts), headers)),
 	)
 
 	return model, options, nil

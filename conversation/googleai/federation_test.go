@@ -38,16 +38,18 @@ func TestInitFederation(t *testing.T) {
 	const provider = "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/dapr/providers/sentry"
 
 	var exchanges []url.Values
-	var authHeaders []string
+	var authHeaders, tenantHeaders []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/token":
 			assert.NoError(t, r.ParseForm())
 			exchanges = append(exchanges, r.PostForm)
+			assert.Empty(t, r.Header.Get("X-Tenant-ID"), "custom headers must not be sent to the token endpoint")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `{"access_token":"google-access-token","issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":"Bearer","expires_in":3600}`)
 		case "/chat/completions":
 			authHeaders = append(authHeaders, r.Header.Get("Authorization"))
+			tenantHeaders = append(tenantHeaders, r.Header.Get("X-Tenant-ID"))
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `{"id":"c","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
 		default:
@@ -65,6 +67,7 @@ func TestInitFederation(t *testing.T) {
 	require.NoError(t, g.Init(spiffecontext.WithJWTMinter(t.Context(), minter), conversation.Metadata{Base: metadata.Base{Properties: map[string]string{
 		"endpoint":                 srv.URL,
 		"workloadIdentityProvider": provider,
+		"headers":                  `{"X-Tenant-ID":"acme"}`,
 	}}}))
 
 	msgs := []llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")}
@@ -81,6 +84,7 @@ func TestInitFederation(t *testing.T) {
 	require.NoError(t, err, "the JWT SVID audience must be the provider resource name")
 	assert.Equal(t, "urn:ietf:params:oauth:token-type:jwt", exchanges[0].Get("subject_token_type"))
 	assert.Equal(t, []string{"Bearer google-access-token", "Bearer google-access-token"}, authHeaders)
+	assert.Equal(t, []string{"acme", "acme"}, tenantHeaders)
 }
 
 func TestInitFederationImpersonation(t *testing.T) {

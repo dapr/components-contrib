@@ -55,7 +55,7 @@ func NewOpenAI(logger logger.Logger) conversation.Conversation {
 	return o
 }
 
-func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) (string, []openai.Option, error) {
+func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata, headers http.Header) (string, []openai.Option, error) {
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	var model string
 	// we support lowercase and uppercase here
@@ -64,7 +64,7 @@ func (o *OpenAI) buildClientOptions(md OpenAILangchainMetadata) (string, []opena
 	} else {
 		model = conversation.GetOpenAIModel(md.Model)
 	}
-	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint)
+	options := conversation.BuildOpenAIClientOptions(model, md.Key, md.Endpoint, headers)
 
 	// apply options specifically for azure openai
 	// TODO: in future, there is also an openai.APITypeAzureAD that we can add.
@@ -101,7 +101,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return errors.New("useResponsesAPI is not supported when apiType is set to 'azure'")
 	}
 
-	model, options, err := o.buildClientOptions(md)
+	headers, err := conversation.ParseHeaders(md.Headers)
 	if err != nil {
 		return err
 	}
@@ -110,12 +110,23 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	if err != nil {
 		return err
 	}
+
+	// With a token source, the bearer client below carries the headers.
+	clientHeaders := headers
+	if ts != nil {
+		clientHeaders = nil
+	}
+	model, options, err := o.buildClientOptions(md, clientHeaders)
+	if err != nil {
+		return err
+	}
+
 	var httpClient *http.Client
 	if ts != nil {
 		httpClient = conversation.BuildBearerHTTPClient(ts)
 		options = append(options,
 			openai.WithToken(conversation.PlaceholderToken),
-			openai.WithHTTPClient(httpClient),
+			openai.WithHTTPClient(conversation.WithHeaders(httpClient, headers)),
 		)
 		if strings.EqualFold(md.APIType, "azure") {
 			options = append(options, openai.WithAPIType(openai.APITypeAzureAD))
@@ -123,7 +134,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	if md.UseResponsesAPI {
-		o.Model, err = newResponsesModel(model, md.Key, md.Endpoint, httpClient)
+		o.Model, err = newResponsesModel(model, md.Key, md.Endpoint, httpClient, headers)
 	} else {
 		o.Model, err = openai.New(options...)
 	}

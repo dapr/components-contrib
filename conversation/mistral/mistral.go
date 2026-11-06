@@ -55,6 +55,12 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 		return errors.New("mistral api key is required")
 	}
 
+	// The langchaingo Mistral client does not accept an HTTP client, so the
+	// headers cannot be set.
+	if md.Headers != "" {
+		return errors.New("headers is not supported by the mistral component")
+	}
+
 	// Resolve model via central helper (uses metadata, then env var, then default)
 	model := conversation.GetMistralModel(md.Model)
 	options := []mistral.Option{
@@ -88,6 +94,8 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType) //nolint:errcheck // legacy behavior preserved
+	// Init rejects the headers field.
+	delete(metadataInfo, "headers")
 	return
 }
 

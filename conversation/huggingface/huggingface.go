@@ -60,9 +60,14 @@ func (h *Huggingface) Init(ctx context.Context, meta conversation.Metadata) erro
 		endpoint = m.Endpoint
 	}
 
+	headers, err := conversation.ParseHeaders(m.Headers)
+	if err != nil {
+		return err
+	}
+
 	// Create options for OpenAI client using HuggingFace's OpenAI-compatible API
 	// This is a workaround for issues with the native HuggingFace langchaingo implementation
-	options := conversation.BuildOpenAIClientOptions(model, m.Key, endpoint)
+	options := conversation.BuildOpenAIClientOptions(model, m.Key, endpoint, headers)
 
 	llm, err := openai.New(options...)
 	if err != nil {

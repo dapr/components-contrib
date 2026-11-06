@@ -1,0 +1,12 @@
+version: "3.3"
+services:
+  redis:
+    image: 'redis:7.2-alpine'
+    # TLS only: the plain-text port is off, so a client that does not verify the server cannot fall back to it.
+    command: ["redis-server", "--port", "0", "--tls-port", "6380",
+              "--tls-cert-file", "/tls/server.crt", "--tls-key-file", "/tls/server.key",
+              "--tls-ca-cert-file", "/tls/ca.crt", "--tls-auth-clients", "no"]
+    volumes:
+      - '${REDIS_TLS_DIR}:/tls:ro'
+    ports:
+      - '6380:6380'

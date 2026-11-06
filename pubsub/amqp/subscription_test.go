@@ -64,12 +64,13 @@ func TestParseSubscriptionOptions(t *testing.T) {
 		{
 			name: "all options",
 			md: map[string]string{
-				"subscriptionName": "billing",
-				"durable":          "true",
-				"shared":           "true",
-				"selector":         "type = 'order'",
+				"subscriptionName":    "billing",
+				"durable":             "true",
+				"shared":              "true",
+				"selector":            "type = 'order'",
+				"allowSelectorChange": "true",
 			},
-			want: subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true, Selector: "type = 'order'"},
+			want: subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true, Selector: "type = 'order'", AllowSelectorChange: true},
 		},
 		{
 			name: "keys are matched without regard to case",
@@ -478,9 +479,10 @@ func TestDeliver(t *testing.T) {
 		var released atomic.Bool
 		link := &subscriptionLink{receiver: receiver, release: func() { released.Store(true) }}
 
-		received := a.deliver(t.Context(), link, handler, "orders", "orders")
+		received, err := a.deliver(t.Context(), link, handler, "orders", "orders")
 
 		assert.True(t, received)
+		assert.Equal(t, receiver.err, err)
 		assert.True(t, released.Load(), "the link is released when delivery ends")
 		assert.Equal(t, []string{"one", "two"}, receiver.accepted)
 		assert.Equal(t, []string{"bad"}, receiver.modified)
@@ -491,8 +493,178 @@ func TestDeliver(t *testing.T) {
 		receiver := &fakeReceiver{err: &amqp.Error{Condition: "amqp:illegal-state"}}
 		link := &subscriptionLink{receiver: receiver, release: func() {}}
 
-		assert.False(t, a.deliver(t.Context(), link, handler, "orders", "orders"))
+		received, err := a.deliver(t.Context(), link, handler, "orders", "orders")
+
+		assert.False(t, received)
+		assert.Equal(t, receiver.err, err)
 	})
+}
+
+// errSelectorRefused is how ActiveMQ Artemis refuses a durable subscription whose
+// selector changed while consumers are attached. It arrives from the first
+// Receive, as the remote error of a detached link.
+var errSelectorRefused = &amqp.LinkError{RemoteErr: &amqp.Error{
+	Condition:   amqp.ErrCondIllegalState,
+	Description: "Unable to recreate subscription, consumers already exist",
+}}
+
+func TestSelectorChange(t *testing.T) {
+	sub := subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true, Selector: "a = 1"}
+
+	t.Run("no error", func(t *testing.T) {
+		require.NoError(t, sub.selectorChange(nil, "orders"))
+	})
+
+	t.Run("the refusal from the first receive ends the subscription", func(t *testing.T) {
+		err := sub.selectorChange(errSelectorRefused, "orders")
+
+		var changed *selectorChangeError
+		require.ErrorAs(t, err, &changed)
+		require.ErrorIs(t, err, errSelectorRefused)
+		assert.Contains(t, err.Error(), `"billing"`)
+		assert.Contains(t, err.Error(), `"a = 1"`)
+		assert.Contains(t, err.Error(), "allowSelectorChange")
+		assert.Contains(t, err.Error(), "consumers already exist")
+	})
+
+	t.Run("the refusal from the attach ends the subscription", func(t *testing.T) {
+		var changed *selectorChangeError
+		require.ErrorAs(t, sub.selectorChange(errSelectorRefused.RemoteErr, "orders"), &changed)
+	})
+
+	t.Run("another refusal is re-attached", func(t *testing.T) {
+		limit := &amqp.LinkError{RemoteErr: &amqp.Error{
+			Condition:   amqp.ErrCondIllegalState,
+			Description: "Maximum Consumer Limit Reached on Queue:orders-service.billing",
+		}}
+		assert.Equal(t, limit, sub.selectorChange(limit, "orders"))
+	})
+
+	t.Run("a link that was only detached is re-attached", func(t *testing.T) {
+		detached := &amqp.LinkError{}
+		assert.Equal(t, detached, sub.selectorChange(detached, "orders"))
+	})
+
+	t.Run("allowSelectorChange keeps the re-attach", func(t *testing.T) {
+		allowed := sub
+		allowed.AllowSelectorChange = true
+		assert.Equal(t, errSelectorRefused, allowed.selectorChange(errSelectorRefused, "orders"))
+	})
+}
+
+func TestNamedLink(t *testing.T) {
+	sub := subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true, Selector: "a = 1"}
+
+	t.Run("the refusal from the attach ends the subscription", func(t *testing.T) {
+		released := false
+		_, err := sub.namedLink(nil, nil, errSelectorRefused.RemoteErr, "orders", func() { released = true })
+
+		var changed *selectorChangeError
+		require.ErrorAs(t, err, &changed)
+		assert.True(t, released, "the connection is closed")
+	})
+
+	t.Run("another attach error is returned as is", func(t *testing.T) {
+		released := false
+		attachErr := errors.New("dial failed")
+		_, err := sub.namedLink(nil, nil, attachErr, "orders", func() { released = true })
+
+		assert.Equal(t, attachErr, err)
+		assert.True(t, released)
+	})
+
+	t.Run("a dropped selector fails the subscription", func(t *testing.T) {
+		released := false
+		_, err := sub.namedLink(&fakeReceiver{}, nil, nil, "orders", func() { released = true })
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "without the selector")
+		assert.True(t, released)
+	})
+
+	t.Run("the link keeps the receiver, the options and the release", func(t *testing.T) {
+		released := false
+		receiver := &fakeReceiver{}
+		link, err := sub.namedLink(receiver, "a = 1", nil, "orders", func() { released = true })
+
+		require.NoError(t, err)
+		assert.Same(t, receiver, link.receiver)
+		assert.True(t, link.named)
+		assert.Equal(t, sub, link.sub)
+		assert.False(t, released)
+		link.release()
+		assert.True(t, released)
+	})
+}
+
+// TestSubscribeForeverEndsOnSelectorChange verifies that a durable subscription
+// the broker refuses because its selector changed ends, rather than re-attach
+// until the broker recreates it, and that allowSelectorChange keeps the
+// re-attach.
+func TestSubscribeForeverEndsOnSelectorChange(t *testing.T) {
+	run := func(t *testing.T, sub subscriptionOptions) (attached bool) {
+		t.Helper()
+
+		a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+		a.backOffConfig = retry.Config{Policy: retry.PolicyConstant, Duration: time.Millisecond}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		link := &subscriptionLink{receiver: &fakeReceiver{err: errSelectorRefused}, release: func() {}, named: true, sub: sub}
+		attach := func(context.Context) (*subscriptionLink, error) {
+			attached = true
+			cancel()
+
+			return nil, errors.New("ended by the test")
+		}
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			a.subscribeForever(ctx, link, attach, nil, "orders", "orders")
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("the subscription did not end")
+		}
+
+		return attached
+	}
+
+	sub := subscriptionOptions{SubscriptionName: "billing", Durable: true, Shared: true, Selector: "a = 1"}
+
+	t.Run("the subscription ends", func(t *testing.T) {
+		assert.False(t, run(t, sub))
+	})
+
+	t.Run("allowSelectorChange re-attaches", func(t *testing.T) {
+		allowed := sub
+		allowed.AllowSelectorChange = true
+		assert.True(t, run(t, allowed))
+	})
+}
+
+// TestReattachGivesUpOnSelectorChange verifies that a refusal the attach
+// itself reports is not retried.
+func TestReattachGivesUpOnSelectorChange(t *testing.T) {
+	a := NewAMQPPubsub(logger.NewLogger("test")).(*amqpPubSub)
+	a.backOffConfig = retry.Config{Policy: retry.PolicyConstant, Duration: time.Millisecond}
+
+	calls := 0
+	attach := func(context.Context) (*subscriptionLink, error) {
+		calls++
+
+		return nil, &selectorChangeError{cause: errSelectorRefused}
+	}
+
+	_, err := a.reattach(t.Context(), attach, "orders", a.reconnectBackOff(t.Context()))
+
+	var changed *selectorChangeError
+	require.ErrorAs(t, err, &changed)
+	assert.Equal(t, 1, calls)
 }
 
 // TestRunSubscriptionReleasesWhatItClaimed verifies that a subscription that

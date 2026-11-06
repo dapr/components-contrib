@@ -44,7 +44,7 @@ components:
   - component: coherence
     operations: [ "ttl" ]
   - component: sqlserver
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "keyslike" ]
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
@@ -54,7 +54,7 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: sqlserver.docker
-    operations: [ "transaction", "etag", "first-write", "ttl" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "keyslike" ]
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"

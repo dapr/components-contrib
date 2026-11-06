@@ -10,12 +10,12 @@ urls:
     url: https://docs.dapr.io/reference/components-reference/supported-bindings/cloudflare-queues/
 binding:
   output: true
-  input: false
+  input: true
   operations:
     - name: create
       description: "Send message to Cloudflare Queue"
-    - name: read
-      description: "Receive messages from Cloudflare Queue"
+    - name: publish
+      description: "Send message to Cloudflare Queue"
 authenticationProfiles:
   - title: "API Token Authentication"
     description: |
@@ -66,3 +66,39 @@ metadata:
     description: "Timeout for network requests in seconds"
     example: '20'
     default: '20'
+  - name: queueID
+    required: false
+    binding:
+      input: true
+    description: |
+      The ID of the Cloudflare queue to receive messages from.
+      When empty, the ID is looked up by name in the account, which requires the API token to have the "queues#read" permission.
+    example: '"8ceb4b1b5b6f4f8fa54b8b0dd7c4a6d9"'
+  - name: batchSize
+    required: false
+    type: number
+    binding:
+      input: true
+    description: |
+      Maximum number of messages to receive with each pull, between 1 and 100.
+    example: '10'
+    default: '5'
+  - name: visibilityTimeout
+    required: false
+    type: duration
+    binding:
+      input: true
+    description: |
+      How long the pulled messages stay invisible to other consumers, between 1s and 12h.
+      It must be longer than the time the application needs to process a full batch, otherwise the messages are delivered again.
+    example: '"1m"'
+    default: '"30s"'
+  - name: pollingInterval
+    required: false
+    type: duration
+    binding:
+      input: true
+    description: |
+      How long to wait before pulling again after the queue came back empty.
+    example: '"5s"'
+    default: '"10s"'

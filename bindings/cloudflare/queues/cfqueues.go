@@ -22,6 +22,8 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"sync"
+	"sync/atomic"
 
 	"github.com/dapr/components-contrib/bindings"
 	"github.com/dapr/components-contrib/common/component/cloudflare/workers"
@@ -33,16 +35,23 @@ import (
 // Link to the documentation for the component
 const componentDocsURL = "https://docs.dapr.io/reference/components-reference/supported-bindings/cloudflare-queues/"
 
-// CFQueues is a binding for publishing messages on Cloudflare Queues
+// CFQueues is a binding for publishing messages on Cloudflare Queues, and for receiving them
+// through an HTTP pull consumer.
 type CFQueues struct {
 	*workers.Base
 	metadata componentMetadata
+	logger   logger.Logger
+	closed   atomic.Bool
+	closeCh  chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewCFQueues returns a new CFQueues.
-func NewCFQueues(logger logger.Logger) bindings.OutputBinding {
+func NewCFQueues(logger logger.Logger) bindings.InputOutputBinding {
 	q := &CFQueues{
-		Base: &workers.Base{},
+		Base:    &workers.Base{},
+		logger:  logger,
+		closeCh: make(chan struct{}),
 	}
 	q.SetLogger(logger)
 	return q
@@ -128,11 +137,11 @@ func (q *CFQueues) invokePublish(parentCtx context.Context, ir *bindings.InvokeR
 
 // Close the component
 func (q *CFQueues) Close() error {
-	err := q.Base.Close()
-	if err != nil {
-		return err
+	if q.closed.CompareAndSwap(false, true) {
+		close(q.closeCh)
 	}
-	return nil
+	q.wg.Wait()
+	return q.Base.Close()
 }
 
 // GetComponentMetadata returns the metadata of the component.

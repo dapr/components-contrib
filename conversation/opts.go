@@ -19,8 +19,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/tmc/langchaingo/httputil"
@@ -146,20 +148,39 @@ var clientManagedHeaders = map[string]struct{}{
 }
 
 // ParseHeaders parses the headers metadata field, a JSON object of HTTP header
-// names to values. An empty field returns no headers. Errors do not contain
-// header values, because they can be credentials.
+// names to values. An empty field or JSON null returns no headers. Errors do
+// not contain header values, because they can be credentials.
 func ParseHeaders(raw string) (http.Header, error) {
 	if raw == "" {
 		return nil, nil
 	}
 
-	var values map[string]string
-	if err := json.Unmarshal([]byte(raw), &values); err != nil {
-		return nil, fmt.Errorf("headers must be a JSON object of header names to string values: %w", err)
+	// Read the object one name at a time. json.Unmarshal into a map keeps only
+	// the last value of a name that is set more than once.
+	dec := json.NewDecoder(strings.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, headersFormatError(err)
+	}
+	if tok == nil {
+		return nil, headersEnd(dec)
+	}
+	if tok != json.Delim('{') {
+		return nil, headersFormatError(nil)
 	}
 
-	headers := make(http.Header, len(values))
-	for name, value := range values {
+	headers := http.Header{}
+	for dec.More() {
+		tok, err = dec.Token()
+		if err != nil {
+			return nil, headersFormatError(err)
+		}
+		name, _ := tok.(string)
+		var value string
+		if err = dec.Decode(&value); err != nil {
+			return nil, headersFormatError(err)
+		}
+
 		if !httpguts.ValidHeaderFieldName(name) {
 			return nil, fmt.Errorf("headers: invalid header name %q", name)
 		}
@@ -176,15 +197,43 @@ func ParseHeaders(raw string) (http.Header, error) {
 		headers[key] = []string{value}
 	}
 
+	// The closing brace of the object.
+	if _, err = dec.Token(); err != nil {
+		return nil, headersFormatError(err)
+	}
+	if err = headersEnd(dec); err != nil {
+		return nil, err
+	}
+
 	return headers, nil
+}
+
+// headersEnd returns an error if the headers field has more data after the
+// first JSON value.
+func headersEnd(dec *json.Decoder) error {
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return headersFormatError(nil)
+	}
+	return nil
+}
+
+func headersFormatError(err error) error {
+	const msg = "headers must be a JSON object of header names to string values"
+	switch {
+	case err == nil:
+		return errors.New(msg)
+	case errors.Is(err, io.EOF):
+		err = io.ErrUnexpectedEOF
+	}
+	return fmt.Errorf("%s: %w", msg, err)
 }
 
 // WithHeaders returns a copy of client that sets headers on every request,
 // replacing the values of headers with the same name. The transport of client
 // runs after the headers are set, so a transport that sets headers itself, such
 // as the bearer transport of BuildBearerHTTPClient, replaces them. Redirects to
-// another origin are refused, so the headers are not sent there. With no
-// headers, client is returned unchanged.
+// another origin are refused, so the headers are not sent there. The redirect
+// policy of client also applies. With no headers, client is returned unchanged.
 func WithHeaders(client *http.Client, headers http.Header) *http.Client {
 	if len(headers) == 0 {
 		return client
@@ -198,6 +247,14 @@ func WithHeaders(client *http.Client, headers http.Header) *http.Client {
 	c := *client
 	c.Transport = &headerTransport{base: base, headers: headers}
 	c.CheckRedirect = sameOriginRedirect
+	if check := client.CheckRedirect; check != nil {
+		c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if err := check(req, via); err != nil {
+				return err
+			}
+			return sameOriginRedirect(req, via)
+		}
+	}
 	return &c
 }
 

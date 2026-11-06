@@ -17,6 +17,7 @@ package anthropic
 import (
 	"context"
 	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -89,7 +90,7 @@ func (a *Anthropic) buildClientOptions(ctx context.Context, md AnthropicLangchai
 	if isFoundry {
 		return "", nil, errors.New("workload identity federation is not supported when apiType is set to 'foundry'")
 	}
-	ts, err := federationTokenSource(ctx, md, baseURL)
+	ts, err := federationTokenSource(ctx, md, baseURL, headers)
 	if err != nil {
 		return "", nil, err
 	}
@@ -102,8 +103,9 @@ func (a *Anthropic) buildClientOptions(ctx context.Context, md AnthropicLangchai
 }
 
 // federationTokenSource exchanges JWT SVIDs for Anthropic access tokens with
-// the RFC 7523 JWT bearer grant.
-func federationTokenSource(ctx context.Context, md AnthropicLangchainMetadata, baseURL string) (oauth2.TokenSource, error) {
+// the RFC 7523 JWT bearer grant. The token endpoint is on the same origin as
+// the model endpoint, so the exchange requests also get the headers.
+func federationTokenSource(ctx context.Context, md AnthropicLangchainMetadata, baseURL string, headers http.Header) (oauth2.TokenSource, error) {
 	if md.OrganizationID == "" || md.ServiceAccountID == "" {
 		return nil, errors.New("organizationId and serviceAccountId must be provided when federationRuleId is set")
 	}
@@ -133,7 +135,7 @@ func federationTokenSource(ctx context.Context, md AnthropicLangchainMetadata, b
 		Audience: audience,
 		JWTField: "assertion",
 		Body:     body,
-		Client:   conversation.BuildHTTPClient(),
+		Client:   conversation.WithHeaders(conversation.BuildHTTPClient(), headers),
 	}), nil
 }
 

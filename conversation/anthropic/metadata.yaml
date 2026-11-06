@@ -111,12 +111,17 @@ metadata:
       object of header names to string values. Use it for headers that a
       gateway or proxy in front of the provider requires, for example a tenant
       ID or a gateway key. A header in this field replaces the header of the
-      same name that the component sets. Host, Content-Length and hop-by-hop
-      headers are not allowed. When this field is set, the component does not
-      follow redirects to a different origin.
-      With workload identity federation, the component does not send
-      these headers to the token endpoint. The access token sets the
-      Authorization header, and the component removes the api-key and
-      x-api-key headers.
+      same name that the component sets. This includes the x-api-key header
+      that the component builds from key. Without workload identity federation,
+      key is still required, so set key to any non-empty value if the gateway
+      does its own authentication.
+      Host, Content-Length and hop-by-hop headers are not allowed. When this
+      field is set, the component does not follow redirects to a different
+      origin.
+      With workload identity federation, the component also sends these
+      headers to the token endpoint, because the token endpoint is on the same
+      origin as the model endpoint. On requests to the model endpoint, the
+      access token sets the Authorization header, and the component removes
+      the api-key and x-api-key headers.
     type: string
     example: '{"X-Tenant-ID": "tenant-a", "X-Gateway-Key": "**********"}'

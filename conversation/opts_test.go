@@ -98,6 +98,12 @@ func TestParseHeaders(t *testing.T) {
 		assert.Nil(t, headers)
 	})
 
+	t.Run("null", func(t *testing.T) {
+		headers, err := ParseHeaders("null")
+		require.NoError(t, err)
+		assert.Nil(t, headers)
+	})
+
 	t.Run("canonicalizes the header names", func(t *testing.T) {
 		headers, err := ParseHeaders(`{"x-tenant-id":"acme","Ocp-Apim-Subscription-Key":"secret"}`)
 		require.NoError(t, err)
@@ -112,13 +118,16 @@ func TestParseHeaders(t *testing.T) {
 		expErr string
 	}{
 		"not a JSON object":   {raw: `x-tenant-id=acme`, expErr: "JSON object"},
+		"a JSON array":        {raw: `["secret"]`, expErr: "JSON object"},
 		"not a string value":  {raw: `{"x-retries":3}`, expErr: "JSON object"},
 		"invalid name":        {raw: `{"x tenant":"acme"}`, expErr: "invalid header name"},
 		"invalid value":       {raw: `{"x-key":"secret\nvalue"}`, expErr: "invalid value"},
 		"client managed":      {raw: `{"host":"example.com"}`, expErr: "set by the HTTP client"},
 		"hop-by-hop":          {raw: `{"Connection":"close"}`, expErr: "set by the HTTP client"},
-		"set more than once":  {raw: `{"X-Tenant-Id":"a","x-tenant-id":"b"}`, expErr: "more than once"},
+		"set twice":           {raw: `{"X-Key":"secret","X-Key":"secret2"}`, expErr: "more than once"},
+		"set twice any case":  {raw: `{"X-Tenant-Id":"a","x-tenant-id":"b"}`, expErr: "more than once"},
 		"invalid JSON syntax": {raw: `{"x-key":"secret"`, expErr: "JSON object"},
+		"data after object":   {raw: `{"x-key":"secret"} {"x-other":"secret"}`, expErr: "JSON object"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := ParseHeaders(test.raw)
@@ -206,6 +215,22 @@ func TestWithHeadersRedirects(t *testing.T) {
 	_, err = client.Get(srv.URL + "/other") //nolint:bodyclose
 	require.ErrorContains(t, err, "another origin")
 	assert.Zero(t, otherHits, "the headers must not be sent to another origin")
+
+	t.Run("keeps the redirect policy of the client", func(t *testing.T) {
+		noRedirects := BuildHTTPClient()
+		noRedirects.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		client := WithHeaders(noRedirects, http.Header{"X-Tenant-Id": {"acme"}})
+		for _, path := range []string{"/same", "/other"} {
+			resp, err := client.Get(srv.URL + path)
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.Equal(t, http.StatusFound, resp.StatusCode, path)
+		}
+		assert.Zero(t, otherHits)
+	})
 }
 
 type errTokenSource struct{}

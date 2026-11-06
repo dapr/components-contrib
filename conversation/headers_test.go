@@ -154,5 +154,6 @@ func TestComponentsRejectInvalidHeaders(t *testing.T) {
 			"headers": `{"X-Tenant-ID":"acme"}`,
 		}}})
 		require.ErrorContains(t, err, "not supported")
+		assert.NotContains(t, new(mistral.Mistral).GetComponentMetadata(), "headers")
 	})
 }

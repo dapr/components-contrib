@@ -106,15 +106,21 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		return err
 	}
 
-	model, options, err := o.buildClientOptions(md, headers)
-	if err != nil {
-		return err
-	}
-
 	ts, err := federatedTokenSource(ctx, md, meta.Properties)
 	if err != nil {
 		return err
 	}
+
+	// With a token source, the bearer client below carries the headers.
+	clientHeaders := headers
+	if ts != nil {
+		clientHeaders = nil
+	}
+	model, options, err := o.buildClientOptions(md, clientHeaders)
+	if err != nil {
+		return err
+	}
+
 	var httpClient *http.Client
 	if ts != nil {
 		httpClient = conversation.BuildBearerHTTPClient(ts)

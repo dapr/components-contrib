@@ -94,6 +94,8 @@ func (m *Mistral) Init(ctx context.Context, meta conversation.Metadata) error {
 func (m *Mistral) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := conversation.LangchainMetadata{}
 	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.ConversationType) //nolint:errcheck // legacy behavior preserved
+	// Init rejects the headers field.
+	delete(metadataInfo, "headers")
 	return
 }
 

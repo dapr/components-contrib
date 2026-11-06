@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    10|See the License for the specific language governing permissions and
+See the License for the specific language governing permissions and
 limitations under the License.
 */
 
@@ -18,13 +18,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/dapr/pkg/config/protocol"
@@ -35,7 +35,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
-	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 )
 
@@ -127,6 +126,10 @@ func TestKafkaDlqErrorDetails(t *testing.T) {
 		rawDlqDeliveries++
 		// Kafka stores PublishRequest.Metadata as headers; daprd forwards them
 		// to the app as HTTP headers (case-insensitive).
+		// Note: with escapeHeaders=true the value is URL-escaped (spaces → '+'),
+		// and proxies that drop underscore headers (nginx/gunicorn defaults)
+		// will omit __error entirely — those are runtime/docs concerns for
+		// dapr/dapr#11003. This cert assumes escapeHeaders off (component default).
 		gotRawDetails = r.Header.Get("__error")
 		mu.Unlock()
 
@@ -137,13 +140,14 @@ func TestKafkaDlqErrorDetails(t *testing.T) {
 
 	var srv *http.Server
 	startApp := func(ctx flow.Context) error {
-		srv = &http.Server{
-			Addr:    fmt.Sprintf(":%d", dlqErrAppPort),
-			Handler: mux,
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", dlqErrAppPort))
+		if err != nil {
+			return err
 		}
+		srv = &http.Server{Handler: mux}
 		go func() {
-			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				ctx.Logf("dlq error-details app listen error: %v", err)
+			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+				ctx.Logf("dlq error-details app serve error: %v", err)
 			}
 		}()
 		return nil
@@ -158,6 +162,7 @@ func TestKafkaDlqErrorDetails(t *testing.T) {
 	}
 
 	sidecarOptions := append(componentRuntimeOptions(),
+		func(c *runtime.Config) { c.Config = []string{"./config-dlq-error-details.yaml"} },
 		embedded.WithResourcesPath("./components/consumerDlqErrorDetails"),
 		embedded.WithAppProtocol(protocol.HTTPProtocol, strconv.Itoa(dlqErrAppPort)),
 		embedded.WithDaprGRPCPort(strconv.Itoa(runtime.DefaultDaprAPIGRPCPort+portOffset*5)),
@@ -219,27 +224,13 @@ func TestKafkaDlqErrorDetails(t *testing.T) {
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			config := sarama.NewConfig()
-			config.ClientID = "test-consumer-dlq-err"
-			config.Consumer.Return.Errors = true
-
-			client, err := sarama.NewConsumer(brokers, config)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
-			return err
-		})).
-		Step("start "+appIDDlqErr, startApp).
+		Step("wait for kafka readiness", waitForKafkaReadiness("test-consumer-dlq-err")).
+		Step("start "+appIDDlqErr, startApp, stopApp).
 		Step(sidecar.Run(sidecarNameDlqErr, sidecarOptions...)).
 		Step("publish CloudEvent message the app drops with details", publishCE).
 		Step("assert DLQ CloudEvent carries errordetails", assertCEErrorDetails).
 		Step("publish rawPayload message the app drops with details", publishRaw).
 		Step("assert raw DLQ delivery carries __error header", assertRawErrorDetails).
 		Step("stop sidecar", sidecar.Stop(sidecarNameDlqErr)).
-		Step("stop "+appIDDlqErr, stopApp).
 		Run()
 }

@@ -201,12 +201,13 @@ type KafkaMetadata struct {
 	TransactionTimeout time.Duration `mapstructure:"transactionTimeout"`
 
 	// schema registry
-	SchemaRegistryURL           string        `mapstructure:"schemaRegistryURL"`
-	SchemaRegistryAPIKey        string        `mapstructure:"schemaRegistryAPIKey"`
-	SchemaRegistryAPISecret     string        `mapstructure:"schemaRegistryAPISecret"`
-	SchemaCachingEnabled        bool          `mapstructure:"schemaCachingEnabled"`
-	SchemaLatestVersionCacheTTL time.Duration `mapstructure:"schemaLatestVersionCacheTTL"`
-	UseAvroJSON                 bool          `mapstructure:"useAvroJSON"`
+	SchemaRegistryURL                      string        `mapstructure:"schemaRegistryURL"`
+	SchemaRegistryAPIKey                   string        `mapstructure:"schemaRegistryAPIKey"`
+	SchemaRegistryAPISecret                string        `mapstructure:"schemaRegistryAPISecret"`
+	SchemaCachingEnabled                   bool          `mapstructure:"schemaCachingEnabled"`
+	SchemaLatestVersionCacheTTL            time.Duration `mapstructure:"schemaLatestVersionCacheTTL"`
+	UseAvroJSON                            bool          `mapstructure:"useAvroJSON"`
+	EnableAvroDecimalSpecCompliantEncoding bool          `mapstructure:"enableAvroDecimalSpecCompliantEncoding"`
 
 	// header from/to metadata excluded keys regex
 	ExcludeHeaderMetaRegex string `mapstructure:"excludeHeaderMetaRegex"`
@@ -263,6 +264,7 @@ func (k *Kafka) getKafkaMetadata(meta map[string]string) (*KafkaMetadata, error)
 		SchemaLatestVersionCacheTTL:                  5 * time.Minute,
 		EscapeHeaders:                                false,
 		UseAvroJSON:                                  false,
+		EnableAvroDecimalSpecCompliantEncoding:       false,
 		ExcludeHeaderMetaRegex:                       "",
 		// Net timeout defaults preserve Sarama's built-in values.
 		DialTimeout:  defaultDialTimeout,

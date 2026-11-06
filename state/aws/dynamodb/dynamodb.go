@@ -68,6 +68,7 @@ type dynamoDBMetadata struct {
 
 type putData struct {
 	ConditionExpression       *string
+	ExpressionAttributeNames  map[string]string
 	ExpressionAttributeValues map[string]types.AttributeValue
 	Item                      map[string]types.AttributeValue
 	TableName                 *string
@@ -294,6 +295,25 @@ func (d *StateStore) getDynamoDBMetadata(meta state.Metadata) (*dynamoDBMetadata
 	return &m, err
 }
 
+type condition struct {
+	expr   string
+	names  map[string]string
+	values map[string]types.AttributeValue
+}
+
+// DynamoDB deletes expired items lazily, so an expired item counts as missing.
+func (d *StateStore) firstWriteCondition() *condition {
+	c := &condition{expr: "attribute_not_exists(etag)"}
+	if d.ttlAttributeName != "" {
+		c.expr += " OR #ttl <= :now"
+		c.names = map[string]string{"#ttl": d.ttlAttributeName}
+		c.values = map[string]types.AttributeValue{
+			":now": &types.AttributeValueMemberN{Value: strconv.FormatInt(time.Now().Unix(), 10)},
+		}
+	}
+	return c
+}
+
 // createPutData creates a DynamoDB put request data from a SetRequest.
 func (d *StateStore) createPutData(req *state.SetRequest) (putData, error) {
 	item, err := d.createItem(req)
@@ -315,8 +335,10 @@ func (d *StateStore) createPutData(req *state.SetRequest) (putData, error) {
 		}
 		pd.ExpressionAttributeValues = exprAttrValues
 	} else if req.Options.Concurrency == state.FirstWrite {
-		condExpr := "attribute_not_exists(etag)"
-		pd.ConditionExpression = &condExpr
+		cond := d.firstWriteCondition()
+		pd.ConditionExpression = &cond.expr
+		pd.ExpressionAttributeNames = cond.names
+		pd.ExpressionAttributeValues = cond.values
 	}
 
 	return pd, nil
@@ -325,6 +347,7 @@ func (d *StateStore) createPutData(req *state.SetRequest) (putData, error) {
 func (d putData) ToPutItemInput() *dynamodb.PutItemInput {
 	return &dynamodb.PutItemInput{
 		ConditionExpression:       d.ConditionExpression,
+		ExpressionAttributeNames:  d.ExpressionAttributeNames,
 		ExpressionAttributeValues: d.ExpressionAttributeValues,
 		Item:                      d.Item,
 		TableName:                 d.TableName,
@@ -334,6 +357,7 @@ func (d putData) ToPutItemInput() *dynamodb.PutItemInput {
 func (d putData) ToPut() *types.Put {
 	return &types.Put{
 		ConditionExpression:       d.ConditionExpression,
+		ExpressionAttributeNames:  d.ExpressionAttributeNames,
 		ExpressionAttributeValues: d.ExpressionAttributeValues,
 		Item:                      d.Item,
 		TableName:                 d.TableName,

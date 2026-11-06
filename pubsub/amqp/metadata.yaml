@@ -16,10 +16,16 @@ description: |
   `pubsub.rabbitmq`.
   A subscription can set these keys in its own metadata: `subscriptionName` (link name, so the
   broker subscription has a known name), `durable` (the subscription and its messages stay while
-  no consumer is attached), `shared` (replicas that use one subscription name share its messages)
-  and `selector` (a JMS selector the broker applies to the subscription). To change the selector
+  no consumer is attached), `shared` (replicas that use one subscription name share its messages),
+  `selector` (a JMS selector the broker applies to the subscription) and `allowSelectorChange`
+  (let the broker recreate a durable subscription whose selector changed). To change the selector
   of a durable subscription, use a new `subscriptionName`: the broker drops the messages it holds
-  when the selector changes.
+  when the selector changes, and reports nothing while no consumer is attached. While consumers
+  are attached, for example during a rolling update, the broker refuses the changed selector, and
+  the subscription ends with an error log instead of retrying until the broker recreates it, unless
+  `allowSelectorChange` is set. The sidecar stays up, and once the rolling update completes no
+  replica consumes the subscription; a restart with the new selector then drops its messages. Go
+  back to the old selector to resume, or use a new `subscriptionName`.
 authenticationProfiles:
   - title: "Username and password"
     description: "Authenticate with broker credentials"

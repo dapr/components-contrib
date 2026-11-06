@@ -644,9 +644,18 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, link *subscriptionLin
 	refused := a.refusedBackOff(ctx)
 
 	for {
-		received := a.deliver(ctx, link, handler, topic, address)
+		received, err := a.deliver(ctx, link, handler, topic, address)
 
 		if ctx.Err() != nil || a.closed.Load() {
+			return
+		}
+
+		// Re-attaching to a durable subscription that the broker holds with
+		// another selector would have it recreated, with its messages
+		// dropped, see selectorChange.
+		var changed *selectorChangeError
+		if errors.As(link.sub.selectorChange(err, address), &changed) {
+			a.logger.Errorf("Ending the subscription to %s: %v", address, changed)
 			return
 		}
 
@@ -657,7 +666,6 @@ func (a *amqpPubSub) subscribeForever(ctx context.Context, link *subscriptionLin
 			return
 		}
 
-		var err error
 		link, err = a.reattach(ctx, attach, address, b)
 		if err != nil {
 			a.logger.Errorf("Ending the subscription to %s: %v", address, err)
@@ -718,7 +726,13 @@ func (a *amqpPubSub) reattach(ctx context.Context, attach func(context.Context) 
 				return nil, backoff.Permanent(errors.New("component is closed"))
 			}
 
-			return attach(ctx)
+			link, err := attach(ctx)
+			var changed *selectorChangeError
+			if errors.As(err, &changed) {
+				return nil, backoff.Permanent(err)
+			}
+
+			return link, err
 		},
 		b,
 		func(err error, d time.Duration) {
@@ -732,8 +746,8 @@ func (a *amqpPubSub) reattach(ctx context.Context, attach func(context.Context) 
 
 // deliver pumps messages from one receiver link until the context is cancelled
 // or the link fails. It releases the link before returning, and reports whether
-// the link delivered any message.
-func (a *amqpPubSub) deliver(ctx context.Context, link *subscriptionLink, handler pubsub.Handler, topic string, address string) (received bool) {
+// the link delivered any message and the error that ended it.
+func (a *amqpPubSub) deliver(ctx context.Context, link *subscriptionLink, handler pubsub.Handler, topic string, address string) (received bool, err error) {
 	defer func() {
 		a.logger.Infof("closing receiver for %s", address)
 		link.release()
@@ -746,14 +760,14 @@ func (a *amqpPubSub) deliver(ctx context.Context, link *subscriptionLink, handle
 		if err != nil {
 			if ctx.Err() != nil {
 				// The subscription is being torn down.
-				return received
+				return received, nil
 			}
 			// Receive only fails on a cancelled context or on a link that is
 			// done for good, in which case it returns the same error
 			// immediately every time. Returning here rather than continuing
 			// avoids spinning on it, and lets the caller re-attach.
 			a.logger.Errorf("The receiver link for %s failed: %v", address, err)
-			return received
+			return received, err
 		}
 
 		if msg == nil {

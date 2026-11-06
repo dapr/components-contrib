@@ -23,10 +23,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
-	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -174,18 +174,27 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 		req.Data = decoded
 	}
 
-	absPath, relPath, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
+
+	// The root directory may have been removed since Init.
+	err = os.MkdirAll(ls.metadata.RootPath, 0o777)
 	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
+		return nil, fmt.Errorf("error creating directory %s: %w", ls.metadata.RootPath, err)
 	}
 
-	dir := filepath.Dir(absPath)
-	err = os.MkdirAll(dir, 0o777)
+	root, err := os.OpenRoot(ls.metadata.RootPath)
 	if err != nil {
-		return nil, fmt.Errorf("error creating directory %s: %w", dir, err)
+		return nil, fmt.Errorf("error opening directory %s: %w", ls.metadata.RootPath, err)
+	}
+	defer root.Close()
+
+	dir := filepath.Dir(relPath)
+	err = root.MkdirAll(dir, 0o777)
+	if err != nil {
+		return nil, fmt.Errorf("error creating directory %s: %w", filepath.Join(ls.metadata.RootPath, dir), err)
 	}
 
-	f, err := os.Create(absPath)
+	f, err := root.Create(relPath)
 	if err != nil {
 		return nil, fmt.Errorf("error creating file %s: %w", absPath, err)
 	}
@@ -213,12 +222,9 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 }
 
 func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
-	}
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
 
-	f, err := os.Open(absPath)
+	f, err := os.OpenInRoot(ls.metadata.RootPath, relPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("file not found: %s", absPath)
@@ -240,12 +246,15 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 }
 
 func (ls *LocalStorage) delete(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
-	}
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
 
-	err = os.Remove(absPath)
+	root, err := os.OpenRoot(ls.metadata.RootPath)
+	if err != nil {
+		return nil, fmt.Errorf("error deleting file %s: %w", absPath, err)
+	}
+	defer root.Close()
+
+	err = root.Remove(relPath)
 	if err != nil {
 		return nil, fmt.Errorf("error deleting file %s: %w", absPath, err)
 	}
@@ -256,12 +265,15 @@ func (ls *LocalStorage) delete(filename string, req *bindings.InvokeRequest) (*b
 }
 
 func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
-	}
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
 
-	fi, err := os.Stat(absPath)
+	root, err := os.OpenRoot(ls.metadata.RootPath)
+	if err != nil {
+		return nil, fmt.Errorf("error getting stats for path %s: %w", absPath, err)
+	}
+	defer root.Close()
+
+	fi, err := root.Stat(relPath)
 	if err != nil {
 		return nil, fmt.Errorf("error getting stats for path %s: %w", absPath, err)
 	}
@@ -270,7 +282,7 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 		return nil, fmt.Errorf("unable to list files as the file specified is not a directory: %s", absPath)
 	}
 
-	files, err := walkPath(absPath)
+	files, err := walkPath(root, ls.metadata.RootPath, relPath)
 	if err != nil {
 		return nil, fmt.Errorf("error listing files in the directory %s: %w", absPath, err)
 	}
@@ -285,30 +297,55 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 	}, nil
 }
 
-func getSecureAbsRelPath(rootPath string, filename string) (absPath string, relPath string, err error) {
-	absPath, err = securejoin.SecureJoin(rootPath, filename)
-	if err != nil {
-		return
-	}
-	relPath, err = filepath.Rel(rootPath, absPath)
-	if err != nil {
-		return
+// resolvePath maps a file name from a request to a path relative to the root
+// directory, and to the matching absolute path. Volume names, leading
+// separators and ".." elements cannot move the name above the root, so "../a",
+// "/a" and, on Windows, "C:\a" all refer to "a" inside the root. Files are then
+// accessed through an os.Root, which also keeps symlinks from resolving to a
+// location outside the root.
+func resolvePath(rootPath string, filename string) (absPath string, relPath string) {
+	filename = filename[len(filepath.VolumeName(filename)):]
+	sep := string(filepath.Separator)
+	relPath = strings.TrimLeft(filepath.Clean(sep+filename), sep)
+	if relPath == "" {
+		relPath = "."
 	}
 
-	return
+	return filepath.Join(rootPath, relPath), relPath
 }
 
-func walkPath(root string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			files = append(files, path)
-		}
-
-		return nil
+// walkPath lists the files under dir, which is relative to root, as paths
+// under rootPath, in lexical order. It reads directories through root directly
+// because root.FS() rejects names that are not valid UTF-8.
+func walkPath(root *os.Root, rootPath string, dir string) ([]string, error) {
+	d, err := root.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := d.ReadDir(-1)
+	_ = d.Close()
+	if err != nil {
+		return nil, err
+	}
+	slices.SortFunc(entries, func(a, b os.DirEntry) int {
+		return strings.Compare(a.Name(), b.Name())
 	})
 
-	return files, err
+	var files []string
+	for _, e := range entries {
+		name := filepath.Join(dir, e.Name())
+		if !e.IsDir() {
+			files = append(files, filepath.Join(rootPath, name))
+			continue
+		}
+		sub, err := walkPath(root, rootPath, name)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, sub...)
+	}
+
+	return files, nil
 }
 
 // Invoke is called for output bindings.

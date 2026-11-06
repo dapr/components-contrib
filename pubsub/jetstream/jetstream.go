@@ -57,7 +57,12 @@ func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) err
 	}
 
 	var opts []nats.Option
-	opts = append(opts, nats.Name(js.meta.Name))
+	// Retry reconnecting indefinitely. Without this, the nats.go client
+	// gives up after the default of 60 reconnect attempts (~2 minutes)
+	// and permanently closes the connection, so any outage longer than
+	// that leaves Publish failing with "nats: connection closed" until
+	// the process is restarted, even after NATS is healthy again.
+	opts = append(opts, nats.Name(js.meta.Name), nats.MaxReconnects(-1))
 
 	// Set nats.UserJWT options when jwt and seed key is provided.
 	if js.meta.Jwt != "" && js.meta.SeedKey != "" {

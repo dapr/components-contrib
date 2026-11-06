@@ -98,6 +98,19 @@ azuread:
           - AzurePublicCloud
           - AzureChinaCloud
           - AzureUSGovernmentCloud
+  - title: "Azure AD: Workload identity"
+    description: Authenticate using Azure AD workload identity.
+    metadata:
+      - name: azureAuthMethods
+        description: |
+          Azure authentication methods to try, in order. Set this to "WorkloadIdentity" to use workload identity.
+        example: '"WorkloadIdentity"'
+      - name: azureDisableInstanceDiscovery
+        description: |
+          Disables Microsoft Entra instance discovery for workload identity. Disabling instance discovery also disables authority validation, so set this only when the configured authority is trusted and instance discovery is not available, such as in a disconnected or private cloud.
+        default: '"false"'
+        example: '"true"'
+        type: bool
   - title: "Azure AD: Client credentials"
     description: |
       Authenticate using Azure AD with client credentials, also known as "service principals".

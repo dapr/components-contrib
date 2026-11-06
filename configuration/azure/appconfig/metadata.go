@@ -23,13 +23,14 @@ import (
 )
 
 type metadata struct {
-	Host                  string        `mapstructure:"host"`
-	ConnectionString      string        `mapstructure:"connectionString"`
-	MaxRetries            int           `mapstructure:"maxRetries"`
-	MaxRetryDelay         time.Duration `mapstructure:"maxRetryDelay"`
-	RetryDelay            time.Duration `mapstructure:"retryDelay"`
-	SubscribePollInterval time.Duration `mapstructure:"subscribePollInterval"`
-	RequestTimeout        time.Duration `mapstructure:"requestTimeout"`
+	Host                      string        `mapstructure:"host"`
+	ConnectionString          string        `mapstructure:"connectionString"`
+	ResolveKeyVaultReferences bool          `mapstructure:"resolveKeyVaultReferences"`
+	MaxRetries                int           `mapstructure:"maxRetries"`
+	MaxRetryDelay             time.Duration `mapstructure:"maxRetryDelay"`
+	RetryDelay                time.Duration `mapstructure:"retryDelay"`
+	SubscribePollInterval     time.Duration `mapstructure:"subscribePollInterval"`
+	RequestTimeout            time.Duration `mapstructure:"requestTimeout"`
 }
 
 func (m *metadata) Parse(log logger.Logger, meta configuration.Metadata) error {

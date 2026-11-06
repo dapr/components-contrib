@@ -4,11 +4,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/IBM/sarama"
+	saramamocks "github.com/IBM/sarama/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
@@ -78,9 +80,8 @@ func TestDeserializeValue(t *testing.T) {
 		srClient:             registryJSON,
 		schemaCachingEnabled: true,
 		logger:               logger.NewLogger("kafka_test"),
+		useAvroJSON:          false,
 	}
-	kJSON.srClient.CodecJsonEnabled(true)
-	kJSON.useAvroJSON = false
 	schemaJSON, _ := registryJSON.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	// set up for Standard JSON
@@ -98,7 +99,6 @@ func TestDeserializeValue(t *testing.T) {
 		logger:               logger.NewLogger("kafka_test"),
 		useAvroJSON:          true,
 	}
-	kAvroJSON.srClient.CodecJsonEnabled(false)
 	schemaAvroJSON, _ := registryAvroJSON.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	codecAvroJSON, _ := goavro.NewCodec(testSchema1)
@@ -262,7 +262,6 @@ func assertValueSerialized(t *testing.T, act []byte, expJSON []byte, schema *src
 
 func TestSerializeValueCachingDisabled(t *testing.T) {
 	registryJSON := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
-	registryJSON.CodecJsonEnabled(true)
 	schemaJSON, _ := registryJSON.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	schemaIDBytes := make([]byte, 4)
@@ -270,7 +269,6 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 	// set up for Avro JSON
 	registryAvroJSON := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
-	registryAvroJSON.CodecJsonEnabled(false)
 	codecAvroJSON, _ := goavro.NewCodec(testSchema1)
 	schemaAvroJSON, _ := registryAvroJSON.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 	schemaAvroJSONIDBytes := make([]byte, 4)
@@ -357,7 +355,6 @@ func TestSerializeValueCachingDisabled(t *testing.T) {
 
 func TestSerializeValueCachingEnabled(t *testing.T) {
 	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
-	registry.CodecJsonEnabled(true)
 	schema, _ := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
 	k := Kafka{
@@ -460,7 +457,6 @@ func TestLatestSchemaCaching(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	registry := srclient.CreateMockSchemaRegistryClient("http://locahost:8081")
-	registry.CodecJsonEnabled(true)
 	m := mock_srclient.NewMockISchemaRegistryClient(ctrl)
 	schema, _ := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 
@@ -546,7 +542,6 @@ func TestSerializeDeserializeDecimalSpecCompliant(t *testing.T) {
 	// Spec-compliant decimals are applied via NewCodecWithOptions (useAvroJSON=true).
 	// Standard JSON Full cannot take CodecOption on goavro v2.15.0 (linkedin/goavro#315).
 	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
-	registry.CodecJsonEnabled(false)
 	_, err := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
 	require.NoError(t, err)
 
@@ -580,6 +575,62 @@ func TestSerializeDeserializeDecimalSpecCompliant(t *testing.T) {
 	rat, ok := nativeMap["weight"].(*big.Rat)
 	require.True(t, ok)
 	require.Equal(t, 0, rat.Cmp(big.NewRat(10024, 100)))
+}
+
+func TestSerializeDecimalSpecCompliantTruncatesToScale(t *testing.T) {
+	// Pins goavro v2.15.0 behaviour: with EnableDecimalBinarySpecCompliantEncoding,
+	// fractional digits beyond the schema scale are truncated without error and
+	// precision is not validated. weight is decimal(5,2).
+	registry := srclient.CreateMockSchemaRegistryClient("http://localhost:8081")
+	_, err := registry.CreateSchema("my-topic-value", testSchema1, srclient.Avro)
+	require.NoError(t, err)
+
+	k := Kafka{
+		srClient:                               registry,
+		schemaCachingEnabled:                   false,
+		logger:                                 logger.NewLogger("kafka_test"),
+		useAvroJSON:                            true,
+		enableAvroDecimalSpecCompliantEncoding: true,
+	}
+
+	input := []byte(fmt.Sprintf(
+		`{"flavor":"chocolate","weight":"100.249","created_date":{"long.timestamp-millis":%d}}`,
+		now.UnixMilli(),
+	))
+	serialized, err := k.SerializeValue("my-topic", input, map[string]string{"valueSchemaType": "Avro"})
+	require.NoError(t, err)
+
+	deserialized, err := k.DeserializeValue(
+		&sarama.ConsumerMessage{Value: serialized},
+		SubscriptionHandlerConfig{ValueSchemaType: Avro},
+	)
+	require.NoError(t, err)
+
+	opt := &goavro.CodecOption{EnableStringNull: true, EnableDecimalBinarySpecCompliantEncoding: true}
+	codec, err := goavro.NewCodecWithOptions(testSchema1, opt)
+	require.NoError(t, err)
+	native, _, err := codec.NativeFromTextual(deserialized)
+	require.NoError(t, err)
+	rat, ok := native.(map[string]any)["weight"].(*big.Rat)
+	require.True(t, ok)
+	require.Equal(t, 0, rat.Cmp(big.NewRat(10024, 100)), "expected truncation to 100.24")
+}
+
+func TestInitEnableAvroDecimalRequiresUseAvroJSON(t *testing.T) {
+	k := NewKafka(logger.NewLogger("kafka_test"))
+	k.mockProducer = saramamocks.NewSyncProducer(t, saramamocks.NewTestConfig())
+	k.mockConsumerGroup = mock_srclient.NewConsumerGroup()
+	t.Cleanup(func() { _ = k.Close() })
+
+	err := k.Init(t.Context(), map[string]string{
+		"brokers":                                "localhost:9092",
+		"authType":                               "none",
+		"schemaRegistryURL":                      "http://localhost:8081",
+		"enableAvroDecimalSpecCompliantEncoding": "true",
+		// useAvroJSON defaults to false
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "enableAvroDecimalSpecCompliantEncoding requires useAvroJSON=true")
 }
 
 func TestValidateAWS(t *testing.T) {

@@ -507,10 +507,12 @@ metadata:
       type: bool
       required: false
       description: |
-        Enables Avro 1.10.2 spec-compliant encoding for decimal logical types.
-        When true, decimals use two's-complement binary encoding and human-readable JSON strings (for example "40.20").
-        When false (default), legacy goavro decimal encoding is preserved for backwards compatibility.
-        Requires useAvroJSON=true with goavro v2.15.0 (Standard JSON Full does not accept CodecOption yet).
+        Enables Avro 1.10.2 spec-compliant encoding for decimal logical types when exchanging values with the app.
+        When true, decimal values are exchanged with the app as decimal strings (for example "40.20").
+        When false (default), they use the legacy goavro form: a JSON string holding the unscaled two's-complement bytes.
+        The Avro binary encoding on the topic is the same in both modes.
+        With the flag enabled, goavro v2.15.0 truncates fractional digits beyond the schema scale without error and does not validate precision.
+        Requires useAvroJSON=true (Standard JSON Full does not accept CodecOption yet; Init fails if this flag is set without useAvroJSON=true).
         Only applicable when schemaRegistryURL is configured and valueSchemaType=Avro.
       example: "true"
       default: "false"

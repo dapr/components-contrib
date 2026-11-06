@@ -106,9 +106,15 @@ type Kafka struct {
 	// Whether to encode/decode Avro into Avro JSON or standard JSON
 	useAvroJSON bool
 
-	// Whether decimal logical types use Avro 1.10.2 spec-compliant encoding.
-	// Default false preserves legacy goavro decimal encoding.
+	// When true, decimal values are exchanged with the app as decimal strings
+	// (for example "40.20"). When false (default), they use the legacy goavro
+	// form: a JSON string holding the unscaled two's-complement bytes.
+	// The Avro binary encoding on the topic is the same in both modes.
 	enableAvroDecimalSpecCompliantEncoding bool
+
+	// deserializeCodecs caches goavro codecs keyed by schema registry ID.
+	// Schema IDs are immutable, so entries never need invalidation.
+	deserializeCodecs sync.Map // map[int]*goavro.Codec
 
 	// used for background logic that cannot use the context passed to the Init function
 	internalContext       context.Context
@@ -302,15 +308,16 @@ func (k *Kafka) Init(ctx context.Context, metadata map[string]string) error {
 	k.consumeRetryInterval = meta.ConsumeRetryInterval
 	if meta.SchemaRegistryURL != "" {
 		k.logger.Infof("Schema registry URL '%s' provided. Configuring the Schema Registry client.", meta.SchemaRegistryURL)
+		// Do not enable srclient codec creation: we build codecs ourselves in
+		// getCodec so UseAvroJSON / decimal options are applied consistently.
+		// CodecCreationEnabled defaults to false in srclient.
 		k.srClient = srclient.CreateSchemaRegistryClient(meta.SchemaRegistryURL)
-		k.srClient.CodecCreationEnabled(true)
-		k.srClient.CodecJsonEnabled(!meta.UseAvroJSON)
 		k.useAvroJSON = meta.UseAvroJSON
 		k.enableAvroDecimalSpecCompliantEncoding = meta.EnableAvroDecimalSpecCompliantEncoding
 		// goavro v2.15.0 only exposes CodecOption via NewCodecWithOptions (Avro JSON).
 		// Standard JSON Full WithOptions is tracked in https://github.com/linkedin/goavro/pull/315.
 		if meta.EnableAvroDecimalSpecCompliantEncoding && !meta.UseAvroJSON {
-			k.logger.Warn("enableAvroDecimalSpecCompliantEncoding currently requires useAvroJSON=true; the flag is ignored for Standard JSON (useAvroJSON=false) until goavro supports CodecOption on NewCodecForStandardJSONFull")
+			return errors.New("enableAvroDecimalSpecCompliantEncoding requires useAvroJSON=true")
 		}
 		// Empty password is a possibility
 		if meta.SchemaRegistryAPIKey != "" {
@@ -547,9 +554,7 @@ func (k *Kafka) DeserializeValue(message *sarama.ConsumerMessage, config Subscri
 		if err != nil {
 			return nil, err
 		}
-		// Force a new codec so deserialize honors useAvroJSON / decimal options
-		// and avoids goavro codec state mutation issues (https://github.com/linkedin/goavro/issues/299).
-		codec, err := k.getCodec(schema)
+		codec, err := k.getDeserializeCodec(schema)
 		if err != nil {
 			return nil, err
 		}
@@ -619,11 +624,23 @@ func (k *Kafka) getSchemaRegistyClient() (srclient.ISchemaRegistryClient, error)
 	return k.srClient, nil
 }
 
+func (k *Kafka) getDeserializeCodec(schema *srclient.Schema) (*goavro.Codec, error) {
+	if c, ok := k.deserializeCodecs.Load(schema.ID()); ok {
+		return c.(*goavro.Codec), nil
+	}
+	codec, err := k.getCodec(schema)
+	if err != nil {
+		return nil, err
+	}
+	actual, _ := k.deserializeCodecs.LoadOrStore(schema.ID(), codec)
+	return actual.(*goavro.Codec), nil
+}
+
 func (k *Kafka) getCodec(schema *srclient.Schema) (*goavro.Codec, error) {
 	// The data coming through is either Avro JSON or standard JSON.
-	// Force creation of a new codec instance for serialization and deserialization to avoid state mutation issues.
-	// https://github.com/linkedin/goavro/issues/299
-	// Once the bug is fixed, we can remove this and use the codec directly from schema.Codec()
+	// Build codecs ourselves (not schema.Codec()) so UseAvroJSON / decimal
+	// options are applied, and to avoid goavro codec state mutation issues
+	// (https://github.com/linkedin/goavro/issues/299).
 	if k.useAvroJSON {
 		return goavro.NewCodecWithOptions(schema.Schema(), &goavro.CodecOption{
 			EnableStringNull:                         true,

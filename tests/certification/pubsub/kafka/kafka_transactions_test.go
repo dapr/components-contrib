@@ -36,7 +36,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
-	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 )
 
 const txnTokenKey = "__txnToken"
@@ -178,17 +177,7 @@ func TestKafkaTransactions(t *testing.T) {
 		Step(dockercompose.Run(clusterName, dockerComposeYAML)).
 		Step("wait for broker sockets", network.WaitForAddresses(5*time.Minute, brokers...)).
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			config := sarama.NewConfig()
-			config.ClientID = "test-consumer"
-			client, err := sarama.NewConsumer(brokers, config)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
-			return err
-		})).
+		Step("wait for kafka readiness", waitForKafkaReadiness("test-consumer")).
 		//
 		// Scenario 1: transactional bulk publish is atomic. A batch with an
 		// oversized entry fails as a whole: entries sent before the failure

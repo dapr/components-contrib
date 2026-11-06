@@ -27,7 +27,8 @@ const (
 
 // AppResponse is the object describing the response from user code after a pubsub event.
 type AppResponse struct {
-	Status AppResponseStatus `json:"status"`
+	Status  AppResponseStatus `json:"status"`
+	Message string            `json:"message,omitempty"`
 }
 
 // AppBulkResponseEntry Represents single response, as part of AppBulkResponse, to be
@@ -35,6 +36,7 @@ type AppResponse struct {
 type AppBulkResponseEntry struct {
 	EntryId string            `json:"entryId"` //nolint:stylecheck
 	Status  AppResponseStatus `json:"status"`
+	Message string            `json:"message,omitempty"`
 }
 
 // AppBulkResponse is the whole bulk subscribe response sent by App

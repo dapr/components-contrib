@@ -14,10 +14,22 @@ limitations under the License.
 package pubsub
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestAppResponseMessage(t *testing.T) {
+	var r AppResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"status":"DROP","message":"x"}`), &r))
+	assert.Equal(t, "x", r.Message)
+
+	var b AppBulkResponseEntry
+	require.NoError(t, json.Unmarshal([]byte(`{"entryId":"1","status":"DROP","message":"x"}`), &b))
+	assert.Equal(t, "x", b.Message)
+}
 
 func TestNewBulkPublishResponse(t *testing.T) {
 	messages := []BulkMessageEntry{

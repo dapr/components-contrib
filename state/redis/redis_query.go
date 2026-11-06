@@ -335,11 +335,14 @@ func parseQueryResponsePost28(ret any) ([]state.QueryItem, bool, error) {
 		return nil, false, nil
 	}
 
-	var res []state.QueryItem
-	arr := aarr["results"].([]any)
-	if len(arr) == 0 {
+	// An empty "results" list is a valid response when nothing matches the
+	// query, or when paging past the last result.
+	arr, ok := aarr["results"].([]any)
+	if !ok {
 		return nil, false, errors.New("invalid output")
 	}
+
+	var res []state.QueryItem
 	for i := range arr {
 		inner, ok := arr[i].(map[any]any)
 		if !ok {

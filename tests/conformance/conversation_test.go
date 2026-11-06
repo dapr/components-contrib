@@ -30,6 +30,7 @@ import (
 	"github.com/dapr/components-contrib/conversation/echo"
 	"github.com/dapr/components-contrib/conversation/googleai"
 	"github.com/dapr/components-contrib/conversation/huggingface"
+	"github.com/dapr/components-contrib/conversation/iflytek/spark"
 	"github.com/dapr/components-contrib/conversation/mistral"
 	"github.com/dapr/components-contrib/conversation/ollama"
 	"github.com/dapr/components-contrib/conversation/openai"
@@ -115,6 +116,11 @@ func shouldSkipComponent(t *testing.T, componentName string) bool {
 			t.Skipf("Skipping AWS Bedrock conformance test: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables not set")
 			return true
 		}
+	case "iflytek.spark":
+		if os.Getenv("IFLYTEK_API_KEY") == "" {
+			t.Skipf("Skipping IFLYTEK Spark conformance test: IFLYTEK_API_KEY environment variable not set")
+			return true
+		}
 	case "deepseek":
 		if os.Getenv("DEEPSEEK_API_KEY") == "" {
 			t.Skipf("Skipping DeepSeek conformance test: DEEPSEEK_API_KEY environment variable not set")
@@ -142,6 +148,8 @@ func loadConversationComponent(name string) conversation.Conversation {
 		return ollama.NewOllama(testLogger)
 	case "bedrock":
 		return bedrock.NewAWSBedrock(testLogger)
+	case "iflytek.spark":
+		return spark.NewSpark(testLogger)
 	case "deepseek":
 		return deepseek.NewDeepseek(testLogger)
 	default:

@@ -587,6 +587,9 @@ type rabbitMQInMemoryBroker struct {
 	// it raises a channel-level exception.
 	consumeErr error
 
+	// onConsume, when set, runs at the start of every Consume call.
+	onConsume func()
+
 	tagsMu        sync.Mutex
 	consumedTags  []string
 	cancelledTags []string
@@ -639,6 +642,9 @@ func (r *rabbitMQInMemoryBroker) QueueBind(name string, key string, exchange str
 }
 
 func (r *rabbitMQInMemoryBroker) Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error) {
+	if r.onConsume != nil {
+		r.onConsume()
+	}
 	r.tagsMu.Lock()
 	r.consumedTags = append(r.consumedTags, consumer)
 	r.tagsMu.Unlock()
@@ -1411,6 +1417,44 @@ func TestSubscribeForeverCancelsConsumerWhenConsumeFails(t *testing.T) {
 	for _, tag := range consumed {
 		require.Containsf(t, cancelled, tag, "consumer %s was registered but never cancelled", tag)
 	}
+}
+
+// Consume is a synchronous command on a channel shared by every subscription,
+// so it must run under channelMutex like the declares and binds do; otherwise
+// concurrent reconnects interleave responses ("unexpected command received").
+func TestSubscribeForeverConsumesUnderChannelMutex(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQTest(broker)
+
+	var unguarded atomic.Bool
+	broker.onConsume = func() {
+		if r.channelMutex.TryLock() {
+			r.channelMutex.Unlock()
+			unguarded.Store(true)
+		}
+	}
+
+	metadata := pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}}
+	require.NoError(t, r.Init(t.Context(), metadata))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ackCh := make(chan error, 1)
+	go r.subscribeForever(ctx, pubsub.SubscribeRequest{Topic: "mytopic"}, "myqueue", func(context.Context, *pubsub.NewMessage) error { return nil }, ackCh)
+
+	select {
+	case err := <-ackCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("subscription was not established")
+	}
+
+	assert.False(t, unguarded.Load(), "Consume ran without holding channelMutex")
 }
 
 type fakeConfirmation struct{ acked bool }

@@ -662,6 +662,24 @@ func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName str
 	return r.channel, r.connectionCount, q, err
 }
 
+// consume registers a consumer on the shared channel. Consume is a synchronous
+// command, so it must not interleave with other commands on the same channel
+// (declares, binds, other subscriptions' Consume calls); channelMutex serializes them.
+func (r *rabbitMQ) consume(channel rabbitMQChannelBroker, queue, consumerTag string) (<-chan amqp.Delivery, error) {
+	r.channelMutex.Lock()
+	defer r.channelMutex.Unlock()
+
+	return channel.Consume(
+		queue,
+		consumerTag,        // unique consumerID per subscription attempt
+		r.metadata.AutoAck, // autoAck
+		false,              // exclusive
+		false,              // noLocal
+		false,              // noWait
+		nil,
+	)
+}
+
 func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan error) {
 	for {
 		var (
@@ -689,15 +707,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			if len(consumerTag) > maxConsumerTagLen {
 				consumerTag = consumerTag[len(consumerTag)-maxConsumerTagLen:]
 			}
-			msgs, err = channel.Consume(
-				q.Name,
-				consumerTag,        // unique consumerID per subscription attempt
-				r.metadata.AutoAck, // autoAck
-				false,              // exclusive
-				false,              // noLocal
-				false,              // noWait
-				nil,
-			)
+			msgs, err = r.consume(channel, q.Name, consumerTag)
 			// The broker can accept the registration even when Consume reports an
 			// error, because the channel is shared and the exception may belong to
 			// another command on it. Cancel on every exit path from here on, so a

@@ -20,6 +20,57 @@ authenticationProfiles:
           API key for OpenAI.
         example:  "**********"
         default: ""
+  - title: "Workload identity federation (SPIFFE)"
+    description: |
+      Authenticate to OpenAI without an API key. The Dapr runtime mints a JWT SVID for the app's
+      SPIFFE ID, which is exchanged for a short-lived OpenAI access token. Requires mTLS and Sentry
+      JWT issuing, with Sentry registered as an OpenAI workload identity provider.
+      Not supported when apiType is 'azure'.
+    metadata:
+      - name: identityProviderId
+        type: string
+        required: true
+        description: |
+          ID of the OpenAI workload identity provider registered for Sentry.
+        example: '"idp_01abc"'
+      - name: serviceAccountId
+        type: string
+        required: true
+        description: |
+          ID of the OpenAI service account the access token acts as.
+        example: '"svc_acct_01abc"'
+      - name: audience
+        type: string
+        required: false
+        description: |
+          Audience of the JWT SVID. Must match the audience of the workload identity provider.
+        example: '"https://api.openai.com/v1"'
+        default: '"https://api.openai.com/v1"'
+  - title: "Azure OpenAI: Microsoft Entra ID"
+    description: |
+      Authenticate to Azure OpenAI with Microsoft Entra ID when apiType is 'azure' and key is not
+      set. Supports the standard Azure authentication methods, including SPIFFE workload identity,
+      where the Dapr runtime's JWT SVID is used as a federated credential.
+    metadata:
+      - name: azureTenantId
+        type: string
+        required: false
+        description: |
+          ID of the Microsoft Entra ID tenant.
+        example: '"00000000-0000-0000-0000-000000000000"'
+      - name: azureClientId
+        type: string
+        required: false
+        description: |
+          Client ID of the Microsoft Entra ID application or managed identity.
+        example: '"00000000-0000-0000-0000-000000000000"'
+      - name: azureAuthMethods
+        type: string
+        required: false
+        description: |
+          Comma-separated list of the Azure authentication methods to try, in order. Use 'spiffe'
+          to only use the Dapr SPIFFE identity.
+        example: '"spiffe"'
 metadata:
   - name: model
     required: false

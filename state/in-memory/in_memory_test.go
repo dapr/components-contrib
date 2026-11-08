@@ -25,6 +25,7 @@ import (
 
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 func TestReadAndWrite(t *testing.T) {
@@ -243,5 +244,22 @@ func TestETagExpiredAndInOrder(t *testing.T) {
 		require.NoError(t, err)
 		assert.JSONEq(t, `"a1"`, string(res.Data))
 		assert.Equal(t, etag, res.ETag)
+	})
+
+	t.Run("retried set-only request still checks its etag", func(t *testing.T) {
+		store, _ := newStore(t)
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
+
+		for _, req := range []*state.TransactionalStateRequest{
+			{Operations: []state.TransactionalStateOperation{state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("stale")}}},
+			{Operations: []state.TransactionalStateOperation{state.SetRequest{Key: "a", Value: "a2", Options: state.SetStateOption{Concurrency: state.FirstWrite}}}},
+		} {
+			requireMismatch(t, store.Multi(t.Context(), req))
+			requireMismatch(t, store.Multi(t.Context(), req))
+		}
+
+		res, err := store.Get(t.Context(), &state.GetRequest{Key: "a"})
+		require.NoError(t, err)
+		assert.JSONEq(t, `"a1"`, string(res.Data))
 	})
 }

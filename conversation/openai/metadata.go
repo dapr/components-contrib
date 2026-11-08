@@ -29,4 +29,12 @@ type OpenAILangchainMetadata struct {
 	UseLegacyMaxTokensField bool `json:"useLegacyMaxTokensField" mapstructure:"useLegacyMaxTokensField"`
 	// UseResponsesAPI sends requests to the Responses API (/v1/responses) instead of Chat Completions.
 	UseResponsesAPI bool `json:"useResponsesAPI" mapstructure:"useResponsesAPI"`
+
+	// When IdentityProviderID is set, the component authenticates with workload
+	// identity federation, exchanging a JWT SVID minted by the Dapr runtime for
+	// an OpenAI access token, instead of using Key.
+	IdentityProviderID string `json:"identityProviderId" mapstructure:"identityProviderId"`
+	ServiceAccountID   string `json:"serviceAccountId" mapstructure:"serviceAccountId"`
+	// Audience of the JWT SVID. Defaults to https://api.openai.com/v1.
+	Audience string `json:"audience" mapstructure:"audience"`
 }

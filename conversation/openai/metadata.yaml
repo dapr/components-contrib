@@ -135,3 +135,25 @@ metadata:
     type: bool
     example: "true"
     default: 'false'
+  - name: headers
+    required: false
+    sensitive: true
+    description: |
+      HTTP headers to send on every request to the model endpoint, as a JSON
+      object of header names to string values. Use it for headers that a
+      gateway or proxy in front of the provider requires, for example a tenant
+      ID or a gateway key. A header in this field replaces the header of the
+      same name that the component sets. This includes the header that the
+      component builds from key: Authorization, or api-key with apiType azure.
+      Without workload identity federation or Microsoft Entra ID, key is still
+      required, so set key to any non-empty value if the gateway does its own
+      authentication.
+      Host, Content-Length and hop-by-hop headers are not allowed. When this
+      field is set, the component does not follow redirects to a different
+      origin.
+      With workload identity federation or Microsoft Entra ID, the component does
+      not send these headers to the token endpoint. The access token sets the
+      Authorization header, and the component removes the api-key and
+      x-api-key headers.
+    type: string
+    example: '{"X-Tenant-ID": "tenant-a", "X-Gateway-Key": "**********"}'

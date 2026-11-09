@@ -91,6 +91,148 @@ func TestBuildBearerHTTPClientRedirects(t *testing.T) {
 	assert.Zero(t, otherHits, "the token must not be sent to another origin")
 }
 
+func TestParseHeaders(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		headers, err := ParseHeaders("")
+		require.NoError(t, err)
+		assert.Nil(t, headers)
+	})
+
+	t.Run("null", func(t *testing.T) {
+		headers, err := ParseHeaders("null")
+		require.NoError(t, err)
+		assert.Nil(t, headers)
+	})
+
+	t.Run("canonicalizes the header names", func(t *testing.T) {
+		headers, err := ParseHeaders(`{"x-tenant-id":"acme","Ocp-Apim-Subscription-Key":"secret"}`)
+		require.NoError(t, err)
+		assert.Equal(t, http.Header{
+			"X-Tenant-Id":               {"acme"},
+			"Ocp-Apim-Subscription-Key": {"secret"},
+		}, headers)
+	})
+
+	for name, test := range map[string]struct {
+		raw    string
+		expErr string
+	}{
+		"not a JSON object":   {raw: `x-tenant-id=acme`, expErr: "JSON object"},
+		"a JSON array":        {raw: `["secret"]`, expErr: "JSON object"},
+		"not a string value":  {raw: `{"x-retries":3}`, expErr: "JSON object"},
+		"invalid name":        {raw: `{"x tenant":"acme"}`, expErr: "invalid header name"},
+		"invalid value":       {raw: `{"x-key":"secret\nvalue"}`, expErr: "invalid value"},
+		"client managed":      {raw: `{"host":"example.com"}`, expErr: "set by the HTTP client"},
+		"hop-by-hop":          {raw: `{"Connection":"close"}`, expErr: "set by the HTTP client"},
+		"set twice":           {raw: `{"X-Key":"secret","X-Key":"secret2"}`, expErr: "more than once"},
+		"set twice any case":  {raw: `{"X-Tenant-Id":"a","x-tenant-id":"b"}`, expErr: "more than once"},
+		"invalid JSON syntax": {raw: `{"x-key":"secret"`, expErr: "JSON object"},
+		"data after object":   {raw: `{"x-key":"secret"} {"x-other":"secret"}`, expErr: "JSON object"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := ParseHeaders(test.raw)
+			require.ErrorContains(t, err, test.expErr)
+			assert.NotContains(t, err.Error(), "secret", "errors must not contain header values")
+		})
+	}
+}
+
+func TestWithHeaders(t *testing.T) {
+	var got http.Header
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+	}))
+	t.Cleanup(srv.Close)
+
+	t.Run("sets the headers and replaces existing values", func(t *testing.T) {
+		client := WithHeaders(BuildHTTPClient(), http.Header{
+			"X-Tenant-Id":   {"acme"},
+			"Authorization": {"Bearer gateway"},
+		})
+
+		req, err := http.NewRequest(http.MethodGet, srv.URL, nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer key")
+		req.Header.Set("X-Request-Id", "1")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		assert.Equal(t, "acme", got.Get("X-Tenant-Id"))
+		assert.Equal(t, "Bearer gateway", got.Get("Authorization"))
+		assert.Equal(t, "1", got.Get("X-Request-Id"))
+		assert.Equal(t, "Bearer key", req.Header.Get("Authorization"), "the caller's request must not be modified")
+	})
+
+	t.Run("the bearer token replaces an Authorization header", func(t *testing.T) {
+		client := WithHeaders(BuildBearerHTTPClient(oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "tok"})), http.Header{
+			"X-Tenant-Id":   {"acme"},
+			"Authorization": {"Bearer gateway"},
+		})
+
+		resp, err := client.Get(srv.URL)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		assert.Equal(t, "acme", got.Get("X-Tenant-Id"))
+		assert.Equal(t, "Bearer tok", got.Get("Authorization"))
+	})
+
+	t.Run("no headers returns the client", func(t *testing.T) {
+		client := BuildHTTPClient()
+		assert.Same(t, client, WithHeaders(client, nil))
+	})
+}
+
+func TestWithHeadersRedirects(t *testing.T) {
+	var otherHits int
+	other := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		otherHits++
+	}))
+	t.Cleanup(other.Close)
+
+	var sameOriginTenant string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/same":
+			http.Redirect(w, r, "/final", http.StatusFound)
+		case "/final":
+			sameOriginTenant = r.Header.Get("X-Tenant-Id")
+		case "/other":
+			http.Redirect(w, r, other.URL, http.StatusFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client := WithHeaders(BuildHTTPClient(), http.Header{"X-Tenant-Id": {"acme"}})
+
+	resp, err := client.Get(srv.URL + "/same")
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, "acme", sameOriginTenant)
+
+	_, err = client.Get(srv.URL + "/other") //nolint:bodyclose
+	require.ErrorContains(t, err, "another origin")
+	assert.Zero(t, otherHits, "the headers must not be sent to another origin")
+
+	t.Run("keeps the redirect policy of the client", func(t *testing.T) {
+		noRedirects := BuildHTTPClient()
+		noRedirects.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		client := WithHeaders(noRedirects, http.Header{"X-Tenant-Id": {"acme"}})
+		for _, path := range []string{"/same", "/other"} {
+			resp, err := client.Get(srv.URL + path)
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.Equal(t, http.StatusFound, resp.StatusCode, path)
+		}
+		assert.Zero(t, otherHits)
+	})
+}
+
 type errTokenSource struct{}
 
 func (errTokenSource) Token() (*oauth2.Token, error) {

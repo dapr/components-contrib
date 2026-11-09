@@ -10,3 +10,5 @@ services:
     ports:
       # Offset from the conformance broker, so both can run on one machine.
       - "5673:5672"
+      # The management console, read by TestAMQPNamedSubscriptions.
+      - "8163:8161"

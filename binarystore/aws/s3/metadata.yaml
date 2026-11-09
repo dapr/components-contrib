@@ -4,7 +4,7 @@ type: binarystore
 name: aws.s3
 version: v1
 status: alpha
-title: "AWS S3"
+title: "Amazon S3"
 description: "Store and retrieve large binary files using Amazon S3 or any S3-compatible object storage service."
 urls:
   - title: Reference

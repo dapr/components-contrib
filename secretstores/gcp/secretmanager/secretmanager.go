@@ -108,7 +108,7 @@ func (s *Store) getClient(ctx context.Context, metadata *GcpSecretManagerMetadat
 		}
 
 		b, _ := json.Marshal(metadata)
-		clientOptions := option.WithCredentialsJSON(b)
+		clientOptions := option.WithCredentialsJSON(b) //nolint:staticcheck // SA1019: deprecated by the google.golang.org/api update. Kept to avoid a behavior change in a dependency-only update.
 		client, err = secretmanager.NewClient(ctx, clientOptions)
 		if err != nil {
 			return nil, err

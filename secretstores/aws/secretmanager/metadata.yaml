@@ -4,7 +4,7 @@ type: secretstores
 name: aws.secretsmanager
 version: v1
 status: beta
-title: "AWS Secrets manager"
+title: "AWS Secrets Manager"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-secret-stores/aws-secret-manager/

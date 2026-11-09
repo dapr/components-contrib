@@ -107,7 +107,7 @@ func (m Migrations) EnsureMetadataTable(ctx context.Context) (err error) {
 	m.Logger.Infof("Creating metadata table '%s'", m.MetadataTableName)
 	// Add an "IF NOT EXISTS" in case another Dapr sidecar is creating the same table at the same time
 	// In the next step we'll acquire a lock so there won't be issues with concurrency
-	// Note that this query can fail with error `23505` on constraint `pg_type_typname_nsp_index` if ran in parallel; we will just retry that up to 3 times
+	// Note that this query can fail if ran in parallel, with error `23505` on constraint `pg_type_typname_nsp_index`, `42P07` (relation already exists) or `42710` (type already exists); we will just retry those up to 3 times
 	for range 3 {
 		_, err = m.DB.Exec(ctx, fmt.Sprintf(
 			`CREATE TABLE IF NOT EXISTS %s (
@@ -120,17 +120,37 @@ func (m Migrations) EnsureMetadataTable(ctx context.Context) (err error) {
 			break
 		}
 
-		// If the error is not a UniqueViolation (23505), abort
-		var pgErr *pgconn.PgError
-		if !errors.As(err, &pgErr) || pgErr.Code != pgerrcode.UniqueViolation {
+		// If the error is not one a concurrent create raises, abort
+		if !isConcurrentCreateError(err) {
 			return fmt.Errorf("failed to create metadata table: %w", err)
 		}
 
 		// Retry after a delay
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-time.After(50 * time.Millisecond):
+		case <-ctx.Done():
+			return fmt.Errorf("failed to create metadata table: %w", ctx.Err())
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("failed to create metadata table: %w", err)
 	}
 	return nil
+}
+
+// isConcurrentCreateError reports whether a CREATE TABLE IF NOT EXISTS failed
+// because another session created the same table at the same moment: the
+// existence check and the catalog inserts are not atomic, so the loser gets
+// 23505 on pg_type, 42P07 (relation already exists) or 42710 (type already
+// exists).
+func isConcurrentCreateError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	switch pgErr.Code {
+	case pgerrcode.UniqueViolation, pgerrcode.DuplicateTable, pgerrcode.DuplicateObject:
+		return true
+	}
+	return false
 }

@@ -135,7 +135,7 @@ func newStorageClient(ctx context.Context, m *gcpMetadata) (*storage.Client, err
 	if err != nil {
 		return nil, err
 	}
-	return storage.NewClient(ctx, option.WithCredentialsJSON(creds))
+	return storage.NewClient(ctx, option.WithCredentialsJSON(creds)) //nolint:staticcheck // SA1019: deprecated by the google.golang.org/api update. Kept to avoid a behavior change in a dependency-only update.
 }
 
 // Features returns the optional features supported by this component.

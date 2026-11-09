@@ -20,22 +20,25 @@ const components = {
     },
     'binarystore.azure.datalake': {
         conformance: true,
-        requiredSecrets: [
-            'AzureBlobStorageAccount',
-            'AzureBlobStorageAccessKey',
-        ],
+        requiredSecrets: ['AzureResourceGroupName'],
+        conformanceSetup: 'conformance-binarystore.azure.datalake-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.azure.datalake-destroy.sh',
         sourcePkg: ['binarystore/azure/datalake', 'common/component/azure/datalake'],
     },
     'binarystore.aws.s3': {
         conformance: true,
         requireAWSCredentials: true,
-        requiredSecrets: ['AWSS3Bucket'],
+        requireTerraform: true,
+        conformanceSetup: 'conformance-binarystore.aws.s3-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.aws.s3-destroy.sh',
         sourcePkg: ['binarystore/aws/s3', 'common/aws'],
     },
     'binarystore.gcp.bucket': {
         conformance: true,
         requireGCPCredentials: true,
-        requiredSecrets: ['GCPBucket'],
+        requireTerraform: true,
+        conformanceSetup: 'conformance-binarystore.gcp.bucket-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.gcp.bucket-destroy.sh',
         sourcePkg: ['binarystore/gcp/bucket'],
     },
     'binarystore.oci.objectstorage': {
@@ -43,8 +46,9 @@ const components = {
         requiredSecrets: [
             'OCIConfigFile',
             'OCICompartmentOCID',
-            'OCIBucketName',
         ],
+        conformanceSetup: 'conformance-binarystore.oci.objectstorage-setup.sh',
+        conformanceDestroy: 'conformance-binarystore.oci.objectstorage-destroy.sh',
         sourcePkg: ['binarystore/oci/objectstorage'],
     },
     // requireDocker excludes cloud-scheduled runs.
@@ -586,6 +590,17 @@ const components = {
         // longer follows from the component name.
         sourcePkg: ['pubsub/amqp'],
     },
+    'search.in-memory': {
+        conformance: true,
+        sourcePkg: ['search/in-memory', 'search', 'common/component/indexing'],
+    },
+    'search.meilisearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'meilisearch-setup.sh',
+        certificationSetup: 'meilisearch-setup.sh',
+        sourcePkg: ['search/meilisearch', 'search'],
+    },
     'secretstores.aws.secretsmanager.docker': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh secrets-manager',
@@ -1007,6 +1022,17 @@ const components = {
         conformance: true,
         conformanceSetup: 'docker-compose.sh sqlserver',
         sourcePkg: ['state/sqlserver/v2', 'common/component/sql'],
+    },
+    'vector.in-memory': {
+        conformance: true,
+        sourcePkg: ['vector/in-memory', 'vector', 'search', 'common/component/indexing'],
+    },
+    'vector.meilisearch': {
+        conformance: true,
+        certification: true,
+        conformanceSetup: 'meilisearch-setup.sh',
+        certificationSetup: 'meilisearch-setup.sh',
+        sourcePkg: ['vector/meilisearch', 'vector'],
     },
 }
 

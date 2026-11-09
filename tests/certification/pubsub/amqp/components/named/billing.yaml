@@ -1,0 +1,22 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: billing
+spec:
+  type: pubsub.amqp
+  version: v1
+  metadata:
+  - name: url
+    value: "amqp://localhost:5673"
+  - name: username
+    value: "artemis"
+  - name: password
+    value: "artemis"
+  # Both replicas use this container ID, so they share each named
+  # subscription, as replicas of one app ID would by default.
+  - name: containerID
+    value: "orders-service"
+  - name: durableMessages
+    value: "true"
+  - name: backOffDuration
+    value: "1s"

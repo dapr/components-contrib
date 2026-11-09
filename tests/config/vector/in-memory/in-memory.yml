@@ -1,0 +1,8 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: in-memory
+spec:
+  type: vector.in-memory
+  version: v1
+  metadata: []

@@ -35,4 +35,7 @@ type LangchainMetadata struct {
 	// model may generate for every request; a request-level MaxTokens greater
 	// than zero overrides it.
 	MaxTokens *int64 `json:"maxTokens,omitempty" mapstructure:"maxTokens"`
+	// Headers is a JSON object of HTTP header names to values that are set on
+	// every request to the LLM provider. See ParseHeaders.
+	Headers string `json:"headers,omitempty" mapstructure:"headers"`
 }

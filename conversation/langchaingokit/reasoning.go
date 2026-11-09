@@ -43,10 +43,14 @@ func (a *LLM) reasoningEffortCallOptions(effort *string) []llms.CallOption {
 		return nil
 	}
 	if a.reasoningEffortOptions == nil {
-		a.logger.Debugf("ignoring reasoning effort %q: the component does not support it", *effort)
+		a.logger.Warnf("ignoring reasoning effort %q: the component does not support it", *effort)
 		return nil
 	}
-	return a.reasoningEffortOptions(*effort)
+	opts := a.reasoningEffortOptions(*effort)
+	if len(opts) == 0 {
+		a.logger.Warnf("ignoring reasoning effort %q: the component does not support this value", *effort)
+	}
+	return opts
 }
 
 // SplitReasoning removes the conversation.ReasoningContent parts from messages

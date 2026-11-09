@@ -37,3 +37,16 @@ func reasoningEffortOptions(effort string) []llms.CallOption {
 	}
 	return []llms.CallOption{llms.WithReasoningStrength(strength)}
 }
+
+// effortFromStrength is the inverse of reasoningStrengths, for the Responses
+// API client, using the same thresholds langchaingo's own client applies.
+func effortFromStrength(strength float64) string {
+	switch {
+	case strength < 0.34:
+		return "low"
+	case strength < 0.67:
+		return "medium"
+	default:
+		return "high"
+	}
+}

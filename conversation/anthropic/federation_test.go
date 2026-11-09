@@ -33,6 +33,7 @@ import (
 
 func TestInitFederation(t *testing.T) {
 	var exchanges []map[string]string
+	var exchangeTenants []string
 	var messageHeaders []http.Header
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -40,6 +41,7 @@ func TestInitFederation(t *testing.T) {
 			var body map[string]string
 			assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			exchanges = append(exchanges, body)
+			exchangeTenants = append(exchangeTenants, r.Header.Get("X-Tenant-ID"))
 			_, _ = io.WriteString(w, `{"access_token":"sk-ant-oat01-test","token_type":"Bearer","expires_in":600}`)
 		case "/messages":
 			messageHeaders = append(messageHeaders, r.Header.Clone())
@@ -63,6 +65,7 @@ func TestInitFederation(t *testing.T) {
 		"organizationId":   "org",
 		"serviceAccountId": "svac_1",
 		"workspaceId":      "wrkspc_1",
+		"headers":          `{"X-Tenant-ID":"acme"}`,
 	}}}))
 
 	msgs := []llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")}
@@ -81,11 +84,13 @@ func TestInitFederation(t *testing.T) {
 		"service_account_id": "svac_1",
 		"workspace_id":       "wrkspc_1",
 	}, exchanges[0])
+	assert.Equal(t, []string{"acme"}, exchangeTenants, "the token endpoint is on the same origin as the model endpoint")
 
 	require.Len(t, messageHeaders, 2)
 	for _, h := range messageHeaders {
 		assert.Equal(t, "Bearer sk-ant-oat01-test", h.Get("Authorization"))
 		assert.Empty(t, h.Get("x-api-key"))
+		assert.Equal(t, "acme", h.Get("X-Tenant-ID"))
 	}
 }
 

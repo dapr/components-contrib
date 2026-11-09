@@ -77,16 +77,21 @@ func (g *GoogleAI) Init(ctx context.Context, meta conversation.Metadata) error {
 		endpoint = md.Endpoint
 	}
 
+	headers, err := conversation.ParseHeaders(md.Headers)
+	if err != nil {
+		return err
+	}
+
 	var opts []openai.Option
 	if md.WorkloadIdentityProvider == "" {
-		opts = conversation.BuildOpenAIClientOptions(model, key, endpoint)
+		opts = conversation.BuildOpenAIClientOptions(model, key, endpoint, headers)
 	} else {
 		ts, tsErr := federationTokenSource(ctx, md)
 		if tsErr != nil {
 			return tsErr
 		}
-		opts = append(conversation.BuildOpenAIClientOptions(model, conversation.PlaceholderToken, endpoint),
-			openai.WithHTTPClient(conversation.BuildBearerHTTPClient(ts)),
+		opts = append(conversation.BuildOpenAIClientOptions(model, conversation.PlaceholderToken, endpoint, nil),
+			openai.WithHTTPClient(conversation.WithHeaders(conversation.BuildBearerHTTPClient(ts), headers)),
 		)
 	}
 

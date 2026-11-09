@@ -53,16 +53,18 @@ func TestInitFederation(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			var exchanges []map[string]string
-			var authHeaders []string
+			var authHeaders, tenantHeaders []string
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/oauth/token":
 					var body map[string]string
 					assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 					exchanges = append(exchanges, body)
+					assert.Empty(t, r.Header.Get("X-Tenant-ID"), "custom headers must not be sent to the token endpoint")
 					_, _ = io.WriteString(w, `{"access_token":"openai-access-token","expires_in":600}`)
 				case test.path:
 					authHeaders = append(authHeaders, r.Header.Get("Authorization"))
+					tenantHeaders = append(tenantHeaders, r.Header.Get("X-Tenant-ID"))
 					w.Header().Set("Content-Type", "application/json")
 					_, _ = io.WriteString(w, test.reply)
 				default:
@@ -79,6 +81,7 @@ func TestInitFederation(t *testing.T) {
 				"endpoint":           srv.URL,
 				"identityProviderId": "idp_1",
 				"serviceAccountId":   "sa_1",
+				"headers":            `{"X-Tenant-ID":"acme"}`,
 			}
 			for k, v := range test.props {
 				props[k] = v
@@ -104,6 +107,7 @@ func TestInitFederation(t *testing.T) {
 				"service_account_id":   "sa_1",
 			}, exchanges[0])
 			assert.Equal(t, []string{"Bearer openai-access-token", "Bearer openai-access-token"}, authHeaders)
+			assert.Equal(t, []string{"acme", "acme"}, tenantHeaders)
 		})
 	}
 }

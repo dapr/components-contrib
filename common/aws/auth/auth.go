@@ -15,6 +15,7 @@ const (
 	StaticProviderTypeStatic ProviderType = iota
 	StaticProviderTypeAssumeRole
 	X509ProviderType
+	WebIdentityProviderType
 	ProviderTypeUnknown // Or default
 )
 
@@ -44,6 +45,9 @@ type Options struct {
 	AssumeRoleSessionName string `json:"assumeRoleSessionName" mapstructure:"assumeRoleSessionName"`
 	TrustAnchorArn        string `json:"trustAnchorArn" mapstructure:"trustAnchorArn"`
 	TrustProfileArn       string `json:"trustProfileArn" mapstructure:"trustProfileArn"`
+	// WebIdentityAudience, set together with AssumeRoleArn, assumes the role
+	// with a JWT SVID minted by the Dapr runtime for this audience.
+	WebIdentityAudience string `json:"webIdentityAudience" mapstructure:"webIdentityAudience"`
 
 	Endpoint string `json:"endpoint" mapstructure:"endpoint"`
 }
@@ -60,6 +64,9 @@ func NewCredentialProvider(ctx context.Context, opts Options, configOpts []func(
 	// TODO: Refactor this to search the opts structure for the right fields rather than the metadata map
 	if isX509Auth(opts.Properties) {
 		return newAuthX509(ctx, opts)
+	}
+	if opts.AssumeRoleArn != "" && opts.WebIdentityAudience != "" {
+		return newAuthWebIdentity(ctx, opts, configOpts)
 	}
 	return newAuthStatic(ctx, opts, configOpts)
 }

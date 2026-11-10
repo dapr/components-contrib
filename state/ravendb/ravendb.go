@@ -17,10 +17,8 @@ package ravendb
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -198,7 +196,7 @@ func (r *RavenDB) Set(ctx context.Context, req *state.SetRequest) error {
 	defer session.Close()
 	err = r.setInternal(ctx, req, session)
 	if err != nil {
-		return fmt.Errorf("error processing item %s", err)
+		return fmt.Errorf("error processing item %w", err)
 	}
 
 	err = session.SaveChanges()
@@ -222,17 +220,39 @@ func (r *RavenDB) Ping(ctx context.Context) error {
 }
 
 func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRequest) error {
+	// Parsed before collapsing so a dropped set's invalid TTL still fails the transaction.
+	for _, op := range request.Operations {
+		if req, ok := op.(state.SetRequest); ok {
+			if _, err := stateutils.ParseTTL(req.Metadata); err != nil {
+				return fmt.Errorf("failed to parse TTL: %w", err)
+			}
+		}
+	}
+
+	// The session rejects a second op on one document with an untyped error.
+	ops, err := stateutils.CollapseOps(request.Operations)
+	if err != nil {
+		return err
+	}
+
 	session, err := r.documentStore.OpenSession(r.metadata.DatabaseName)
 	if err != nil {
 		return fmt.Errorf("opening session while sending transaction failed with error %s", err)
 	}
 	defer session.Close()
-	for _, o := range request.Operations {
-		switch req := o.(type) {
+	for _, o := range ops {
+		switch req := o.Op.(type) {
 		case state.SetRequest:
+			req.ETag, req.Options.Concurrency = guardOf(o.Guard)
 			err = r.setInternal(ctx, &req, session)
 		case state.DeleteRequest:
-			err = r.deleteInternal(ctx, &req, session, true)
+			var concurrency string
+			req.ETag, concurrency = guardOf(o.Guard)
+			if !req.HasETag() && concurrency == state.FirstWrite {
+				_, err = r.checkMissing(session, req.Key)
+			} else {
+				err = r.deleteInternal(ctx, &req, session, true)
+			}
 		}
 
 		if err != nil {
@@ -249,6 +269,40 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	}
 
 	return nil
+}
+
+func guardOf(op state.TransactionalStateOperation) (*string, string) {
+	switch req := op.(type) {
+	case state.SetRequest:
+		return req.ETag, req.Options.Concurrency
+	case state.DeleteRequest:
+		return req.ETag, ""
+	}
+	return nil, ""
+}
+
+// checkMissing returns the change vector of an expired document, so a store can replace exactly that version.
+func (r *RavenDB) checkMissing(session *ravendb.DocumentSession, key string) (string, error) {
+	var existing *Item
+	if err := session.Load(&existing, key); err != nil {
+		return "", fmt.Errorf("error loading data: %w", err)
+	}
+	if existing == nil {
+		return "", nil
+	}
+	meta, err := session.Advanced().GetMetadataFor(existing)
+	if err != nil {
+		return "", fmt.Errorf("error loading metadata: %w", err)
+	}
+	if expiry, ok := expiryFromMetadata(meta); ok && isExpired(expiry) {
+		cv, err := session.Advanced().GetChangeVectorFor(existing)
+		if err != nil {
+			return "", fmt.Errorf("error loading change vector: %w", err)
+		}
+		// Evicted so a store of the key replaces it whole, the client can't drop @expires from a loaded document.
+		return *cv, session.Advanced().Evict(existing)
+	}
+	return "", state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
 }
 
 func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
@@ -370,56 +424,35 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 		Value: data,
 	}
 
-	// Entity tracked by the session. The first-write path stores the document it
-	// loaded rather than item, and metadata can only be set on a tracked entity.
-	stored := any(item)
-
-	if req.Options.Concurrency == state.FirstWrite {
-		// First write wins, we send empty change vector to check if exists
-
-		// current version of the go ravendb SDK doesn't let us check concurrency violation on items that are not in the database.
-		// we need to try to load, and do regullar save if item is not in DB (real first save)
-		// if we have item in DB we can try to override it with concurency check
-		var newItem *Item
-		err = session.Load(&newItem, req.Key)
-		if newItem == nil {
-			err = session.Store(item)
+	switch {
+	case req.HasETag():
+		// The server also rejects a missing document.
+		err = session.StoreWithChangeVectorAndID(item, *req.ETag, req.Key)
+		if err != nil {
+			return fmt.Errorf("error storing data: %w", err)
+		}
+	case req.Options.Concurrency == state.FirstWrite:
+		var cv string
+		cv, err = r.checkMissing(session, req.Key)
+		if err != nil {
+			return err
+		}
+		if cv != "" {
+			err = session.StoreWithChangeVectorAndID(item, cv, req.Key)
 		} else {
-			var eTag string
-			if req.HasETag() {
-				eTag = *req.ETag
-			} else {
-				eTag = RandStringRunes(5)
-			}
-
-			if newItem.Value == item.Value {
-				return fmt.Errorf("error storing data: %s", err)
-			}
-			newItem.Value = item.Value
-			err = session.StoreWithChangeVectorAndID(newItem, eTag, req.Key)
-			stored = newItem
+			err = session.Store(item)
 		}
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
 		}
-	} else {
-		// Last write wins
-		if req.HasETag() {
-			eTag := *req.ETag
-			err = session.StoreWithChangeVectorAndID(item, eTag, req.Key)
-			if err != nil {
-				return state.NewETagError(state.ETagMismatch, err)
-			}
-		} else {
-			err = session.Store(item)
-		}
-
+	default:
+		err = session.Store(item)
 		if err != nil {
 			return fmt.Errorf("error storing data: %s", err)
 		}
 	}
 
-	return r.applyTTL(session, stored, req.Metadata)
+	return r.applyTTL(session, item, req.Metadata)
 }
 
 // applyTTL records the expiration of a stored entity, or clears it when the
@@ -453,7 +486,7 @@ func (r *RavenDB) applyTTL(session *ravendb.DocumentSession, entity any, reqMeta
 
 func (r *RavenDB) deleteInternal(ctx context.Context, req *state.DeleteRequest, session *ravendb.DocumentSession, fromTransaction bool) error {
 	var err error
-	if fromTransaction {
+	if fromTransaction && !req.HasETag() {
 		var itemToDelete *Item
 		err = session.Load(&itemToDelete, req.Key)
 		if err == nil && itemToDelete != nil {
@@ -573,19 +606,4 @@ func getRavenDBMetaData(meta state.Metadata) (RavenDBMetadata, error) {
 	}
 
 	return m, nil
-}
-
-func RandStringRunes(n int) string {
-	// Create a byte slice to hold the random bytes
-	bytes := make([]byte, n)
-
-	// Fill the byte slice with random bytes
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return ""
-	}
-
-	// Encode the random bytes to a base64 string
-	// This will make it printable/usable as a string
-	return base64.URLEncoding.EncodeToString(bytes)[:n]
 }

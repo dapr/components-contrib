@@ -649,17 +649,55 @@ func (r *rabbitMQ) validateBindingRoutingKeys(topic, queueName string, routingKe
 	return nil
 }
 
-func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName string) (rabbitMQChannelBroker, int, *amqp.Queue, error) {
+// ensureSubscription declares the subscription's topology and registers its
+// consumer in one critical section. Every subscription and publisher of this
+// component shares one channel, and amqp091-go pairs a synchronous method with
+// whichever reply reaches the channel next, so a basic.consume issued while
+// another subscription is declaring its queue can take that subscription's
+// reply and both fail with "unexpected command received" (#4724). step names
+// the call that failed.
+func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName, consumerTag string) (channel rabbitMQChannelBroker, connectionCount int, msgs <-chan amqp.Delivery, step string, err error) {
 	r.channelMutex.Lock()
 	defer r.channelMutex.Unlock()
 
 	if r.channel == nil {
-		return nil, r.connectionCount, nil, errors.New(errorChannelNotInitialized)
+		return nil, r.connectionCount, nil, "ensureSubscription", errors.New(errorChannelNotInitialized)
 	}
 
 	q, err := r.prepareSubscription(r.channel, req, queueName)
+	if err != nil {
+		return r.channel, r.connectionCount, nil, "ensureSubscription", err
+	}
 
-	return r.channel, r.connectionCount, q, err
+	msgs, err = r.channel.Consume(
+		q.Name,
+		consumerTag,        // unique consumerID per subscription attempt
+		r.metadata.AutoAck, // autoAck
+		false,              // exclusive
+		false,              // noLocal
+		false,              // noWait
+		nil,
+	)
+	if err != nil {
+		// The broker can accept the registration even when Consume reports an
+		// error, so do not leave a registration that did land behind holding
+		// its prefetch allowance.
+		r.cancelConsumer(r.channel, consumerTag)
+		return r.channel, r.connectionCount, nil, "channel.Consume", err
+	}
+
+	r.logger.Debugf("%s registered consumer %s for queue %s", logMessagePrefix, consumerTag, q.Name)
+
+	return r.channel, r.connectionCount, msgs, "", nil
+}
+
+// cancelConsumer cancels with noWait=true: that sends basic.cancel without
+// waiting for a reply, so it cannot take another command's reply and needs no
+// channelMutex, and it does not block if the channel is closing.
+func (r *rabbitMQ) cancelConsumer(channel rabbitMQChannelBroker, consumerTag string) {
+	if err := channel.Cancel(consumerTag, true); err != nil {
+		r.logger.Debugf("%s failed to cancel consumer %s: %v", logMessagePrefix, consumerTag, err)
+	}
 }
 
 func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeRequest, queueName string, handler pubsub.Handler, ackCh chan error) {
@@ -669,16 +707,9 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			errFuncName     string
 			connectionCount int
 			channel         rabbitMQChannelBroker
-			q               *amqp.Queue
 			msgs            <-chan amqp.Delivery
 		)
 		for {
-			channel, connectionCount, q, err = r.ensureSubscription(req, queueName)
-			if err != nil {
-				errFuncName = "ensureSubscription"
-				break
-			}
-
 			// Generate a unique consumer tag to avoid "attempt to reuse consumer tag"
 			// errors when re-subscribing, which would cause a connection-level exception
 			// and disrupt all other subscriptions sharing this channel.
@@ -689,33 +720,10 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			if len(consumerTag) > maxConsumerTagLen {
 				consumerTag = consumerTag[len(consumerTag)-maxConsumerTagLen:]
 			}
-			msgs, err = channel.Consume(
-				q.Name,
-				consumerTag,        // unique consumerID per subscription attempt
-				r.metadata.AutoAck, // autoAck
-				false,              // exclusive
-				false,              // noLocal
-				false,              // noWait
-				nil,
-			)
-			// The broker can accept the registration even when Consume reports an
-			// error, because the channel is shared and the exception may belong to
-			// another command on it. Cancel on every exit path from here on, so a
-			// registration that did land is not left behind holding its prefetch
-			// allowance. noWait=true avoids blocking if the channel is closing.
-			cancelConsumer := func() {
-				if cancelErr := channel.Cancel(consumerTag, true); cancelErr != nil {
-					r.logger.Debugf("%s failed to cancel consumer %s: %v", logMessagePrefix, consumerTag, cancelErr)
-				}
-			}
-
+			channel, connectionCount, msgs, errFuncName, err = r.ensureSubscription(req, queueName, consumerTag)
 			if err != nil {
-				cancelConsumer()
-				errFuncName = "channel.Consume"
 				break
 			}
-
-			r.logger.Debugf("%s registered consumer %s for queue %s", logMessagePrefix, consumerTag, q.Name)
 
 			// one-time notification on successful subscribe
 			if ackCh != nil {
@@ -724,7 +732,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 			}
 
 			err = r.listenMessages(ctx, channel, msgs, req.Topic, handler)
-			cancelConsumer()
+			r.cancelConsumer(channel, consumerTag)
 			if err != nil {
 				errFuncName = "listenMessages"
 				break
@@ -951,16 +959,23 @@ func (r *rabbitMQ) isStopped() bool {
 
 // Close closes the rabbitMQ connection. Blocks until all go routines are done.
 func (r *rabbitMQ) Close() error {
-	r.channelMutex.Lock()
-	defer r.channelMutex.Unlock()
-
+	// Mark the component stopped before taking channelMutex, and wait for the
+	// subscribers only after releasing it: a subscriber can be on its way into
+	// reconnect or ensureSubscription, both of which take channelMutex, and
+	// would otherwise wait forever for a lock Close holds while it waits for
+	// them. Once the channel is reset they find it nil, or reconnect finds the
+	// component stopped, and exit.
 	if r.closed.CompareAndSwap(false, true) {
 		close(r.closeCh)
 	}
 
-	defer r.wg.Wait()
+	r.channelMutex.Lock()
+	err := r.reset()
+	r.channelMutex.Unlock()
 
-	return r.reset()
+	r.wg.Wait()
+
+	return err
 }
 
 func (r *rabbitMQ) Features() []pubsub.Feature {

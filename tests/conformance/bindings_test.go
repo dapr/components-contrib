@@ -31,6 +31,7 @@ import (
 	b_azure_servicebusqueues "github.com/dapr/components-contrib/bindings/azure/servicebusqueues"
 	b_azure_storagequeues "github.com/dapr/components-contrib/bindings/azure/storagequeues"
 	b_cron "github.com/dapr/components-contrib/bindings/cron"
+	b_ftp "github.com/dapr/components-contrib/bindings/ftp"
 	b_http "github.com/dapr/components-contrib/bindings/http"
 	b_influx "github.com/dapr/components-contrib/bindings/influx"
 	b_kafka "github.com/dapr/components-contrib/bindings/kafka"
@@ -94,6 +95,8 @@ func loadOutputBindings(name string) bindings.OutputBinding {
 		return b_azure_cosmosdb.NewCosmosDB(testLogger)
 	case "kafka":
 		return b_kafka.NewKafka(testLogger)
+	case "ftp":
+		return b_ftp.NewFtp(testLogger)
 	case "http":
 		return b_http.NewHTTP(testLogger)
 	case "influx":

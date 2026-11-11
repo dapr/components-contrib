@@ -30,7 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/riferrei/srclient"
@@ -355,24 +354,7 @@ func TestKafka(t *testing.T) {
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			config := sarama.NewConfig()
-			config.ClientID = "test-consumer"
-			config.Consumer.Return.Errors = true
-
-			// Create new consumer
-			client, err := sarama.NewConsumer(brokers, config)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			// Ensure the brokers are ready by attempting to consume
-			// a topic partition.
-			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
-
-			return err
-		})).
+		Step("wait for kafka readiness", waitForKafkaReadiness(brokers, "test-consumer")).
 		Step("wait", flow.Sleep(5*time.Second)).
 		Step("Publish Avro schema", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
 			srClient := srclient.CreateSchemaRegistryClient(schemaRegistryURL)

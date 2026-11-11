@@ -49,6 +49,7 @@ type rabbitmqMetadata struct {
 	ExchangeKind                       string                 `mapstructure:"exchangeKind"`
 	ExchangeDeclareMode                string                 `mapstructure:"exchangeDeclareMode"`
 	QueueDeclareMode                   string                 `mapstructure:"queueDeclareMode"`
+	QueueType                          string                 `mapstructure:"queueType"`
 	ClientName                         string                 `mapstructure:"clientName"`
 	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
@@ -131,6 +132,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		ExchangeKind:                       fanoutExchangeKind,
 		ExchangeDeclareMode:                exchangeDeclareModeDeclare,
 		QueueDeclareMode:                   queueDeclareModeDeclare,
+		QueueType:                          amqp.QueueTypeClassic,
 		PublisherConfirm:                   false,
 		SaslExternal:                       false,
 		HeartBeat:                          defaultHeartbeat,
@@ -181,6 +183,21 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 
 	if err := validateExchangeKind(result.ExchangeKind, result.ExchangeDeclareMode); err != nil {
 		return &result, err
+	}
+
+	result.QueueType = strings.ToLower(result.QueueType)
+	if !queueTypeValid(result.QueueType) {
+		return &result, fmt.Errorf("%s invalid RabbitMQ queue type %s, accepted values are %s and %s", errorMessagePrefix, result.QueueType, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
+	}
+
+	if result.QueueType == amqp.QueueTypeQuorum && !result.isPassiveQueueDeclare() {
+		// quorum queues must be durable and cannot be auto-deleted
+		if !result.Durable {
+			return &result, fmt.Errorf("%s quorum queues require %s to be true", errorMessagePrefix, metadataDurableKey)
+		}
+		if result.DeleteWhenUnused {
+			return &result, fmt.Errorf("%s quorum queues require %s to be false", errorMessagePrefix, metadataDeleteWhenUnusedKey)
+		}
 	}
 
 	ttl, ok, err := metadata.TryGetTTL(pubSubMetadata.Properties)

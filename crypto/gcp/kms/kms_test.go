@@ -1,0 +1,504 @@
+/*
+Copyright 2026 The Dapr Authors
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package kms
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
+	"testing"
+	"time"
+
+	"cloud.google.com/go/kms/apiv1/kmspb"
+	"github.com/googleapis/gax-go/v2"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	contribCrypto "github.com/dapr/components-contrib/crypto"
+	contribMetadata "github.com/dapr/components-contrib/metadata"
+	internals "github.com/dapr/kit/crypto"
+	"github.com/dapr/kit/logger"
+)
+
+const (
+	testKeyPath        = "projects/myproject/locations/global/keyRings/myring/cryptoKeys/mykey"
+	testKeyVersionPath = testKeyPath + "/cryptoKeyVersions/1"
+)
+
+// Cloud KMS client double, recording the last request of each kind.
+type fakeClient struct {
+	publicKeyPEM       string
+	publicKeyAlgorithm kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm
+	publicKeys         map[string]*kmspb.PublicKey
+	publicKeyCalls     int
+	encryptRequest     *kmspb.EncryptRequest
+	decryptRequest     *kmspb.DecryptRequest
+	asymDecryptReq     *kmspb.AsymmetricDecryptRequest
+	asymSignRequest    *kmspb.AsymmetricSignRequest
+	returnedSignature  []byte
+	err                error
+}
+
+func (f *fakeClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyRequest, _ ...gax.CallOption) (*kmspb.PublicKey, error) {
+	f.publicKeyCalls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.publicKeys != nil {
+		if key, ok := f.publicKeys[req.GetName()]; ok {
+			return key, nil
+		}
+		return nil, errors.New("unexpected key version")
+	}
+	return &kmspb.PublicKey{Name: req.GetName(), Pem: f.publicKeyPEM, Algorithm: f.publicKeyAlgorithm}, nil
+}
+
+func (f *fakeClient) Encrypt(_ context.Context, req *kmspb.EncryptRequest, _ ...gax.CallOption) (*kmspb.EncryptResponse, error) {
+	f.encryptRequest = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &kmspb.EncryptResponse{Ciphertext: append([]byte("enc:"), req.GetPlaintext()...)}, nil
+}
+
+func (f *fakeClient) Decrypt(_ context.Context, req *kmspb.DecryptRequest, _ ...gax.CallOption) (*kmspb.DecryptResponse, error) {
+	f.decryptRequest = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &kmspb.DecryptResponse{Plaintext: req.GetCiphertext()[len("enc:"):]}, nil
+}
+
+func (f *fakeClient) AsymmetricDecrypt(_ context.Context, req *kmspb.AsymmetricDecryptRequest, _ ...gax.CallOption) (*kmspb.AsymmetricDecryptResponse, error) {
+	f.asymDecryptReq = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &kmspb.AsymmetricDecryptResponse{Plaintext: []byte("decrypted")}, nil
+}
+
+func (f *fakeClient) AsymmetricSign(_ context.Context, req *kmspb.AsymmetricSignRequest, _ ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
+	f.asymSignRequest = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &kmspb.AsymmetricSignResponse{Signature: f.returnedSignature}, nil
+}
+
+func (f *fakeClient) Close() error { return nil }
+
+func newTestComponent(client kmsClient) *kmsCrypto {
+	k := &kmsCrypto{
+		logger: logger.NewLogger("test"),
+		client: client,
+		md: kmsMetadata{
+			ProjectID:      "myproject",
+			Location:       "global",
+			KeyRing:        "myring",
+			RequestTimeout: 10 * time.Second,
+		},
+	}
+	k.keyCache = contribCrypto.NewPubKeyCache(k.getKeyCacheFn)
+	return k
+}
+
+func publicKeyPEM(t *testing.T, pub any) string {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	require.NoError(t, err)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+}
+
+func TestMetadata(t *testing.T) {
+	newMetadata := func(props map[string]string) contribCrypto.Metadata {
+		return contribCrypto.Metadata{Base: contribMetadata.Base{Properties: props}}
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		md := &kmsMetadata{}
+		require.NoError(t, md.InitWithMetadata(newMetadata(map[string]string{
+			"projectID": "myproject",
+			"location":  "us-east1",
+			"keyRing":   "myring",
+		})))
+		assert.Equal(t, "myproject", md.ProjectID)
+		assert.Equal(t, defaultRequestTimeout, md.RequestTimeout)
+	})
+
+	t.Run("project ID from the service account alias", func(t *testing.T) {
+		md := &kmsMetadata{}
+		require.NoError(t, md.InitWithMetadata(newMetadata(map[string]string{
+			"project_id":     "myproject",
+			"location":       "global",
+			"keyRing":        "myring",
+			"requestTimeout": "5s",
+		})))
+		assert.Equal(t, "myproject", md.ProjectID)
+		assert.Equal(t, 5*time.Second, md.RequestTimeout)
+	})
+
+	t.Run("missing required properties", func(t *testing.T) {
+		for _, missing := range []string{"projectID", "location", "keyRing"} {
+			props := map[string]string{"projectID": "myproject", "location": "global", "keyRing": "myring"}
+			delete(props, missing)
+
+			md := &kmsMetadata{}
+			err := md.InitWithMetadata(newMetadata(props))
+			require.Error(t, err)
+			require.ErrorContains(t, err, missing)
+		}
+	})
+}
+
+func TestKeyID(t *testing.T) {
+	md := kmsMetadata{ProjectID: "myproject", Location: "global", KeyRing: "myring"}
+
+	require.NoError(t, newKeyID("mykey").validate(false))
+	require.NoError(t, newKeyID("mykey/1").validate(true))
+	for _, invalid := range []string{"", "/1", "mykey/", "mykey/1/extra"} {
+		require.Error(t, newKeyID(invalid).validate(false), invalid)
+	}
+
+	assert.Equal(t, testKeyPath, md.cryptoKeyPath(newKeyID("mykey")))
+	assert.False(t, newKeyID("mykey").Cacheable())
+
+	versionPath, err := md.cryptoKeyVersionPath(newKeyID("mykey/1"))
+	require.NoError(t, err)
+	assert.Equal(t, testKeyVersionPath, versionPath)
+	assert.True(t, newKeyID("mykey/1").Cacheable())
+
+	_, err = md.cryptoKeyVersionPath(newKeyID("mykey"))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "does not include a version")
+}
+
+func TestGetKey(t *testing.T) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	client := &fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256}
+	k := newTestComponent(client)
+
+	pubKey, err := k.GetKey(t.Context(), "mykey/1")
+	require.NoError(t, err)
+	assert.Equal(t, jwa.EC, pubKey.KeyType())
+	assert.Equal(t, internals.Algorithm_ES256, pubKey.Algorithm().String())
+
+	// Keys pinned to a version are immutable, so they are only fetched once
+	_, err = k.GetKey(t.Context(), "mykey/1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, client.publicKeyCalls)
+
+	// Asymmetric operations need a key version
+	_, err = k.GetKey(t.Context(), "mykey")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "does not include a version")
+
+	_, err = k.GetKey(t.Context(), "mykey/1/extra")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "expected 'name' or 'name/version'")
+
+	t.Run("errors from Cloud KMS are returned", func(t *testing.T) {
+		failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+		_, err := failing.GetKey(t.Context(), "mykey/1")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "permission denied")
+	})
+
+	t.Run("empty public keys are rejected", func(t *testing.T) {
+		empty := newTestComponent(&fakeClient{})
+		_, err := empty.GetKey(t.Context(), "mykey/1")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "does not contain a public key")
+	})
+
+	t.Run("malformed public keys are rejected", func(t *testing.T) {
+		malformed := newTestComponent(&fakeClient{publicKeyPEM: "not a PEM key"})
+		_, err := malformed.GetKey(t.Context(), "mykey/1")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "failed to parse")
+	})
+}
+
+func TestSymmetricEncryptDecrypt(t *testing.T) {
+	client := &fakeClient{}
+	k := newTestComponent(client)
+
+	ciphertext, tag, err := k.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey", nil, []byte("aad"))
+	require.NoError(t, err)
+	assert.Nil(t, tag, "Cloud KMS includes the authentication tag in the ciphertext")
+	// Unversioned symmetric encryption selects the primary version
+	assert.Equal(t, testKeyPath, client.encryptRequest.GetName())
+	assert.Equal(t, []byte("aad"), client.encryptRequest.GetAdditionalAuthenticatedData())
+
+	plaintext, err := k.Decrypt(t.Context(), ciphertext, AlgorithmSymmetric, "mykey", nil, nil, []byte("aad"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), plaintext)
+	assert.Equal(t, testKeyPath, client.decryptRequest.GetName())
+
+	// The key version is embedded in the ciphertext, so a version in the key name is not used
+	_, err = k.Decrypt(t.Context(), ciphertext, AlgorithmSymmetric, "mykey/1", nil, nil, []byte("aad"))
+	require.NoError(t, err)
+	assert.Equal(t, testKeyPath, client.decryptRequest.GetName())
+
+	// Cloud KMS generates the nonce itself, so accepting one would be misleading
+	_, _, err = k.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey", []byte("nonce"), nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "nonce is not supported")
+
+	_, _, err = k.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey/", nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "expected 'name' or 'name/version'")
+
+	failing := newTestComponent(&fakeClient{err: errors.New("invalid ciphertext")})
+	_, _, err = failing.Encrypt(t.Context(), []byte("hello"), AlgorithmSymmetric, "mykey", nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid ciphertext")
+	_, err = failing.Decrypt(t.Context(), []byte("ciphertext"), AlgorithmSymmetric, "mykey", nil, nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid ciphertext")
+}
+
+func TestAsymmetricEncryptDecrypt(t *testing.T) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	client := &fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_2048_SHA256}
+	k := newTestComponent(client)
+
+	// Encryption happens locally, with the public key retrieved from Cloud KMS
+	ciphertext, tag, err := k.Encrypt(t.Context(), []byte("hello"), internals.Algorithm_RSA_OAEP_256, "mykey/1", nil, nil)
+	require.NoError(t, err)
+	assert.Nil(t, tag)
+	assert.Nil(t, client.encryptRequest, "asymmetric encryption must not call the Cloud KMS encrypt API")
+
+	decrypted, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privKey, ciphertext, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), decrypted)
+
+	// Decryption happens in Cloud KMS, addressing a specific key version
+	plaintext, err := k.Decrypt(t.Context(), ciphertext, internals.Algorithm_RSA_OAEP_256, "mykey/1", nil, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("decrypted"), plaintext)
+	assert.Equal(t, testKeyVersionPath, client.asymDecryptReq.GetName())
+
+	// Cloud KMS does not accept an OAEP label, so data encrypted with one could never be decrypted
+	_, _, err = k.Encrypt(t.Context(), []byte("hello"), internals.Algorithm_RSA_OAEP_256, "mykey/1", nil, []byte("aad"))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "associated data is not supported")
+
+	_, err = k.Decrypt(t.Context(), ciphertext, internals.Algorithm_RSA_OAEP_256, "mykey", nil, nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "does not include a version")
+
+	failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+	_, err = failing.Decrypt(t.Context(), ciphertext, internals.Algorithm_RSA_OAEP_256, "mykey/1", nil, nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "permission denied")
+}
+
+func TestUnsupportedAlgorithm(t *testing.T) {
+	k := newTestComponent(&fakeClient{})
+
+	_, _, err := k.Encrypt(t.Context(), []byte("hello"), "A256GCM", "mykey", nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid algorithm")
+
+	_, err = k.Decrypt(t.Context(), []byte("hello"), "A256GCM", "mykey", nil, nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid algorithm")
+
+	_, err = k.Sign(t.Context(), make([]byte, 32), "HS256", "mykey/1")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid algorithm")
+}
+
+func TestWrapUnwrapKey(t *testing.T) {
+	client := &fakeClient{}
+	k := newTestComponent(client)
+
+	rawKey := []byte("0123456789abcdef0123456789abcdef")
+	symmetricKey, err := jwk.FromRaw(rawKey)
+	require.NoError(t, err)
+
+	wrapped, tag, err := k.WrapKey(t.Context(), symmetricKey, AlgorithmSymmetric, "mykey", nil, nil)
+	require.NoError(t, err)
+	assert.Nil(t, tag)
+	assert.Equal(t, rawKey, client.encryptRequest.GetPlaintext())
+
+	unwrapped, err := k.UnwrapKey(t.Context(), wrapped, AlgorithmSymmetric, "mykey", nil, nil, nil)
+	require.NoError(t, err)
+	unwrappedRaw := []byte{}
+	require.NoError(t, unwrapped.Raw(&unwrappedRaw))
+	assert.Equal(t, rawKey, unwrappedRaw)
+
+	// Asymmetric keys cannot be reconstructed unambiguously after unwrapping
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	asymmetricKey, err := jwk.FromRaw(privKey)
+	require.NoError(t, err)
+	_, _, err = k.WrapKey(t.Context(), asymmetricKey, AlgorithmSymmetric, "mykey", nil, nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cannot wrap asymmetric keys")
+}
+
+func TestSign(t *testing.T) {
+	ec256, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ec384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	rsa4096, err := rsa.GenerateKey(rand.Reader, 4096)
+	require.NoError(t, err)
+	edPublic, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	client := &fakeClient{returnedSignature: []byte("signature"), publicKeys: map[string]*kmspb.PublicKey{}}
+	k := newTestComponent(client)
+	for _, key := range []struct {
+		name      string
+		public    any
+		algorithm kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm
+	}{
+		{"mykey/1", ec256.Public(), kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+		{"ec384/1", ec384.Public(), kmspb.CryptoKeyVersion_EC_SIGN_P384_SHA384},
+		{"ps512/1", rsa4096.Public(), kmspb.CryptoKeyVersion_RSA_SIGN_PSS_4096_SHA512},
+		{"ed25519/1", edPublic, kmspb.CryptoKeyVersion_EC_SIGN_ED25519},
+	} {
+		name, pathErr := k.md.cryptoKeyVersionPath(newKeyID(key.name))
+		require.NoError(t, pathErr)
+		client.publicKeys[name] = &kmspb.PublicKey{Name: name, Pem: publicKeyPEM(t, key.public), Algorithm: key.algorithm}
+	}
+
+	t.Run("digest is sent in the field matching the algorithm", func(t *testing.T) {
+		digest := make([]byte, 32)
+		signature, err := k.Sign(t.Context(), digest, internals.Algorithm_ES256, "mykey/1")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("signature"), signature)
+		assert.Equal(t, testKeyVersionPath, client.asymSignRequest.GetName())
+		assert.Equal(t, digest, client.asymSignRequest.GetDigest().GetSha256())
+
+		_, err = k.Sign(t.Context(), make([]byte, 48), internals.Algorithm_ES384, "ec384/1")
+		require.NoError(t, err)
+		assert.Len(t, client.asymSignRequest.GetDigest().GetSha384(), 48)
+
+		_, err = k.Sign(t.Context(), make([]byte, 64), internals.Algorithm_PS512, "ps512/1")
+		require.NoError(t, err)
+		assert.Len(t, client.asymSignRequest.GetDigest().GetSha512(), 64)
+	})
+
+	t.Run("Ed25519 signs the message rather than a digest", func(t *testing.T) {
+		_, err := k.Sign(t.Context(), []byte("a message of any length"), internals.Algorithm_EdDSA, "ed25519/1")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("a message of any length"), client.asymSignRequest.GetData())
+		assert.Nil(t, client.asymSignRequest.GetDigest())
+	})
+
+	t.Run("digest length is validated", func(t *testing.T) {
+		_, err := k.Sign(t.Context(), make([]byte, 20), internals.Algorithm_ES256, "mykey/1")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be 32 bytes long")
+	})
+
+	t.Run("key version is required", func(t *testing.T) {
+		_, err := k.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "does not include a version")
+
+		_, err = k.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1/extra")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "expected 'name' or 'name/version'")
+	})
+
+	t.Run("errors from Cloud KMS are returned", func(t *testing.T) {
+		failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+		_, err := failing.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "permission denied")
+	})
+
+	t.Run("empty signatures are rejected", func(t *testing.T) {
+		empty := newTestComponent(&fakeClient{publicKeyPEM: publicKeyPEM(t, ec256.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256})
+		_, err := empty.Sign(t.Context(), make([]byte, 32), internals.Algorithm_ES256, "mykey/1")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "does not contain a signature")
+	})
+}
+
+func TestVerify(t *testing.T) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	k := newTestComponent(&fakeClient{publicKeyPEM: publicKeyPEM(t, privKey.Public()), publicKeyAlgorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256})
+
+	digest := sha256.Sum256([]byte("hello"))
+	signature, err := ecdsa.SignASN1(rand.Reader, privKey, digest[:])
+	require.NoError(t, err)
+
+	valid, err := k.Verify(t.Context(), digest[:], signature, internals.Algorithm_ES256, "mykey/1")
+	require.NoError(t, err)
+	assert.True(t, valid)
+
+	otherDigest := sha256.Sum256([]byte("tampered"))
+	valid, err = k.Verify(t.Context(), otherDigest[:], signature, internals.Algorithm_ES256, "mykey/1")
+	require.NoError(t, err)
+	assert.False(t, valid)
+
+	_, err = k.Verify(t.Context(), digest[:], signature, "HS256", "mykey/1")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to verify signature")
+
+	failing := newTestComponent(&fakeClient{err: errors.New("permission denied")})
+	_, err = failing.Verify(t.Context(), digest[:], signature, internals.Algorithm_ES256, "mykey/1")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to retrieve public key")
+}
+
+func TestSupportedAlgorithms(t *testing.T) {
+	k := newTestComponent(&fakeClient{})
+	assert.Contains(t, k.SupportedEncryptionAlgorithms(), AlgorithmSymmetric)
+	assert.Contains(t, k.SupportedSignatureAlgorithms(), internals.Algorithm_ES256)
+
+	// Every advertised signature algorithm must produce a valid request
+	for _, algorithm := range k.SupportedSignatureAlgorithms() {
+		digest := make([]byte, 64)
+		switch algorithm {
+		case internals.Algorithm_ES384:
+			digest = make([]byte, 48)
+		case internals.Algorithm_ES256, internals.Algorithm_RS256, internals.Algorithm_PS256:
+			digest = make([]byte, 32)
+		}
+		_, err := signRequestDigest(digest, algorithm)
+		require.NoErrorf(t, err, "algorithm %s", algorithm)
+	}
+}
+
+func TestInitRejectsUnexpectedCredentialType(t *testing.T) {
+	newMetadata := func(props map[string]string) contribCrypto.Metadata {
+		return contribCrypto.Metadata{Base: contribMetadata.Base{Properties: props}}
+	}
+	k := NewGCPKMSCrypto(logger.NewLogger("test"))
+	err := k.Init(t.Context(), newMetadata(map[string]string{
+		"type":         "authorized_user",
+		"projectID":    "test-project",
+		"location":     "global",
+		"keyRing":      "test-ring",
+		"privateKeyID": "test-key",
+	}))
+	require.ErrorContains(t, err, "explicit credentials must use type service_account")
+}

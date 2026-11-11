@@ -468,8 +468,9 @@ func buildRegexForTopic(topicName string) string {
 			if topicName[i] == '#' && okPos {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
-					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					sb.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + "(.*)")
+					// Edge case: we're at the end of the string so we can allow omitting the preceding /,
+					// but the rest of the topic must still begin at a level boundary
+					sb.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + `((\/.*)?)`)
 				} else {
 					sb.WriteString(regexp.QuoteMeta(topicName[start:i]) + "(.*)")
 				}
@@ -477,8 +478,9 @@ func buildRegexForTopic(topicName string) string {
 			} else if topicName[i] == '+' && okPos {
 				lastPos = i
 				if i > 0 && i == (len(topicName)-1) {
-					// Edge case: we're at the end of the string so we can allow omitting the preceding /
-					sb.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + `((\/|)[^\/]*)`)
+					// Edge case: we're at the end of the string so we can allow omitting the preceding /,
+					// but the rest of the topic must still begin at a level boundary
+					sb.WriteString(regexp.QuoteMeta(topicName[start:(i-1)]) + `((\/[^\/]*)?)`)
 				} else {
 					sb.WriteString(regexp.QuoteMeta(topicName[start:i]) + `([^\/]*)`)
 				}

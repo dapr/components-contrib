@@ -463,9 +463,11 @@ func Test_buildRegexForTopic(t *testing.T) {
 		{
 			name:  "foo/#",
 			args:  args{topicName: "foo/#"},
-			regex: "^foo(.*)$",
+			regex: `^foo((\/.*)?)$`,
 			tryMatches: map[string]bool{
 				"helloworld":      false,
+				"foobar":          false,
+				"foobar/baz":      false,
 				"foo":             true,
 				"foo/":            true,
 				"foo/bar":         true,
@@ -496,9 +498,10 @@ func Test_buildRegexForTopic(t *testing.T) {
 		{
 			name:  "foo/+",
 			args:  args{topicName: "foo/+"},
-			regex: `^foo((\/|)[^\/]*)$`,
+			regex: `^foo((\/[^\/]*)?)$`,
 			tryMatches: map[string]bool{
 				"helloworld":      false,
+				"foobar":          false,
 				"foo":             true,
 				"foo/":            true,
 				"foo/bar":         true,
@@ -571,9 +574,10 @@ func Test_buildRegexForTopic(t *testing.T) {
 		{
 			name:  "foo/+/bar/+",
 			args:  args{topicName: "foo/+/bar/+"},
-			regex: `^foo/([^\/]*)/bar((\/|)[^\/]*)$`,
+			regex: `^foo/([^\/]*)/bar((\/[^\/]*)?)$`,
 			tryMatches: map[string]bool{
 				"helloworld":         false,
+				"foo/hi/barbaz":      false,
 				"foo/":               false,
 				"foo/bar":            false,
 				"foo/hi/bar":         true,
@@ -587,7 +591,7 @@ func Test_buildRegexForTopic(t *testing.T) {
 		{
 			name:  "foo/#/bar/+",
 			args:  args{topicName: "foo/#/bar/+"},
-			regex: `^foo/(.*)/bar((\/|)[^\/]*)$`,
+			regex: `^foo/(.*)/bar((\/[^\/]*)?)$`,
 			tryMatches: map[string]bool{
 				"helloworld":          false,
 				"foo/":                false,
@@ -621,6 +625,29 @@ func Test_buildRegexForTopic(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_handlerForTopic_trailingWildcard(t *testing.T) {
+	noop := func(ctx context.Context, msg *pubsub.NewMessage) error { return nil }
+
+	t.Run("trailing #", func(t *testing.T) {
+		m := &mqttPubSub{topics: map[string]mqttPubSubSubscription{}}
+		m.addTopic("foo/#", noop)
+
+		assert.NotNil(t, m.handlerForTopic("foo"))
+		assert.NotNil(t, m.handlerForTopic("foo/bar"))
+		assert.Nil(t, m.handlerForTopic("foobar"))
+		assert.Nil(t, m.handlerForTopic("foobar/baz"))
+	})
+
+	t.Run("trailing +", func(t *testing.T) {
+		m := &mqttPubSub{topics: map[string]mqttPubSubSubscription{}}
+		m.addTopic("foo/+", noop)
+
+		assert.NotNil(t, m.handlerForTopic("foo"))
+		assert.NotNil(t, m.handlerForTopic("foo/bar"))
+		assert.Nil(t, m.handlerForTopic("foobar"))
+	})
 }
 
 func Test_mqttPubSub_Publish(t *testing.T) {

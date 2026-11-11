@@ -71,6 +71,10 @@ services:
     image: confluentinc/cp-schema-registry:7.5.3
     hostname: schema-registry
     container_name: schema-registry
+    # At startup the image waits at most 40 seconds for a broker, and exits if
+    # Kafka is not ready. On a slow runner the brokers can take longer. Restart
+    # the container, so that it starts when the brokers are ready.
+    restart: on-failure
     environment:
       - SCHEMA_REGISTRY_HOST_NAME=schema-registry
       - SCHEMA_REGISTRY_LISTENERS=http://schema-registry:8081

@@ -49,6 +49,33 @@ Before you file an issue, make sure you've checked the following:
 
 This section describes the guidelines for contributing code / docs to Dapr.
 
+### Local Development Setup
+
+#### Prerequisites
+
+- **Go**: Install the Go version specified in [`go.mod`](go.mod) (with `CGO_ENABLED=0` used by default for builds and unit tests).
+- **Make**: Required for running standard test, lint, and module maintenance targets in the [`Makefile`](Makefile).
+- **golangci-lint**: Required for running local lint checks (`make lint`). Make sure your installed version matches `GOLANGCI_LINT_VER` in [`.github/workflows/components-contrib.yml`](.github/workflows/components-contrib.yml).
+- **Docker** *(optional)*: Only needed when running component certification or conformance tests against local service containers; standard unit tests do not require Docker.
+- **Windows contributors**: You can run `go test` and `golangci-lint.exe` natively on Windows, or use **WSL 2** / a Dev Container when executing `Makefile` targets that rely on POSIX shell utilities (`find`, `grep`, `xargs`).
+
+#### Common Commands
+
+```bash
+# Run unit tests for a specific component package (fastest workflow during development)
+CGO_ENABLED=0 go test -v -tags metadata ./state/in-memory/...
+
+# Run all unit tests across the repository
+make test
+
+# Run the linter (or compare only against a base branch)
+make lint
+make lint LINT_BASE=main
+
+# Tidy go.mod files if dependencies were changed
+make modtidy-all
+```
+
 ### Pull Requests
 
 All contributions come through pull requests. To submit a proposed change, we recommend following this workflow:

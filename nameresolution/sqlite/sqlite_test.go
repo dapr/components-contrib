@@ -14,9 +14,11 @@ limitations under the License.
 package sqlite
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/nameresolution"
@@ -149,4 +151,69 @@ func TestSqliteNameResolver(t *testing.T) {
 		err := nr.Close()
 		require.NoError(t, err)
 	})
+}
+
+func TestSqliteNameResolverCleanup(t *testing.T) {
+	nr := NewResolver(logger.NewLogger("test")).(*resolver)
+
+	// Use a file so this test does not share the process-wide in-memory database
+	err := nr.Init(t.Context(), nameresolution.Metadata{
+		Instance: nameresolution.Instance{
+			Address:          "127.0.0.1",
+			DaprInternalPort: 1234,
+			AppID:            "myapp",
+		},
+		Configuration: map[string]string{
+			"connectionString": filepath.Join(t.TempDir(), "nr.db"),
+			"cleanupInterval":  "1h",
+			"updateInterval":   "120s",
+		},
+	})
+	require.NoError(t, err)
+
+	insertHost := func(t *testing.T, address string, age int64) {
+		t.Helper()
+		_, err := nr.db.Exec("INSERT INTO hosts VALUES (?, ?, ?, ?, ?)",
+			address, address, "app-"+address, "", time.Now().Unix()-age)
+		require.NoError(t, err)
+	}
+	hostExists := func(t *testing.T, address string) bool {
+		t.Helper()
+		var n int
+		err := nr.db.QueryRow("SELECT COUNT(*) FROM hosts WHERE address = ?", address).Scan(&n)
+		require.NoError(t, err)
+		return n > 0
+	}
+
+	// Note updateInterval is 120s
+	insertHost(t, "live:1", 0)
+	insertHost(t, "recent:1", 100)
+	insertHost(t, "stale:1", 1000)
+
+	t.Run("deletes only expired hosts", func(t *testing.T) {
+		require.NoError(t, nr.gc.CleanupExpired())
+
+		assert.True(t, hostExists(t, "127.0.0.1:1234"), "own registration must be kept")
+		assert.True(t, hostExists(t, "live:1"), "live host must be kept")
+		assert.True(t, hostExists(t, "recent:1"), "recent host must be kept")
+		assert.False(t, hostExists(t, "stale:1"), "stale host must be deleted")
+	})
+
+	t.Run("skips a run before the cleanup interval has passed", func(t *testing.T) {
+		insertHost(t, "stale:2", 1000)
+		require.NoError(t, nr.gc.CleanupExpired())
+
+		assert.True(t, hostExists(t, "stale:2"), "cleanup must not run again so soon")
+	})
+
+	t.Run("runs again after the cleanup interval has passed", func(t *testing.T) {
+		_, err := nr.db.Exec("UPDATE metadata SET value = datetime('now', '-2 hours') WHERE key = 'nr-last-cleanup'")
+		require.NoError(t, err)
+		require.NoError(t, nr.gc.CleanupExpired())
+
+		assert.False(t, hostExists(t, "stale:2"), "stale host must be deleted")
+		assert.True(t, hostExists(t, "live:1"), "live host must be kept")
+	})
+
+	require.NoError(t, nr.Close())
 }

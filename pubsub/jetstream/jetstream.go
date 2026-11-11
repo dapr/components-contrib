@@ -37,6 +37,10 @@ type jetstreamPubSub struct {
 
 	backOffConfig retry.Config
 
+	// natsOpts are appended to the connection options built in Init, so they
+	// take precedence. Only tests set them.
+	natsOpts []nats.Option
+
 	closed  atomic.Bool
 	closeCh chan struct{}
 	wg      sync.WaitGroup
@@ -56,8 +60,28 @@ func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) err
 		return err
 	}
 
-	var opts []nats.Option
-	opts = append(opts, nats.Name(js.meta.Name))
+	// nats.go closes the connection for good after 60 failed reconnect
+	// attempts (about two minutes), and nothing re-creates it short of a
+	// sidecar restart. Keep reconnecting for as long as the component lives.
+	opts := []nats.Option{
+		nats.Name(js.meta.Name),
+		nats.MaxReconnects(-1),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			if js.closed.Load() {
+				return
+			}
+			js.l.Warnf("disconnected from nats, reconnecting: %v", err)
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			js.l.Infof("reconnected to nats at %s", nc.ConnectedUrlRedacted())
+		}),
+		nats.ClosedHandler(func(nc *nats.Conn) {
+			if js.closed.Load() {
+				return
+			}
+			js.l.Errorf("nats connection closed: %v", nc.LastError())
+		}),
+	}
 
 	// Set nats.UserJWT options when jwt and seed key is provided.
 	if js.meta.Jwt != "" && js.meta.SeedKey != "" {
@@ -73,6 +97,8 @@ func (js *jetstreamPubSub) Init(_ context.Context, metadata pubsub.Metadata) err
 		js.l.Debug("Configure nats for token authentication")
 		opts = append(opts, nats.Token(js.meta.Token))
 	}
+
+	opts = append(opts, js.natsOpts...)
 
 	js.nc, err = nats.Connect(js.meta.NatsURL, opts...)
 	if err != nil {

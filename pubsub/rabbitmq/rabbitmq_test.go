@@ -1465,3 +1465,230 @@ func TestConfirmationError(t *testing.T) {
 	require.NoError(t, confirmationError(fakeConfirmation{acked: true}))
 	require.Error(t, confirmationError(fakeConfirmation{acked: false}))
 }
+
+// rpcTrackingChannel models the one property of an amqp091-go Channel that
+// the component has to respect: a synchronous method sends its request and
+// then waits for the next reply on a reply queue shared by the whole channel,
+// so two synchronous methods in flight at once can each read the other's
+// reply and fail with "unexpected command received". Methods called with
+// noWait=true, and asynchronous ones such as publish and ack, never wait for a
+// reply and are not tracked.
+type rpcTrackingChannel struct {
+	*rabbitMQInMemoryBroker
+
+	inFlight       atomic.Int32
+	overlaps       atomic.Int32
+	waitingCancels atomic.Int32
+
+	// onRPC, when set, runs inside every tracked call while it is in flight,
+	// with the exchange, queue or consumer tag the call is about.
+	onRPC func(method, target string)
+}
+
+func (c *rpcTrackingChannel) rpc(method, target string) {
+	if c.inFlight.Add(1) > 1 {
+		c.overlaps.Add(1)
+	}
+	defer c.inFlight.Add(-1)
+	if c.onRPC != nil {
+		c.onRPC(method, target)
+	}
+}
+
+func (c *rpcTrackingChannel) ExchangeDeclare(name string, kind string, durable bool, autoDelete bool, internal bool, noWait bool, args amqp.Table) error {
+	c.rpc("ExchangeDeclare", name)
+	return c.rabbitMQInMemoryBroker.ExchangeDeclare(name, kind, durable, autoDelete, internal, noWait, args)
+}
+
+func (c *rpcTrackingChannel) QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
+	c.rpc("QueueDeclare", name)
+	return c.rabbitMQInMemoryBroker.QueueDeclare(name, durable, autoDelete, exclusive, noWait, args)
+}
+
+func (c *rpcTrackingChannel) QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error {
+	c.rpc("QueueBind", name)
+	return c.rabbitMQInMemoryBroker.QueueBind(name, key, exchange, noWait, args)
+}
+
+func (c *rpcTrackingChannel) Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error) {
+	if !noWait {
+		c.rpc("Consume", queue)
+	}
+	return c.rabbitMQInMemoryBroker.Consume(queue, consumer, autoAck, exclusive, noLocal, noWait, args)
+}
+
+func (c *rpcTrackingChannel) Cancel(consumer string, noWait bool) error {
+	if !noWait {
+		c.waitingCancels.Add(1)
+		c.rpc("Cancel", consumer)
+	}
+	return c.rabbitMQInMemoryBroker.Cancel(consumer, noWait)
+}
+
+// TestSubscriptionsDoNotOverlapChannelCommands reproduces #4724: two
+// subscriptions on one component share its channel, so while one is waiting
+// for its basic.consume-ok the other must not start declaring its topology on
+// the same channel.
+func TestSubscriptionsDoNotOverlapChannelCommands(t *testing.T) {
+	broker := newBroker()
+	channel := &rpcTrackingChannel{rabbitMQInMemoryBroker: broker}
+	r := newRabbitMQTest(broker)
+	r.connectionDial = func(string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		broker.connectCount.Add(1)
+		return broker, channel, nil
+	}
+	require.NoError(t, r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:             "anyhost",
+			metadataConsumerIDKey:           "consumer",
+			metadataReconnectWaitSecondsKey: "0",
+		},
+	}}))
+	t.Cleanup(func() { _ = r.Close() })
+
+	handler := func(context.Context, *pubsub.NewMessage) error { return nil }
+	secondStarted := make(chan struct{})
+	var startSecond sync.Once
+	channel.onRPC = func(method, target string) {
+		switch {
+		case method == "ExchangeDeclare" && target == "topic-b":
+			startSecond.Do(func() { close(secondStarted) })
+		case method == "Consume" && target == "consumer-topic-a":
+			// The first subscription is now waiting for its consume-ok.
+			// Start the second one; if the channel is free for it to use,
+			// wait until it has issued a command, so the overlap is
+			// recorded on every run rather than by chance.
+			go func() {
+				_ = r.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "topic-b"}, handler)
+			}()
+			if r.channelMutex.TryLock() {
+				r.channelMutex.Unlock()
+				<-secondStarted
+			}
+		}
+	}
+
+	require.NoError(t, r.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "topic-a"}, handler))
+
+	require.Eventually(t, func() bool {
+		consumed, _ := broker.tags()
+		return len(consumed) == 2
+	}, 5*time.Second, 10*time.Millisecond, "expected both subscriptions to register a consumer")
+	assert.Zero(t, channel.overlaps.Load(), "synchronous commands were in flight on the shared channel at the same time")
+
+	// The subscribers cancel their consumers outside channelMutex, which is
+	// only safe while those cancels do not wait for a reply.
+	require.NoError(t, r.Close())
+	consumed, cancelled := broker.tags()
+	assert.ElementsMatch(t, consumed, cancelled, "every registered consumer must be cancelled on shutdown")
+	assert.Zero(t, channel.waitingCancels.Load(), "basic.cancel waited for a reply outside channelMutex")
+}
+
+// TestCloseWithActiveSubscriptionReturns guards the shutdown path: Close waits
+// for an active subscriber to exit and cancel its consumer.
+func TestCloseWithActiveSubscriptionReturns(t *testing.T) {
+	broker := newBroker()
+	r := newRabbitMQTest(broker)
+	require.NoError(t, r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}}))
+	require.NoError(t, r.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic"}, func(context.Context, *pubsub.NewMessage) error { return nil }))
+
+	closed := make(chan error, 1)
+	go func() { closed <- r.Close() }()
+	select {
+	case err := <-closed:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close did not return while a subscription was active")
+	}
+
+	consumed, cancelled := broker.tags()
+	require.Len(t, consumed, 1)
+	assert.Equal(t, consumed, cancelled, "the consumer was not cancelled on shutdown")
+}
+
+// closeRaceChannel lets a test stop a subscriber between leaving one consumer
+// and registering the next, and see when Close resets the channel.
+type closeRaceChannel struct {
+	*rabbitMQInMemoryBroker
+
+	deliveries chan amqp.Delivery
+
+	cancelOnce    sync.Once
+	cancelling    chan struct{}
+	releaseCancel chan struct{}
+
+	closeOnce sync.Once
+	resetting chan struct{}
+}
+
+func (c *closeRaceChannel) Consume(queue string, consumer string, autoAck bool, exclusive bool, noLocal bool, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error) {
+	if _, err := c.rabbitMQInMemoryBroker.Consume(queue, consumer, autoAck, exclusive, noLocal, noWait, args); err != nil {
+		return nil, err
+	}
+	return c.deliveries, nil
+}
+
+func (c *closeRaceChannel) Cancel(consumer string, noWait bool) error {
+	c.cancelOnce.Do(func() {
+		close(c.cancelling)
+		<-c.releaseCancel
+	})
+	return c.rabbitMQInMemoryBroker.Cancel(consumer, noWait)
+}
+
+func (c *closeRaceChannel) Close() error {
+	c.closeOnce.Do(func() { close(c.resetting) })
+	return c.rabbitMQInMemoryBroker.Close()
+}
+
+// TestCloseWhileSubscriberResubscribes covers a subscriber that needs
+// channelMutex again after Close has started: here its consumer was cancelled
+// by the broker and it is about to register a new one. Close must not hold the
+// lock while it waits for the subscribers to exit, or that subscriber can never
+// take it and Close never returns.
+func TestCloseWhileSubscriberResubscribes(t *testing.T) {
+	broker := newBroker()
+	channel := &closeRaceChannel{
+		rabbitMQInMemoryBroker: broker,
+		deliveries:             make(chan amqp.Delivery),
+		cancelling:             make(chan struct{}),
+		releaseCancel:          make(chan struct{}),
+		resetting:              make(chan struct{}),
+	}
+	r := newRabbitMQTest(broker)
+	r.connectionDial = func(string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		broker.connectCount.Add(1)
+		return broker, channel, nil
+	}
+	require.NoError(t, r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}}))
+	require.NoError(t, r.Subscribe(t.Context(), pubsub.SubscribeRequest{Topic: "mytopic"}, func(context.Context, *pubsub.NewMessage) error { return nil }))
+
+	// The broker ends the consumer. The subscriber cancels it and then needs
+	// channelMutex to register a new one; hold it in between.
+	close(channel.deliveries)
+	<-channel.cancelling
+
+	closed := make(chan error, 1)
+	go func() { closed <- r.Close() }()
+	<-channel.resetting
+	close(channel.releaseCancel)
+
+	select {
+	case err := <-closed:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close did not return while a subscriber was waiting for channelMutex")
+	}
+	consumed, _ := broker.tags()
+	assert.Len(t, consumed, 1, "the subscriber registered a consumer after Close")
+}

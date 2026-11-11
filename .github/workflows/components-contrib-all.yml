@@ -71,19 +71,19 @@ jobs:
     strategy:
       matrix:
         # TODO: @nelson-parente Upgrade macos latest once dns is fixed.
-        os: [ubuntu-latest, windows-latest, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-15]
         target_arch: [arm, amd64]
         include:
           - os: ubuntu-latest
             target_os: linux
           - os: windows-latest
             target_os: windows
-          - os: macos-14
+          - os: macos-15
             target_os: darwin
         exclude:
           - os: windows-latest
             target_arch: arm
-          - os: macos-14
+          - os: macos-15
             target_arch: arm
     steps:
       - name: Set default payload repo and ref

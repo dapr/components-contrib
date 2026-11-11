@@ -17,9 +17,11 @@ package anthropic
 import (
 	"context"
 	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 
+	spiffeauth "github.com/dapr/components-contrib/common/authentication/spiffe"
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/conversation/langchaingokit"
 	"github.com/dapr/components-contrib/metadata"
@@ -28,9 +30,15 @@ import (
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
+	"golang.org/x/oauth2"
 )
 
-const apiTypeFoundry = "foundry"
+const (
+	apiTypeFoundry = "foundry"
+
+	defaultBaseURL            = "https://api.anthropic.com/v1"
+	defaultFederationAudience = "https://api.anthropic.com"
+)
 
 type Anthropic struct {
 	langchaingokit.LLM
@@ -48,28 +56,87 @@ func NewAnthropic(logger logger.Logger) conversation.Conversation {
 	return a
 }
 
-func (a *Anthropic) buildClientOptions(md AnthropicLangchainMetadata) (string, []anthropic.Option, error) {
+func (a *Anthropic) buildClientOptions(ctx context.Context, md AnthropicLangchainMetadata) (string, []anthropic.Option, error) {
 	model := conversation.GetAnthropicModel(md.Model)
+
+	headers, err := conversation.ParseHeaders(md.Headers)
+	if err != nil {
+		return "", nil, err
+	}
 
 	options := []anthropic.Option{
 		anthropic.WithModel(model),
-		anthropic.WithToken(md.Key),
 	}
 
-	if strings.EqualFold(md.APIType, apiTypeFoundry) {
-		if md.Endpoint == "" {
-			return "", nil, errors.New("endpoint must be provided when apiType is set to 'foundry'")
-		}
-		options = append(options, anthropic.WithBaseURL(strings.TrimSuffix(md.Endpoint, "/")))
-	} else if md.Endpoint != "" {
-		options = append(options, anthropic.WithBaseURL(strings.TrimSuffix(md.Endpoint, "/")))
+	isFoundry := strings.EqualFold(md.APIType, apiTypeFoundry)
+	if isFoundry && md.Endpoint == "" {
+		return "", nil, errors.New("endpoint must be provided when apiType is set to 'foundry'")
 	}
 
-	if httpClient := conversation.BuildHTTPClient(); httpClient != nil {
-		options = append(options, anthropic.WithHTTPClient(httpClient))
+	baseURL := defaultBaseURL
+	if md.Endpoint != "" {
+		baseURL = strings.TrimSuffix(md.Endpoint, "/")
+		options = append(options, anthropic.WithBaseURL(baseURL))
 	}
+
+	if md.FederationRuleID == "" {
+		options = append(options,
+			anthropic.WithToken(md.Key),
+			anthropic.WithHTTPClient(conversation.WithHeaders(conversation.BuildHTTPClient(), headers)),
+		)
+		return model, options, nil
+	}
+
+	if isFoundry {
+		return "", nil, errors.New("workload identity federation is not supported when apiType is set to 'foundry'")
+	}
+	ts, err := federationTokenSource(ctx, md, baseURL, headers)
+	if err != nil {
+		return "", nil, err
+	}
+	options = append(options,
+		anthropic.WithToken(conversation.PlaceholderToken),
+		anthropic.WithHTTPClient(conversation.WithHeaders(conversation.BuildBearerHTTPClient(ts), headers)),
+	)
 
 	return model, options, nil
+}
+
+// federationTokenSource exchanges JWT SVIDs for Anthropic access tokens with
+// the RFC 7523 JWT bearer grant. The token endpoint is on the same origin as
+// the model endpoint, so the exchange requests also get the headers.
+func federationTokenSource(ctx context.Context, md AnthropicLangchainMetadata, baseURL string, headers http.Header) (oauth2.TokenSource, error) {
+	if md.OrganizationID == "" || md.ServiceAccountID == "" {
+		return nil, errors.New("organizationId and serviceAccountId must be provided when federationRuleId is set")
+	}
+
+	minter, err := spiffeauth.MinterFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	audience := md.Audience
+	if audience == "" {
+		audience = defaultFederationAudience
+	}
+
+	body := map[string]string{
+		"grant_type":         "urn:ietf:params:oauth:grant-type:jwt-bearer",
+		"federation_rule_id": md.FederationRuleID,
+		"organization_id":    md.OrganizationID,
+		"service_account_id": md.ServiceAccountID,
+	}
+	if md.WorkspaceID != "" {
+		body["workspace_id"] = md.WorkspaceID
+	}
+
+	return spiffeauth.NewExchangeTokenSource(minter, spiffeauth.ExchangeConfig{
+		TokenURL: baseURL + "/oauth/token",
+		Audience: audience,
+		JWTField: "assertion",
+		Body:     body,
+		Client:   conversation.WithHeaders(conversation.BuildHTTPClient(), headers),
+	}), nil
 }
 
 func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error {
@@ -79,7 +146,7 @@ func (a *Anthropic) Init(ctx context.Context, meta conversation.Metadata) error 
 		return err
 	}
 
-	model, options, err := a.buildClientOptions(md)
+	model, options, err := a.buildClientOptions(ctx, md)
 	if err != nil {
 		return err
 	}

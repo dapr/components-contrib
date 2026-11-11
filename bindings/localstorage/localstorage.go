@@ -20,13 +20,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
-	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/google/uuid"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -174,22 +177,38 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 		req.Data = decoded
 	}
 
-	absPath, relPath, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
+
+	// The root directory may have been removed since Init.
+	err = os.MkdirAll(ls.metadata.RootPath, 0o777)
 	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
+		return nil, fmt.Errorf("error creating directory %s: %w", ls.metadata.RootPath, err)
 	}
 
-	dir := filepath.Dir(absPath)
-	err = os.MkdirAll(dir, 0o777)
+	root, err := ls.openRoot()
 	if err != nil {
-		return nil, fmt.Errorf("error creating directory %s: %w", dir, err)
+		return nil, err
+	}
+	defer root.Close()
+
+	dir := filepath.Dir(relPath)
+	err = root.MkdirAll(dir, 0o777)
+	if err != nil {
+		return nil, fmt.Errorf("error creating directory %s: %w", filepath.Join(ls.metadata.RootPath, dir), err)
 	}
 
-	f, err := os.Create(absPath)
+	// O_NONBLOCK keeps the open from waiting for a reader if the name is a
+	// FIFO; it then fails with ENXIO.
+	f, err := root.OpenFile(relPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|syscall.O_NONBLOCK, 0o666)
 	if err != nil {
 		return nil, fmt.Errorf("error creating file %s: %w", absPath, err)
 	}
 	defer f.Close()
+
+	err = checkRegularFile(f, absPath)
+	if err != nil {
+		return nil, err
+	}
 
 	numBytes, err := f.Write(req.Data)
 	if err != nil {
@@ -213,12 +232,19 @@ func (ls *LocalStorage) create(filename string, req *bindings.InvokeRequest) (*b
 }
 
 func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
-	}
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
 
-	f, err := os.Open(absPath)
+	root, err := os.OpenRoot(ls.metadata.RootPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("file not found: %s", absPath)
+		}
+		return nil, fmt.Errorf("error opening directory %s: %w", ls.metadata.RootPath, err)
+	}
+	defer root.Close()
+
+	// O_NONBLOCK keeps the open from waiting for a writer if the name is a FIFO.
+	f, err := root.OpenFile(relPath, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("file not found: %s", absPath)
@@ -226,6 +252,11 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 		return nil, fmt.Errorf("error opening path %s: %w", absPath, err)
 	}
 	defer f.Close()
+
+	err = checkRegularFile(f, absPath)
+	if err != nil {
+		return nil, err
+	}
 
 	b, err := io.ReadAll(f)
 	if err != nil {
@@ -240,12 +271,15 @@ func (ls *LocalStorage) get(filename string, req *bindings.InvokeRequest) (*bind
 }
 
 func (ls *LocalStorage) delete(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
-	}
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
 
-	err = os.Remove(absPath)
+	root, err := ls.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	err = root.Remove(relPath)
 	if err != nil {
 		return nil, fmt.Errorf("error deleting file %s: %w", absPath, err)
 	}
@@ -256,12 +290,15 @@ func (ls *LocalStorage) delete(filename string, req *bindings.InvokeRequest) (*b
 }
 
 func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bindings.InvokeResponse, error) {
-	absPath, _, err := getSecureAbsRelPath(ls.metadata.RootPath, filename)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path for file %s: %w", filename, err)
-	}
+	absPath, relPath := resolvePath(ls.metadata.RootPath, filename)
 
-	fi, err := os.Stat(absPath)
+	root, err := ls.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	fi, err := root.Stat(relPath)
 	if err != nil {
 		return nil, fmt.Errorf("error getting stats for path %s: %w", absPath, err)
 	}
@@ -270,7 +307,13 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 		return nil, fmt.Errorf("unable to list files as the file specified is not a directory: %s", absPath)
 	}
 
-	files, err := walkPath(absPath)
+	dir, err := root.OpenRoot(relPath)
+	if err != nil {
+		return nil, fmt.Errorf("error listing files in the directory %s: %w", absPath, err)
+	}
+	defer dir.Close()
+
+	files, err := ls.walkPath(dir, absPath)
 	if err != nil {
 		return nil, fmt.Errorf("error listing files in the directory %s: %w", absPath, err)
 	}
@@ -285,30 +328,97 @@ func (ls *LocalStorage) list(filename string, req *bindings.InvokeRequest) (*bin
 	}, nil
 }
 
-func getSecureAbsRelPath(rootPath string, filename string) (absPath string, relPath string, err error) {
-	absPath, err = securejoin.SecureJoin(rootPath, filename)
+// openRoot opens the root directory for a single operation.
+//
+// The root is opened again for every operation, so that create can recreate
+// the directory if it is removed after Init. The trade-off is that the checks
+// in validateRootPath (symlink resolution and the disallowed locations) only
+// hold at Init: if rootPath itself is later replaced by a symlink, operations
+// follow it. os.Root only keeps names below the opened directory from
+// resolving outside it.
+func (ls *LocalStorage) openRoot() (*os.Root, error) {
+	root, err := os.OpenRoot(ls.metadata.RootPath)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("error opening directory %s: %w", ls.metadata.RootPath, err)
 	}
-	relPath, err = filepath.Rel(rootPath, absPath)
-	if err != nil {
-		return
-	}
-
-	return
+	return root, nil
 }
 
-func walkPath(root string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			files = append(files, path)
-		}
+// checkRegularFile returns an error if f is not a regular file, such as a
+// directory, a FIFO or a device, which os.Root does not prevent opening.
+func checkRegularFile(f *os.File, absPath string) error {
+	fi, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("error getting stats for path %s: %w", absPath, err)
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("not a regular file: %s", absPath)
+	}
+	return nil
+}
 
-		return nil
+// resolvePath maps a file name from a request to a path relative to the root
+// directory, and to the matching absolute path. Volume names, leading
+// separators and ".." elements cannot move the name above the root, so "../a",
+// "/../a", "/a" and, on Windows, "C:\a" all refer to "a" inside the root. The
+// name is cleaned with package path rather than path/filepath, because on
+// Windows filepath.Clean reads a name such as `\..\a` as a UNC volume and keeps
+// the "..". Files are then accessed through an os.Root, which also keeps
+// symlinks from resolving to a location outside the root.
+func resolvePath(rootPath string, filename string) (absPath string, relPath string) {
+	filename = filename[len(filepath.VolumeName(filename)):]
+	relPath = filepath.FromSlash(strings.TrimPrefix(path.Clean("/"+filepath.ToSlash(filename)), "/"))
+	if relPath == "" {
+		relPath = "."
+	}
+
+	return filepath.Join(rootPath, relPath), relPath
+}
+
+// walkPath lists the files in dir and its subdirectories as paths under
+// prefix, in lexical order. Each subdirectory is opened as a child os.Root, so
+// it is resolved once from the directory that listed it. A subdirectory that
+// cannot be read because of its permissions, such as a root-owned lost+found,
+// is skipped. It reads directories through os.Root directly because
+// Root.FS() rejects names that are not valid UTF-8.
+func (ls *LocalStorage) walkPath(dir *os.Root, prefix string) ([]string, error) {
+	d, err := dir.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	entries, err := d.ReadDir(-1)
+	_ = d.Close()
+	if err != nil {
+		return nil, err
+	}
+	slices.SortFunc(entries, func(a, b os.DirEntry) int {
+		return strings.Compare(a.Name(), b.Name())
 	})
 
-	return files, err
+	var files []string
+	for _, e := range entries {
+		name := filepath.Join(prefix, e.Name())
+		if !e.IsDir() {
+			files = append(files, name)
+			continue
+		}
+		var sub []string
+		subdir, err := dir.OpenRoot(e.Name())
+		if err == nil {
+			sub, err = ls.walkPath(subdir, name)
+			_ = subdir.Close()
+		}
+		if errors.Is(err, fs.ErrPermission) {
+			ls.logger.Debugf("skipping unreadable directory %s: %v", name, err)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, sub...)
+	}
+
+	return files, nil
 }
 
 // Invoke is called for output bindings.

@@ -680,16 +680,18 @@ func TestParseMetadata(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("disallowed locations are Unix paths")
 		}
-		for _, p := range []string{
+		paths := []string{
 			"/",
 			"/proc",
 			"/sys/kernel",
 			"/boot",
 			"/var",
 			"/var/run/secrets/kubernetes.io",
-			"/run",
-			"/run/secrets/kubernetes.io",
-		} {
+		}
+		resolved, err := resolveExistingSymlinks("/var/run/secrets")
+		require.NoError(t, err)
+		paths = append(paths, filepath.Dir(resolved), filepath.Join(resolved, "kubernetes.io"))
+		for _, p := range paths {
 			store := NewLocalStorage(logger.NewLogger("test"))
 			err := store.Init(t.Context(), binarystore.Metadata{
 				Base: contribMetadata.Base{Properties: map[string]string{"rootPath": p}},

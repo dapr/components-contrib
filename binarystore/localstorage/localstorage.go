@@ -14,9 +14,8 @@ limitations under the License.
 // Package localstorage provides a BinaryStore implementation backed by the
 // local filesystem. Files are stored beneath a configured root directory,
 // with slashes in file names mapping to nested directories. Uploads are
-// staged in a temporary file and renamed into place. Create-only uploads
-// briefly expose an empty placeholder before publication; reads do not take
-// the mutation lock.
+// staged in a temporary file and atomically published into place. Reads do not
+// take the mutation lock.
 //
 // All filesystem access goes through an os.Root opened on the root
 // directory. Besides guaranteeing that no operation can escape the root,
@@ -51,6 +50,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/dapr/components-contrib/binarystore"
 	"github.com/dapr/components-contrib/metadata"
@@ -206,7 +206,7 @@ func (s *LocalStorage) Set(ctx context.Context, req *binarystore.SetRequest) (er
 
 	if !req.Overwrite {
 		// Cheap early rejection of duplicates; the authoritative check is the
-		// exclusive create below.
+		// no-replace publication below.
 		if _, err = s.root.Lstat(relPath); err == nil {
 			return binarystore.ErrFileAlreadyExists
 		}
@@ -216,8 +216,8 @@ func (s *LocalStorage) Set(ctx context.Context, req *binarystore.SetRequest) (er
 	if err != nil {
 		return err
 	}
-	// The staging file is removed on every path that does not rename it into
-	// place; after a successful rename the removal is a harmless no-op.
+	// Failed uploads discard the staging file. Successful create-only uploads
+	// remove the staging link after publishing the final link.
 	defer func() {
 		if removeErr := s.root.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
 			err = errors.Join(err, fmt.Errorf("failed to remove staging file %s: %w", tmpPath, removeErr))
@@ -238,29 +238,16 @@ func (s *LocalStorage) Set(ctx context.Context, req *binarystore.SetRequest) (er
 		return nil
 	}
 
-	// Claim the name with an exclusive create so that exactly one of any
-	// concurrent create-only writers wins, then replace the empty placeholder
-	// with the fully staged content.
-	claim, err := s.root.OpenFile(relPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
-	if err != nil {
+	// A hard link publishes the fully staged file atomically and fails if the
+	// destination exists. If the process exits before cleanup, the final object
+	// is complete and only the staging link remains abandoned.
+	if err = s.root.Link(tmpPath, relPath); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return binarystore.ErrFileAlreadyExists
 		}
-		return fmt.Errorf("failed to create file %s: %w", req.FileName, err)
+		return fmt.Errorf("failed to move file %s into place: %w", req.FileName, err)
 	}
-	if err = claim.Close(); err != nil {
-		err = fmt.Errorf("failed to close file %s: %w", req.FileName, err)
-	} else if err = ctx.Err(); err == nil {
-		if err = s.root.Rename(tmpPath, relPath); err != nil {
-			err = fmt.Errorf("failed to move file %s into place: %w", req.FileName, err)
-		}
-	}
-	if err != nil {
-		if removeErr := s.root.Remove(relPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-			err = errors.Join(err, fmt.Errorf("failed to remove file %s after unsuccessful upload: %w", req.FileName, removeErr))
-		}
-	}
-	return err
+	return nil
 }
 
 // createStaging creates a uniquely named staging file in an existing directory.
@@ -318,7 +305,7 @@ func (s *LocalStorage) Get(ctx context.Context, req *binarystore.GetRequest) (*b
 
 	f, err := s.root.Open(relPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if isFileNotFound(err) {
 			return nil, binarystore.ErrFileNotFound
 		}
 		return nil, fmt.Errorf("failed to open file %s: %w", req.FileName, err)
@@ -374,7 +361,7 @@ func (s *LocalStorage) Delete(ctx context.Context, req *binarystore.DeleteReques
 	}
 	unlock, err := s.lockPath(ctx, relPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if isFileNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}
 		return err
@@ -383,7 +370,7 @@ func (s *LocalStorage) Delete(ctx context.Context, req *binarystore.DeleteReques
 
 	fi, err := s.root.Lstat(relPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if isFileNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}
 		return fmt.Errorf("failed to stat file %s: %w", req.FileName, err)
@@ -395,12 +382,18 @@ func (s *LocalStorage) Delete(ctx context.Context, req *binarystore.DeleteReques
 		return err
 	}
 	if err = s.root.Remove(relPath); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if isFileNotFound(err) {
 			return binarystore.ErrFileNotFound
 		}
 		return fmt.Errorf("failed to delete file %s: %w", req.FileName, err)
 	}
 	return nil
+}
+
+// isFileNotFound includes paths whose ancestor is a regular file. Unix
+// reports those as ENOTDIR rather than fs.ErrNotExist.
+func isFileNotFound(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }
 
 // resolve maps a file name to a path relative to the root directory,
@@ -499,24 +492,33 @@ func resolveExistingSymlinks(path string) (string, error) {
 	return filepath.Join(resolved, remainder), nil
 }
 
-// isDisallowedRootPath reports whether p is, or lies beneath, one of the
-// disallowed locations. Each disallowed location is also compared in its
+// isDisallowedRootPath reports whether p overlaps one of the disallowed
+// locations: it may be the location itself, a descendant, or an ancestor that
+// would grant access to it. Each disallowed location is also compared in its
 // symlink-resolved form, since for example /var/run is a symlink to /run on
 // most Linux distributions and a resolved rootPath would otherwise slip past.
 func isDisallowedRootPath(p string) bool {
-	sep := string(os.PathSeparator)
 	for _, d := range disallowedRootPaths {
 		candidates := []string{d}
 		if resolved, err := resolveExistingSymlinks(d); err == nil && resolved != d {
 			candidates = append(candidates, resolved)
 		}
 		for _, c := range candidates {
-			if p == c || strings.HasPrefix(p, c+sep) {
+			if pathsOverlap(p, c) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func pathsOverlap(a, b string) bool {
+	return pathContains(a, b) || pathContains(b, a)
+}
+
+func pathContains(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 func (s *LocalStorage) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

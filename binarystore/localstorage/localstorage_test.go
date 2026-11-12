@@ -317,6 +317,24 @@ func TestDirectoryIsNotAFile(t *testing.T) {
 	assert.FileExists(t, filepath.Join(store.rootPath, "dir", "file.bin"))
 }
 
+func TestFileAncestorIsNotFound(t *testing.T) {
+	store := newTestStore(t, "")
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "a",
+		Data:     strings.NewReader("payload"),
+	}))
+
+	for _, name := range []string{"a/b", "a/b/c"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: name})
+			require.ErrorIs(t, err, binarystore.ErrFileNotFound)
+
+			err = store.Delete(t.Context(), &binarystore.DeleteRequest{FileName: name})
+			require.ErrorIs(t, err, binarystore.ErrFileNotFound)
+		})
+	}
+}
+
 func TestRejectsPathTraversal(t *testing.T) {
 	store := newTestStore(t, "")
 
@@ -662,7 +680,16 @@ func TestParseMetadata(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("disallowed locations are Unix paths")
 		}
-		for _, p := range []string{"/proc", "/sys/kernel", "/boot", "/var/run/secrets/kubernetes.io", "/run/secrets/kubernetes.io"} {
+		for _, p := range []string{
+			"/",
+			"/proc",
+			"/sys/kernel",
+			"/boot",
+			"/var",
+			"/var/run/secrets/kubernetes.io",
+			"/run",
+			"/run/secrets/kubernetes.io",
+		} {
 			store := NewLocalStorage(logger.NewLogger("test"))
 			err := store.Init(t.Context(), binarystore.Metadata{
 				Base: contribMetadata.Base{Properties: map[string]string{"rootPath": p}},

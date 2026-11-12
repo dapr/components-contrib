@@ -50,22 +50,23 @@ const (
 //
 // Requests are sent with store set to false, so OpenAI keeps no conversation
 // state and every call carries its full history, as with Chat Completions.
-// Reasoning items are not carried between calls: the conversation API has no
-// field to return them to the caller, so they could not come back on the next
+// Reasoning items are not carried between calls: the conversation API only
+// returns their summary, which cannot stand in for the item on the next
 // request. Each request reasons afresh from the visible history.
 type responsesModel struct {
-	model        string
-	key          string
-	organization string
-	baseURL      string
-	client       *http.Client
+	model            string
+	key              string
+	organization     string
+	baseURL          string
+	reasoningSummary string
+	client           *http.Client
 }
 
 // newResponsesModel falls back to the same environment variables langchaingo's
 // OpenAI client reads, so switching to the Responses API keeps the same setup.
 // A non-nil client sets the credential itself, so no key is needed. headers are
 // set on every request, see conversation.WithHeaders.
-func newResponsesModel(model, key, endpoint string, client *http.Client, headers http.Header) (*responsesModel, error) {
+func newResponsesModel(model, key, endpoint, reasoningSummary string, client *http.Client, headers http.Header) (*responsesModel, error) {
 	if client != nil {
 		key = conversation.PlaceholderToken
 	} else {
@@ -88,25 +89,27 @@ func newResponsesModel(model, key, endpoint string, client *http.Client, headers
 		endpoint = defaultOpenAIBaseURL
 	}
 	return &responsesModel{
-		model:        model,
-		key:          key,
-		organization: os.Getenv("OPENAI_ORGANIZATION"),
-		baseURL:      strings.TrimSuffix(endpoint, "/"),
-		client:       client,
+		model:            model,
+		key:              key,
+		organization:     os.Getenv("OPENAI_ORGANIZATION"),
+		baseURL:          strings.TrimSuffix(endpoint, "/"),
+		reasoningSummary: reasoningSummary,
+		client:           client,
 	}, nil
 }
 
 type responsesRequest struct {
-	Model                string          `json:"model"`
-	Input                []any           `json:"input"`
-	Tools                []responsesTool `json:"tools,omitempty"`
-	ToolChoice           any             `json:"tool_choice,omitempty"`
-	MaxOutputTokens      int             `json:"max_output_tokens,omitempty"`
-	Temperature          float64         `json:"temperature,omitempty"`
-	Text                 *responsesText  `json:"text,omitempty"`
-	Metadata             map[string]any  `json:"metadata,omitempty"`
-	PromptCacheRetention any             `json:"prompt_cache_retention,omitempty"`
-	Store                bool            `json:"store"`
+	Model                string              `json:"model"`
+	Input                []any               `json:"input"`
+	Tools                []responsesTool     `json:"tools,omitempty"`
+	ToolChoice           any                 `json:"tool_choice,omitempty"`
+	MaxOutputTokens      int                 `json:"max_output_tokens,omitempty"`
+	Temperature          float64             `json:"temperature,omitempty"`
+	Reasoning            *responsesReasoning `json:"reasoning,omitempty"`
+	Text                 *responsesText      `json:"text,omitempty"`
+	Metadata             map[string]any      `json:"metadata,omitempty"`
+	PromptCacheRetention any                 `json:"prompt_cache_retention,omitempty"`
+	Store                bool                `json:"store"`
 }
 
 type responsesTool struct {
@@ -118,6 +121,11 @@ type responsesTool struct {
 	// Strict is always sent: the Responses API treats an omitted strict as true,
 	// unlike Chat Completions, which would make optional parameters required.
 	Strict bool `json:"strict"`
+}
+
+type responsesReasoning struct {
+	Effort  string `json:"effort,omitempty"`
+	Summary string `json:"summary,omitempty"`
 }
 
 type responsesText struct {
@@ -141,6 +149,10 @@ type responsesResponse struct {
 			Text    string `json:"text"`
 			Refusal string `json:"refusal"`
 		} `json:"content"`
+		Summary []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"summary"`
 		CallID    string `json:"call_id"`
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
@@ -224,6 +236,7 @@ func (m *responsesModel) buildRequest(messages []llms.MessageContent, opts llms.
 	if opts.Model != "" {
 		req.Model = opts.Model
 	}
+	req.Reasoning = m.buildReasoning(opts.Reasoning)
 
 	for _, msg := range messages {
 		items, err := toResponsesInput(msg)
@@ -283,6 +296,19 @@ func (m *responsesModel) buildRequest(messages []llms.MessageContent, opts llms.
 		}
 	}
 	return req, nil
+}
+
+// buildReasoning returns the reasoning field of the request, or nil when neither
+// an effort nor a summary was asked for, which leaves the model's defaults.
+func (m *responsesModel) buildReasoning(opts *llms.ReasoningOptions) *responsesReasoning {
+	reasoning := responsesReasoning{Summary: m.reasoningSummary}
+	if opts != nil && opts.Strength != nil {
+		reasoning.Effort = effortFromStrength(*opts.Strength)
+	}
+	if reasoning == (responsesReasoning{}) {
+		return nil
+	}
+	return &reasoning
 }
 
 // toResponsesCacheRetention converts the retention langchaingokit sends, a
@@ -446,8 +472,15 @@ func toJSONSchema(s *llms.StructuredOutputSchema) map[string]any {
 func toContentResponse(res *responsesResponse) *llms.ContentResponse {
 	choice := &llms.ContentChoice{}
 	var text strings.Builder
+	var reasoning []string
 	for _, item := range res.Output {
 		switch item.Type {
+		case "reasoning":
+			for _, s := range item.Summary {
+				if s.Type == "summary_text" {
+					reasoning = append(reasoning, s.Text)
+				}
+			}
 		case "message":
 			for _, c := range item.Content {
 				switch c.Type {
@@ -474,6 +507,7 @@ func toContentResponse(res *responsesResponse) *llms.ContentResponse {
 		}
 	}
 	choice.Content = text.String()
+	choice.ReasoningContent = strings.Join(reasoning, "\n\n")
 	if len(choice.ToolCalls) > 0 {
 		choice.FuncCall = choice.ToolCalls[0].FunctionCall
 	}

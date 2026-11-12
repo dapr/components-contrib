@@ -29,6 +29,9 @@ type OpenAILangchainMetadata struct {
 	UseLegacyMaxTokensField bool `json:"useLegacyMaxTokensField" mapstructure:"useLegacyMaxTokensField"`
 	// UseResponsesAPI sends requests to the Responses API (/v1/responses) instead of Chat Completions.
 	UseResponsesAPI bool `json:"useResponsesAPI" mapstructure:"useResponsesAPI"`
+	// ReasoningSummary asks the Responses API for a summary of the model's
+	// reasoning, returned as the message's reasoning. Requires UseResponsesAPI.
+	ReasoningSummary string `json:"reasoningSummary" mapstructure:"reasoningSummary"`
 
 	// When IdentityProviderID is set, the component authenticates with workload
 	// identity federation, exchanging a JWT SVID minted by the Dapr runtime for

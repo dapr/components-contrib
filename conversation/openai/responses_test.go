@@ -29,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/conversation"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 // fakeOpenAI records the last request it received and answers with reply.
@@ -324,6 +325,96 @@ func TestResponsesAPIPromptCacheRetention(t *testing.T) {
 		})
 		require.ErrorContains(t, err, `unsupported prompt cache retention "1h0m0s"`)
 	})
+}
+
+func TestResponsesAPIReasoningRequest(t *testing.T) {
+	tests := []struct {
+		name    string
+		summary string
+		effort  *string
+		want    any
+	}{
+		{name: "neither sends no reasoning field"},
+		{name: "low", effort: ptr.Of("low"), want: map[string]any{"effort": "low"}},
+		{name: "medium", effort: ptr.Of("medium"), want: map[string]any{"effort": "medium"}},
+		{name: "high", effort: ptr.Of("high"), want: map[string]any{"effort": "high"}},
+		{name: "an unsupported effort is not sent", effort: ptr.Of("xhigh")},
+		{name: "summary only", summary: "auto", want: map[string]any{"summary": "auto"}},
+		{
+			name:    "effort and summary",
+			summary: "concise",
+			effort:  ptr.Of("high"),
+			want:    map[string]any{"effort": "high", "summary": "concise"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake, url := newFakeOpenAI(t, http.StatusOK, `{"status":"completed","output":[]}`)
+			o := initOpenAI(t, map[string]string{
+				"key": "test-key", "endpoint": url, "useResponsesAPI": "true", "reasoningSummary": tt.summary,
+			})
+
+			_, err := o.Converse(t.Context(), &conversation.Request{
+				Message:         &[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")},
+				ReasoningEffort: tt.effort,
+			})
+			require.NoError(t, err)
+
+			if tt.want == nil {
+				assert.NotContains(t, fake.body, "reasoning")
+				return
+			}
+			assert.Equal(t, tt.want, fake.body["reasoning"])
+		})
+	}
+}
+
+func TestResponsesAPIReasoningResponse(t *testing.T) {
+	tests := []struct {
+		name  string
+		reply string
+		want  string
+	}{
+		{
+			name: "summary parts are joined",
+			reply: `{"status":"completed","output":[
+				{"type":"reasoning","summary":[{"type":"summary_text","text":"first"},{"type":"summary_text","text":"second"}]},
+				{"type":"message","content":[{"type":"output_text","text":"answer"}]}]}`,
+			want: "first\n\nsecond",
+		},
+		{
+			name: "a reasoning item without summary returns no reasoning",
+			reply: `{"status":"completed","output":[
+				{"type":"reasoning","summary":[]},
+				{"type":"message","content":[{"type":"output_text","text":"answer"}]}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, url := newFakeOpenAI(t, http.StatusOK, tt.reply)
+			o := initOpenAI(t, map[string]string{"key": "test-key", "endpoint": url, "useResponsesAPI": "true"})
+
+			resp, err := o.Converse(t.Context(), &conversation.Request{
+				Message: &[]llms.MessageContent{llms.TextParts(llms.ChatMessageTypeHuman, "hi")},
+			})
+			require.NoError(t, err)
+
+			require.Len(t, resp.Outputs, 1)
+			require.Len(t, resp.Outputs[0].Choices, 1)
+			assert.Equal(t, "answer", resp.Outputs[0].Choices[0].Message.Content)
+			assert.Equal(t, tt.want, resp.Outputs[0].Choices[0].Message.Reasoning)
+		})
+	}
+}
+
+func TestReasoningSummaryRequiresResponsesAPI(t *testing.T) {
+	o := NewOpenAI(logger.NewLogger("test")).(*OpenAI)
+	err := o.Init(t.Context(), conversation.Metadata{Base: metadata.Base{Properties: map[string]string{
+		"key": "test-key", "model": "gpt-4o", "reasoningSummary": "auto",
+	}}})
+	require.EqualError(t, err, "reasoningSummary requires useResponsesAPI")
 }
 
 func TestResponsesAPIRejectsAzure(t *testing.T) {

@@ -177,8 +177,8 @@ func (s *LocalStorage) beginOperation(ctx context.Context) error {
 	return nil
 }
 
-func (s *LocalStorage) Set(ctx context.Context, req *binarystore.SetRequest) error {
-	if err := s.beginOperation(ctx); err != nil {
+func (s *LocalStorage) Set(ctx context.Context, req *binarystore.SetRequest) (err error) {
+	if err = s.beginOperation(ctx); err != nil {
 		return err
 	}
 	defer s.active.Done()
@@ -218,7 +218,11 @@ func (s *LocalStorage) Set(ctx context.Context, req *binarystore.SetRequest) err
 	}
 	// The staging file is removed on every path that does not rename it into
 	// place; after a successful rename the removal is a harmless no-op.
-	defer s.root.Remove(tmpPath)
+	defer func() {
+		if removeErr := s.root.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("failed to remove staging file %s: %w", tmpPath, removeErr))
+		}
+	}()
 
 	if err = s.writeStaging(ctx, tmp, req.Data); err != nil {
 		return err

@@ -410,6 +410,32 @@ func TestFailedOverwriteKeepsExistingFile(t *testing.T) {
 	assert.Equal(t, []string{"file.bin"}, names(t, store.rootPath))
 }
 
+func TestSetPreservesStagingCleanupError(t *testing.T) {
+	store := newTestStore(t, "")
+	data := readerFunc(func([]byte) (int, error) {
+		staging := names(t, store.rootPath)
+		require.Len(t, staging, 1)
+		path := filepath.FromSlash(staging[0])
+		// Replace the open staging file with a nonempty directory to make
+		// cleanup fail on all platforms, independently of file permissions.
+		require.NoError(t, store.root.Remove(path))
+		require.NoError(t, store.root.Mkdir(path, 0o700))
+		require.NoError(t, store.root.WriteFile(filepath.Join(path, "child"), []byte("x"), 0o600))
+		return 0, errReadFailed
+	})
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "file.bin",
+		Data:     data,
+	})
+	require.ErrorIs(t, err, errReadFailed)
+	require.ErrorContains(t, err, "failed to remove staging file")
+	var pathErr *fs.PathError
+	require.ErrorAs(t, err, &pathErr)
+	assert.True(t, strings.HasPrefix(pathErr.Path, stagingPrefix))
+	assert.NoFileExists(t, filepath.Join(store.rootPath, "file.bin"))
+}
+
 func TestWriteStagingPreservesCloseErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
@@ -464,7 +490,9 @@ func TestOpenReaderDoesNotBlockOverwriteOrDelete(t *testing.T) {
 	// rename semantics, otherwise both operations fail with sharing errors.
 	resp, err := store.Get(t.Context(), &binarystore.GetRequest{FileName: "file.bin"})
 	require.NoError(t, err)
-	defer resp.Data.Close()
+	defer func() {
+		assert.NoError(t, resp.Data.Close())
+	}()
 
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
 		FileName:  "file.bin",
@@ -753,7 +781,9 @@ func mustGet(t *testing.T, store binarystore.BinaryStore, fileName string) []byt
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Data)
-	defer resp.Data.Close()
+	defer func() {
+		assert.NoError(t, resp.Data.Close())
+	}()
 
 	data, err := io.ReadAll(resp.Data)
 	require.NoError(t, err)

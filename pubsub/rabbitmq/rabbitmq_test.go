@@ -625,6 +625,7 @@ type rabbitMQInMemoryBroker struct {
 	exchangeDeclareErr   error
 	queueDeclareErr      error
 	passiveQueueDeclares []string
+	queueArgs            map[string]amqp.Table
 
 	// consumeErr, when set, is returned by Consume even though the consumer is
 	// registered, which is what a shared channel does when another command on
@@ -668,6 +669,10 @@ func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx conte
 
 func (r *rabbitMQInMemoryBroker) QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error) {
 	r.declaredQueues = append(r.declaredQueues, name)
+	if r.queueArgs == nil {
+		r.queueArgs = map[string]amqp.Table{}
+	}
+	r.queueArgs[name] = args
 	return amqp.Queue{Name: name}, r.queueDeclareErr
 }
 
@@ -1412,6 +1417,68 @@ func TestDeadLetterFollowsQueueDeclareMode(t *testing.T) {
 			assert.NotEqual(t, "dlx-operator-owned-queue", e.name, "the dead letter exchange must not be touched")
 		}
 	})
+}
+
+// TestDeadLetterQueueType verifies that deadLetterQueueType selects the dead
+// letter queue type, and that leaving it unset keeps the classic lazy queue so
+// existing dead letter queues still redeclare cleanly.
+func TestDeadLetterQueueType(t *testing.T) {
+	tests := []struct {
+		name         string
+		metadata     map[string]string
+		wantType     any
+		wantLazyMode bool
+		wantErr      bool
+	}{
+		{
+			name:         "unset keeps the classic lazy queue",
+			metadata:     map[string]string{reqMetadataQueueTypeKey: amqp.QueueTypeQuorum},
+			wantType:     nil,
+			wantLazyMode: true,
+		},
+		{
+			name:         "classic keeps the classic lazy queue",
+			metadata:     map[string]string{reqMetadataDeadLetterQueueTypeKey: amqp.QueueTypeClassic},
+			wantType:     nil,
+			wantLazyMode: true,
+		},
+		{
+			name:     "quorum declares a quorum queue without x-queue-mode",
+			metadata: map[string]string{reqMetadataQueueTypeKey: amqp.QueueTypeQuorum, reqMetadataDeadLetterQueueTypeKey: amqp.QueueTypeQuorum},
+			wantType: amqp.QueueTypeQuorum,
+		},
+		{
+			name:     "unknown type is rejected",
+			metadata: map[string]string{reqMetadataDeadLetterQueueTypeKey: "stream"},
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			broker := newBroker()
+			r := newRabbitMQForExchangeTest(broker, &rabbitmqMetadata{
+				ExchangeKind:        amqp.ExchangeTopic,
+				ExchangeDeclareMode: exchangeDeclareModeDeclare,
+				QueueDeclareMode:    queueDeclareModeDeclare,
+				EnableDeadLetter:    true,
+			})
+
+			_, err := r.prepareSubscription(broker, pubsub.SubscribeRequest{Topic: "mytopic", Metadata: tt.metadata}, "consumer-mytopic")
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), errorInvalidQueueType)
+				assert.Empty(t, broker.declaredQueues, "nothing is declared when the type is invalid")
+				return
+			}
+			require.NoError(t, err)
+
+			dlqArgs := broker.queueArgs["dlq-consumer-mytopic"]
+			assert.Equal(t, tt.wantType, dlqArgs[amqp.QueueTypeArg])
+			_, hasMode := dlqArgs[argQueueMode]
+			assert.Equal(t, tt.wantLazyMode, hasMode)
+		})
+	}
 }
 
 // A consumer registered on a shared channel survives a Consume error raised by

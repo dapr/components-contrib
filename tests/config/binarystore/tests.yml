@@ -8,6 +8,11 @@ components:
   - component: in-memory
     profile: prefix
     operations: []
+  - component: localstorage
+    operations: []
+  - component: localstorage
+    profile: prefix
+    operations: []
   - component: azure.blobstorage
     operations: []
   - component: azure.blobstorage

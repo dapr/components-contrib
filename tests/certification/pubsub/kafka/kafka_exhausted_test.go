@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,7 +35,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
-	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 )
 
@@ -178,20 +176,7 @@ func TestKafkaExhaustedRetriesCommitOffset(t *testing.T) {
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			config := sarama.NewConfig()
-			config.ClientID = "test-consumer-exhausted"
-			config.Consumer.Return.Errors = true
-
-			client, err := sarama.NewConsumer(brokers, config)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
-			return err
-		})).
+		Step("wait for kafka readiness", waitForKafkaReadiness(brokers, "test-consumer-exhausted")).
 		//
 		Step(app.Run(appIDExhausted, fmt.Sprintf(":%d", exhaustedAppPort), application)).
 		Step(sidecar.Run(sidecarNameExhausted, sidecarOptions()...)).

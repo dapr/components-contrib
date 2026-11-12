@@ -529,6 +529,90 @@ func TestOpenReaderDoesNotBlockOverwriteOrDelete(t *testing.T) {
 	assert.Equal(t, "first", string(old))
 }
 
+func TestCrossInstanceMutationLockSerializesOverwrite(t *testing.T) {
+	root := t.TempDir()
+	first := newTestStoreWithProperties(t, map[string]string{"rootPath": root})
+	second := newTestStoreWithProperties(t, map[string]string{"rootPath": root})
+
+	uploadStarted := make(chan struct{})
+	releaseUpload := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releaseUpload:
+		default:
+			close(releaseUpload)
+		}
+	})
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- first.Set(t.Context(), &binarystore.SetRequest{
+			FileName:  "file.bin",
+			Data:      blockingReader(uploadStarted, releaseUpload, "first"),
+			Overwrite: true,
+		})
+	}()
+	<-uploadStarted
+	requireMutationLockState(t, 1, 1)
+
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- second.Set(t.Context(), &binarystore.SetRequest{
+			FileName:  "file.bin",
+			Data:      strings.NewReader("second"),
+			Overwrite: true,
+		})
+	}()
+	requireMutationLockState(t, 1, 2)
+
+	close(releaseUpload)
+	require.NoError(t, <-firstDone)
+	require.NoError(t, <-secondDone)
+	requireMutationLockState(t, 0, 0)
+	assert.Equal(t, "second", string(mustGet(t, first, "file.bin")))
+}
+
+func TestCrossInstanceMutationLockCancellationCleansRegistry(t *testing.T) {
+	root := t.TempDir()
+	first := newTestStoreWithProperties(t, map[string]string{"rootPath": root})
+	second := newTestStoreWithProperties(t, map[string]string{"rootPath": root})
+
+	uploadStarted := make(chan struct{})
+	releaseUpload := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-releaseUpload:
+		default:
+			close(releaseUpload)
+		}
+	})
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- first.Set(t.Context(), &binarystore.SetRequest{
+			FileName:  "file.bin",
+			Data:      blockingReader(uploadStarted, releaseUpload, "payload"),
+			Overwrite: true,
+		})
+	}()
+	<-uploadStarted
+	requireMutationLockState(t, 1, 1)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	deleteDone := make(chan error, 1)
+	go func() {
+		deleteDone <- second.Delete(ctx, &binarystore.DeleteRequest{FileName: "file.bin"})
+	}()
+	requireMutationLockState(t, 1, 2)
+
+	cancel()
+	require.ErrorIs(t, <-deleteDone, context.Canceled)
+	requireMutationLockState(t, 1, 1)
+
+	close(releaseUpload)
+	require.NoError(t, <-firstDone)
+	requireMutationLockState(t, 0, 0)
+	assert.Equal(t, "payload", string(mustGet(t, second, "file.bin")))
+}
+
 func TestSetRejectsWithoutReadingData(t *testing.T) {
 	store := newTestStore(t, "")
 	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
@@ -767,6 +851,29 @@ type readerFunc func([]byte) (int, error)
 
 func (f readerFunc) Read(p []byte) (int, error) {
 	return f(p)
+}
+
+func blockingReader(started chan<- struct{}, release <-chan struct{}, payload string) io.Reader {
+	return readerFunc(func(p []byte) (int, error) {
+		close(started)
+		<-release
+		return copy(p, payload), io.EOF
+	})
+}
+
+func requireMutationLockState(t *testing.T, entries, refs int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		mutationLocks.mu.Lock()
+		defer mutationLocks.mu.Unlock()
+		if len(mutationLocks.entries) != entries {
+			return false
+		}
+		if entries == 0 {
+			return true
+		}
+		return mutationLocks.entries[0].refs == refs
+	}, time.Second, time.Millisecond)
 }
 
 type trackedUploadReader struct {

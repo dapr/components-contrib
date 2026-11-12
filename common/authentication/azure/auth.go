@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/pkcs12"
 
 	"github.com/dapr/components-contrib/metadata"
+	kitstrings "github.com/dapr/kit/strings"
 )
 
 // EnvironmentSettings hold settings to authenticate with Azure.
@@ -45,6 +46,13 @@ const (
 	identityEndpoint = "IDENTITY_ENDPOINT"
 	msiEndpoint      = "MSI_ENDPOINT"
 	imdsEndpoint     = "http://169.254.169.254/metadata/identity/oauth2/token"
+)
+
+var ( //nolint:gochecknoglobals
+	newClientSecretCredential      = azidentity.NewClientSecretCredential
+	newClientCertificateCredential = azidentity.NewClientCertificateCredential
+	newWorkloadIdentityCredential  = azidentity.NewWorkloadIdentityCredential
+	newClientAssertionCredential   = azidentity.NewClientAssertionCredential
 )
 
 // timeoutWrapper prevents a potentially very long timeout when managed identity or CLI credential aren't available
@@ -105,6 +113,12 @@ func (s EnvironmentSettings) GetAzureEnvironment() (*cloud.Configuration, error)
 	}
 }
 
+// GetDisableInstanceDiscovery returns whether Microsoft Entra instance discovery should be disabled.
+func (s EnvironmentSettings) GetDisableInstanceDiscovery() bool {
+	value, _ := s.GetEnvironment("DisableInstanceDiscovery")
+	return kitstrings.IsTruthy(value)
+}
+
 func (s EnvironmentSettings) addClientCredentialsProvider(creds *[]azcore.TokenCredential, errs *[]error) {
 	if c, e := s.GetClientCredentials(); e == nil {
 		cred, err := c.GetTokenCredential()
@@ -130,8 +144,10 @@ func (s EnvironmentSettings) addClientCertificateProvider(creds *[]azcore.TokenC
 func (s EnvironmentSettings) addWorkloadIdentityProvider(creds *[]azcore.TokenCredential, errs *[]error) {
 	// workload identity requires values for AZURE_AUTHORITY_HOST, AZURE_CLIENT_ID, AZURE_FEDERATED_TOKEN_FILE, AZURE_TENANT_ID
 	// The workload identity mutating admissions webhook in Kubernetes injects these values into the pod.
-	// These environment variables are read using the default WorkloadIdentityCredentialOptions
-	workloadCred, err := azidentity.NewWorkloadIdentityCredential(nil)
+	// These environment variables are read when their corresponding WorkloadIdentityCredentialOptions fields are unset.
+	workloadCred, err := newWorkloadIdentityCredential(&azidentity.WorkloadIdentityCredentialOptions{
+		DisableInstanceDiscovery: s.GetDisableInstanceDiscovery(),
+	})
 	if err == nil {
 		*creds = append(*creds, workloadCred)
 	} else {
@@ -287,6 +303,7 @@ func (s EnvironmentSettings) GetClientCredentials() (config CredentialsConfig, e
 	}
 
 	config.AzureCloud = azureCloud
+	config.DisableInstanceDiscovery = s.GetDisableInstanceDiscovery()
 
 	return config, nil
 }
@@ -311,6 +328,7 @@ func (s EnvironmentSettings) GetClientCert() (config CertConfig, err error) {
 
 	config.CertificateData = []byte(certBytes)
 	config.AzureCloud = azureCloud
+	config.DisableInstanceDiscovery = s.GetDisableInstanceDiscovery()
 
 	return config, nil
 }
@@ -325,33 +343,33 @@ func (s EnvironmentSettings) GetMSI() (config MSIConfig) {
 
 // CredentialsConfig provides the options to get a bearer authorizer from client credentials.
 type CredentialsConfig struct {
-	ClientID     string
-	ClientSecret string
-	TenantID     string
-	AzureCloud   *cloud.Configuration
+	ClientID                 string
+	ClientSecret             string
+	TenantID                 string
+	AzureCloud               *cloud.Configuration
+	DisableInstanceDiscovery bool
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from the credentials.
 func (c CredentialsConfig) GetTokenCredential() (token azcore.TokenCredential, err error) {
-	var opts *azidentity.ClientSecretCredentialOptions
-	if c.AzureCloud != nil {
-		opts = &azidentity.ClientSecretCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: *c.AzureCloud,
-			},
-		}
+	opts := &azidentity.ClientSecretCredentialOptions{
+		DisableInstanceDiscovery: c.DisableInstanceDiscovery,
 	}
-	return azidentity.NewClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, opts)
+	if c.AzureCloud != nil {
+		opts.Cloud = *c.AzureCloud
+	}
+	return newClientSecretCredential(c.TenantID, c.ClientID, c.ClientSecret, opts)
 }
 
 // CertConfig provides the options to get a bearer authorizer from a client certificate.
 type CertConfig struct {
-	ClientID            string
-	CertificatePath     string
-	CertificatePassword string
-	TenantID            string
-	CertificateData     []byte
-	AzureCloud          *cloud.Configuration
+	ClientID                 string
+	CertificatePath          string
+	CertificatePassword      string
+	TenantID                 string
+	CertificateData          []byte
+	AzureCloud               *cloud.Configuration
+	DisableInstanceDiscovery bool
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object from client certificate.
@@ -379,15 +397,13 @@ func (c CertConfig) GetTokenCredential() (token azcore.TokenCredential, err erro
 
 	// Create the azcore.TokenCredential object
 	certs := []*x509.Certificate{cert}
-	var opts *azidentity.ClientCertificateCredentialOptions
-	if c.AzureCloud != nil {
-		opts = &azidentity.ClientCertificateCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: *c.AzureCloud,
-			},
-		}
+	opts := &azidentity.ClientCertificateCredentialOptions{
+		DisableInstanceDiscovery: c.DisableInstanceDiscovery,
 	}
-	return azidentity.NewClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
+	if c.AzureCloud != nil {
+		opts.Cloud = *c.AzureCloud
+	}
+	return newClientCertificateCredential(c.TenantID, c.ClientID, certs, key, opts)
 }
 
 // Decode a certificate, either as a PKCS#12 (PFX) bundle, or as a single file with both certificate and key encoded in PEM blocks.

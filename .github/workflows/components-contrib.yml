@@ -82,9 +82,31 @@ jobs:
           IPFS_TEST: "1"
         if: steps.skip_check.outputs.should_skip != 'true'
         run: make test
+      - name: Start Floci Azure
+        id: start-floci-az
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-az floci-az up-wait binarystore-azure-datalake
+      - name: Trust Floci Azure certificate
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: |
+          echo '127.0.0.1 devstoreaccount1.dfs.core.windows.net devstoreaccount1.blob.core.windows.net' | sudo tee -a /etc/hosts
+          curl --fail --silent --show-error http://127.0.0.1:4577/_floci/tls-cert --output floci-az.crt
+          sudo cp floci-az.crt /usr/local/share/ca-certificates/
+          sudo update-ca-certificates
+      - name: Run Azure Data Lake binary store integration tests with Floci
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: go test -count=1 -tags=integration_test -timeout=5m -coverprofile=coverage-floci-az.txt -covermode=atomic -run '^TestStoreBehaviourWithFloci$' ./binarystore/azure/datalake
+      - name: Capture Floci Azure logs
+        if: failure() && steps.start-floci-az.outcome != 'skipped'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-az floci-az logs binarystore-azure-datalake
+      - name: Stop Floci Azure
+        if: always() && steps.start-floci-az.outcome != 'skipped'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-az floci-az down binarystore-azure-datalake
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
         uses: codecov/codecov-action@v7
+        with:
+          files: coverage.txt,coverage-floci-az.txt
 
   check-metadata-bundle-changes:
     name: Detect metadata file changes

@@ -82,9 +82,32 @@ jobs:
           IPFS_TEST: "1"
         if: steps.skip_check.outputs.should_skip != 'true'
         run: make test
+      - name: Start Floci OCI
+        id: start-floci-oci
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-oci floci-oci up-wait binarystore-oci-objectstorage
+      - name: Trust Floci OCI certificate
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: |
+          echo '127.0.0.1 objectstorage.us-ashburn-1.oraclecloud.com' | sudo tee -a /etc/hosts
+          container_id=$(docker compose -f .github/infrastructure/docker-compose-floci-oci.yml -p floci-oci ps -q floci-oci)
+          docker exec "$container_id" cat /app/data/tls/floci-selfsigned.crt > floci-oci.crt
+          sudo cp floci-oci.crt /usr/local/share/ca-certificates/
+          sudo update-ca-certificates
+      - name: Run OCI Object Storage binary store integration tests with Floci
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: go test -count=1 -tags=integration_test -timeout=5m -coverprofile=coverage-floci-oci.txt -covermode=atomic -run '^TestStoreBehaviourWithFloci$' ./binarystore/oci/objectstorage
+      - name: Capture Floci OCI logs
+        if: failure() && steps.start-floci-oci.outcome != 'skipped'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-oci floci-oci logs binarystore-oci-objectstorage
+      - name: Stop Floci OCI
+        if: always() && steps.start-floci-oci.outcome != 'skipped'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-oci floci-oci down binarystore-oci-objectstorage
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
         uses: codecov/codecov-action@v7
+        with:
+          files: coverage.txt,coverage-floci-oci.txt
 
   check-metadata-bundle-changes:
     name: Detect metadata file changes

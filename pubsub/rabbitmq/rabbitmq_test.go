@@ -32,6 +32,7 @@ import (
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/concurrency/lock"
 	"github.com/dapr/kit/logger"
 )
 
@@ -40,8 +41,9 @@ import (
 // does not retry it.
 func TestPublishWhenClosedIsTerminal(t *testing.T) {
 	r := &rabbitMQ{
-		logger:  logger.NewLogger("test"),
-		closeCh: make(chan struct{}),
+		channelMutex: lock.NewContext(),
+		logger:       logger.NewLogger("test"),
+		closeCh:      make(chan struct{}),
 	}
 	r.closed.Store(true)
 
@@ -60,9 +62,10 @@ func newBroker() *rabbitMQInMemoryBroker {
 
 func newRabbitMQTest(broker *rabbitMQInMemoryBroker) *rabbitMQ {
 	return &rabbitMQ{
+		channelMutex:      lock.NewContext(),
 		declaredExchanges: make(map[string]bool),
 		logger:            logger.NewLogger("test"),
-		connectionDial: func(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		connectionDial: func(ctx context.Context, protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
 			broker.connectCount.Add(1)
 			return broker, broker, nil
 		},
@@ -512,8 +515,9 @@ func (m *mockAcknowledger) Reject(_ uint64, requeue bool) error {
 // Regression test for https://github.com/dapr/components-contrib/issues/4449
 func TestHandleMessageSkipsNACKOnContextCanceled(t *testing.T) {
 	r := &rabbitMQ{
-		logger:   logger.NewLogger("test"),
-		metadata: &rabbitmqMetadata{AutoAck: false},
+		channelMutex: lock.NewContext(),
+		logger:       logger.NewLogger("test"),
+		metadata:     &rabbitmqMetadata{AutoAck: false},
 	}
 
 	t.Run("context canceled: no NACK, no ACK, context error returned", func(t *testing.T) {
@@ -573,8 +577,9 @@ func TestHandleMessageRequeueInFailureUsesReject(t *testing.T) {
 
 	t.Run("requeueInFailure=true: Reject with requeue, no Nack", func(t *testing.T) {
 		r := &rabbitMQ{
-			logger:   logger.NewLogger("test"),
-			metadata: &rabbitmqMetadata{RequeueInFailure: true},
+			channelMutex: lock.NewContext(),
+			logger:       logger.NewLogger("test"),
+			metadata:     &rabbitmqMetadata{RequeueInFailure: true},
 		}
 		ack := &mockAcknowledger{}
 		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
@@ -588,8 +593,9 @@ func TestHandleMessageRequeueInFailureUsesReject(t *testing.T) {
 
 	t.Run("requeueInFailure=false: Nack without requeue, no Reject", func(t *testing.T) {
 		r := &rabbitMQ{
-			logger:   logger.NewLogger("test"),
-			metadata: &rabbitmqMetadata{RequeueInFailure: false},
+			channelMutex: lock.NewContext(),
+			logger:       logger.NewLogger("test"),
+			metadata:     &rabbitmqMetadata{RequeueInFailure: false},
 		}
 		ack := &mockAcknowledger{}
 		d := amqp.Delivery{Acknowledger: ack, Body: []byte("test payload")}
@@ -646,7 +652,7 @@ func (r *rabbitMQInMemoryBroker) PublishWithContext(ctx context.Context, exchang
 	return err
 }
 
-func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error) {
+func (r *rabbitMQInMemoryBroker) PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (rabbitMQConfirmation, error) {
 	if string(msg.Body) == errorChannelConnection {
 		return nil, errors.New(errorChannelConnection)
 	}
@@ -729,6 +735,8 @@ func (r *rabbitMQInMemoryBroker) Close() error {
 
 	return nil
 }
+
+func (r *rabbitMQInMemoryBroker) Abort() error { return nil }
 
 func (r *rabbitMQInMemoryBroker) IsClosed() bool {
 	return r.connectCount.Load() <= r.closeCount.Load()
@@ -933,6 +941,7 @@ func TestPublishMessagePropertiesToMetadataFlag(t *testing.T) {
 
 func newRabbitMQForExchangeTest(broker *rabbitMQInMemoryBroker, meta *rabbitmqMetadata) *rabbitMQ {
 	return &rabbitMQ{
+		channelMutex:      lock.NewContext(),
 		declaredExchanges: make(map[string]bool),
 		logger:            logger.NewLogger("test"),
 		metadata:          meta,
@@ -1307,6 +1316,7 @@ func TestActiveQueueDeclareStillValidatesQueueType(t *testing.T) {
 // loop spends an attempt on a channel the broker has already closed.
 func TestMustReconnectOnAMQPError(t *testing.T) {
 	broker := newBroker()
+	broker.connectCount.Store(1)
 
 	assert.True(t, mustReconnect(broker, &amqp.Error{Code: amqp.NotFound, Reason: "NOT_FOUND - no exchange 'mytopic' in vhost '/'"}))
 	assert.True(t, mustReconnect(broker, &amqp.Error{Code: amqp.PreconditionFailed, Reason: "PRECONDITION_FAILED - inequivalent arg 'type'"}))
@@ -1314,6 +1324,10 @@ func TestMustReconnectOnAMQPError(t *testing.T) {
 	assert.True(t, mustReconnect(nil, nil))
 	assert.False(t, mustReconnect(broker, nil))
 	assert.False(t, mustReconnect(broker, errors.New("handler failed")))
+
+	broker.closeCount.Store(1)
+	assert.True(t, mustReconnect(broker, nil))
+	assert.True(t, mustReconnect(broker, errors.New("handler failed")))
 }
 
 // TestSubscribeFailsFastOnMissingPassiveObject is the regression test for the
@@ -1459,9 +1473,54 @@ func TestSubscribeForeverCancelsConsumerWhenConsumeFails(t *testing.T) {
 
 type fakeConfirmation struct{ acked bool }
 
-func (f fakeConfirmation) Wait() bool { return f.acked }
+func (f fakeConfirmation) WaitContext(context.Context) (bool, error) { return f.acked, nil }
 
 func TestConfirmationError(t *testing.T) {
-	require.NoError(t, confirmationError(fakeConfirmation{acked: true}))
-	require.Error(t, confirmationError(fakeConfirmation{acked: false}))
+	require.NoError(t, confirmationError(t.Context(), fakeConfirmation{acked: true}))
+	require.Error(t, confirmationError(t.Context(), fakeConfirmation{acked: false}))
+}
+
+func TestInitCancellation(t *testing.T) {
+	t.Parallel()
+	for _, beforeStart := range []bool{true, false} {
+		name := "during dial"
+		if beforeStart {
+			name = "before start"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			broker := newBroker()
+			r := newRabbitMQTest(broker)
+			entered := make(chan struct{})
+			r.connectionDial = func(ctx context.Context, _ string, _ string, _ string, _ time.Duration, _ *tls.Config, _ bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+				broker.connectCount.Add(1)
+				close(entered)
+				<-ctx.Done()
+				return nil, nil, ctx.Err()
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if beforeStart {
+				cancel()
+			}
+			done := make(chan error, 1)
+			go func() {
+				done <- r.Init(ctx, pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{metadataHostnameKey: "anyhost"}}})
+			}()
+			if !beforeStart {
+				awaitPublishGate(t, entered)
+				cancel()
+			}
+			require.ErrorIs(t, awaitPublish(t, done), context.Canceled)
+			require.Nil(t, r.connection)
+			require.Nil(t, r.channel)
+			require.Zero(t, r.connectionCount)
+			if beforeStart {
+				require.Zero(t, broker.connectCount.Load())
+			} else {
+				require.Equal(t, int32(1), broker.connectCount.Load())
+			}
+			require.NoError(t, r.Close())
+		})
+	}
 }

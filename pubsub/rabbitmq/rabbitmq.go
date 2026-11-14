@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -27,12 +28,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	common "github.com/dapr/components-contrib/common/component/rabbitmq"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
+	"github.com/dapr/kit/concurrency/lock"
 	"github.com/dapr/kit/logger"
 	kitstrings "github.com/dapr/kit/strings"
 )
@@ -75,16 +79,46 @@ const (
 // publisher on this component.
 var errTerminalSubscription = errors.New("subscription configuration is not valid")
 
+var errPublishConfirmation = errors.New("did not receive confirmation of publishing")
+
+// Mandatory publishing outcomes. A basic.return followed by the ACK of the same
+// publication is the broker's conclusive answer that no queue was bound for it.
+var (
+	errPublishUnroutable = errors.New("broker returned the mandatory message as unroutable")
+	// A return that names another exchange or routing key cannot be attributed
+	// to the attempt, so its routing outcome is unknown.
+	errPublishReturnMismatch = errors.New("broker returned a message that does not match the mandatory publication")
+	// A mandatory publication that ended without an observed confirmation may
+	// still produce a return, so its channel generation is not published on again.
+	errPublishUnresolved = errors.New("an earlier mandatory publication on this channel is unresolved")
+)
+
+// publishReturnedError carries the broker's basic.return reply for the attempt.
+type publishReturnedError struct {
+	ReplyCode uint16
+	ReplyText string
+}
+
+func (e *publishReturnedError) Error() string {
+	return fmt.Sprintf("%v: %d %s", errPublishUnroutable, e.ReplyCode, e.ReplyText)
+}
+
+func (e *publishReturnedError) Unwrap() error { return errPublishUnroutable }
+
 // RabbitMQ allows sending/receiving messages in pub/sub format.
 type rabbitMQ struct {
 	connection        rabbitMQConnectionBroker
 	channel           rabbitMQChannelBroker
-	channelMutex      sync.RWMutex
+	channelMutex      *lock.Context
 	connectionCount   int
 	metadata          *rabbitmqMetadata
 	declaredExchanges map[string]bool
+	// unresolvedPublish marks, in mandatory mode, a channel generation whose
+	// publication ended without an observed confirmation. Guarded by
+	// channelMutex and cleared with the generation by reset.
+	unresolvedPublish bool
 
-	connectionDial func(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
+	connectionDial func(ctx context.Context, protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error)
 	closeCh        chan struct{}
 	closed         atomic.Bool
 	wg             sync.WaitGroup
@@ -97,7 +131,7 @@ type rabbitMQ struct {
 //nolint:interfacebloat
 type rabbitMQChannelBroker interface {
 	PublishWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) error
-	PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (*amqp.DeferredConfirmation, error)
+	PublishWithDeferredConfirmWithContext(ctx context.Context, exchange string, key string, mandatory bool, immediate bool, msg amqp.Publishing) (rabbitMQConfirmation, error)
 	QueueDeclare(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueDeclarePassive(name string, durable bool, autoDelete bool, exclusive bool, noWait bool, args amqp.Table) (amqp.Queue, error)
 	QueueBind(name string, key string, exchange string, noWait bool, args amqp.Table) error
@@ -116,25 +150,232 @@ type rabbitMQChannelBroker interface {
 // interface used to allow unit testing.
 type rabbitMQConnectionBroker interface {
 	Close() error
+	Abort() error
+}
+
+type rabbitMQConfirmation interface {
+	WaitContext(context.Context) (bool, error)
+}
+
+// The adapters retain the native AMQP API while exposing a confirmation seam and
+// the exact transport belonging to this connection generation. AMQP Close is a
+// protocol handshake and cannot interrupt a blocked network operation.
+type rabbitMQAMQPChannel struct {
+	*amqp.Channel
+	confirmations   <-chan amqp.Confirmation
+	channelClose    <-chan *amqp.Error
+	connectionClose <-chan *amqp.Error
+	closeCause      *amqp.Error
+	// returns is registered before this channel's first mandatory publication.
+	returns <-chan amqp.Return
+}
+
+func (c *rabbitMQAMQPChannel) PublishWithDeferredConfirmWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) (rabbitMQConfirmation, error) {
+	if mandatory && c.returns == nil {
+		// Capacity one suffices: a full listener would stall the SDK reader and
+		// then drop the return, so the drain below keeps it empty.
+		c.returns = c.NotifyReturn(make(chan amqp.Return, 1))
+	}
+	// One notification listener per channel, with at most one outstanding
+	// publication under channelMutex. Clear any notification from a failed write
+	// before starting the next serialized attempt. A buffered return belongs to
+	// an attempt that already observed its confirmation.
+	for c.confirmations != nil {
+		select {
+		case _, ok := <-c.confirmations:
+			if !ok {
+				return nil, c.closedError(ctx)
+			}
+		case _, ok := <-c.returns:
+			if !ok {
+				return nil, c.closedError(ctx)
+			}
+		default:
+			goto publish
+		}
+	}
+publish:
+	confirmation, err := c.Channel.PublishWithDeferredConfirmWithContext(ctx, exchange, key, mandatory, immediate, msg)
+	if err != nil && c.IsClosed() {
+		return nil, c.closedError(ctx)
+	}
+	if confirmation == nil {
+		return nil, err
+	}
+	return &rabbitMQAMQPConfirmation{channel: c, tag: confirmation.DeliveryTag, mandatory: mandatory, exchange: exchange, key: key}, err
+}
+
+func (c *rabbitMQAMQPChannel) Confirm(noWait bool) error {
+	err := c.Channel.Confirm(noWait)
+	if err != nil {
+		c.pollClose()
+		if c.closeCause != nil {
+			return c.closeCause
+		}
+	}
+	return err
+}
+
+// NotifyClose retains the original channel/connection exception before shutdown
+// completes pending deferred confirmations with ack=false. No notification
+// goroutines or per-publish listener registrations are needed.
+func (c *rabbitMQAMQPChannel) retainClose(cause *amqp.Error) {
+	if cause != nil && (c.closeCause == nil || (cause.Server && !c.closeCause.Server)) {
+		c.closeCause = cause
+	}
+}
+
+func (c *rabbitMQAMQPChannel) pollClose() {
+	select {
+	case cause, ok := <-c.channelClose:
+		if !ok {
+			c.channelClose = nil
+		} else {
+			c.retainClose(cause)
+		}
+	default:
+	}
+	select {
+	case cause, ok := <-c.connectionClose:
+		if !ok {
+			c.connectionClose = nil
+		} else {
+			c.retainClose(cause)
+		}
+	default:
+	}
+}
+
+func (c *rabbitMQAMQPChannel) closedError(ctx context.Context) error {
+	for {
+		c.pollClose()
+		if c.closeCause != nil {
+			return operationError(ctx, c.closeCause)
+		}
+		if c.channelClose == nil {
+			return operationError(ctx, amqp.ErrClosed)
+		}
+		select {
+		case cause, ok := <-c.channelClose:
+			if !ok {
+				c.channelClose = nil
+			} else {
+				c.retainClose(cause)
+			}
+		case cause, ok := <-c.connectionClose:
+			if !ok {
+				c.connectionClose = nil
+			} else {
+				c.retainClose(cause)
+			}
+		case <-ctx.Done():
+			c.pollClose()
+			if c.closeCause != nil {
+				return operationError(ctx, c.closeCause)
+			}
+			return ctx.Err()
+		}
+	}
+}
+
+type rabbitMQAMQPConfirmation struct {
+	channel       *rabbitMQAMQPChannel
+	tag           uint64
+	mandatory     bool
+	exchange, key string
+}
+
+func (c *rabbitMQAMQPConfirmation) outcome(confirmation amqp.Confirmation) (bool, error) {
+	if !confirmation.Ack {
+		// This notification proves a real broker NACK, even if a disconnect
+		// follows immediately. Shutdown never emits one.
+		return false, errPublishConfirmation
+	}
+	if !c.mandatory {
+		return true, nil
+	}
+	// RabbitMQ sends basic.return before the ACK of the same publication, and
+	// the SDK reader delivers a complete return before handling the next frame.
+	// With one outstanding publication per channel, a return buffered by the
+	// time this ACK arrives belongs to this attempt.
+	select {
+	case returned, ok := <-c.channel.returns:
+		if !ok {
+			return true, nil
+		}
+		if returned.Exchange != c.exchange || returned.RoutingKey != c.key {
+			return false, errPublishReturnMismatch
+		}
+		return false, &publishReturnedError{ReplyCode: returned.ReplyCode, ReplyText: returned.ReplyText}
+	default:
+		return true, nil
+	}
+}
+
+func (c *rabbitMQAMQPConfirmation) WaitContext(ctx context.Context) (bool, error) {
+	for {
+		select {
+		case confirmation, ok := <-c.channel.confirmations:
+			if !ok {
+				return false, c.channel.closedError(ctx)
+			}
+			if confirmation.DeliveryTag == c.tag {
+				return c.outcome(confirmation)
+			}
+		case <-ctx.Done():
+			// Preserve a definitive notification that arrived before cancellation.
+			select {
+			case confirmation, ok := <-c.channel.confirmations:
+				if ok && confirmation.DeliveryTag == c.tag {
+					return c.outcome(confirmation)
+				}
+			default:
+			}
+			return false, c.channel.closedError(ctx)
+		}
+	}
+}
+
+type rabbitMQAMQPConnection struct {
+	*amqp.Connection
+	transport net.Conn
+}
+
+func (c *rabbitMQAMQPConnection) Abort() error { return c.transport.Close() }
+
+// stopAbort joins an already-running callback before its caller releases the
+// channel lock or hands a newly established connection to another caller.
+func abortOnCancel(ctx context.Context, connection rabbitMQConnectionBroker) (stopAbort func()) {
+	done := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() {
+		defer close(done)
+		if connection != nil {
+			_ = connection.Abort()
+		}
+	})
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			if !stop() {
+				<-done
+			}
+		})
+	}
 }
 
 // NewRabbitMQ creates a new RabbitMQ pub/sub.
 func NewRabbitMQ(logger logger.Logger) pubsub.PubSub {
 	return &rabbitMQ{
 		declaredExchanges: make(map[string]bool),
+		channelMutex:      lock.NewContext(),
 		logger:            logger,
 		connectionDial:    dial,
 		closeCh:           make(chan struct{}),
 	}
 }
 
-func dial(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
-	var (
-		conn *amqp.Connection
-		ch   *amqp.Channel
-		err  error
-		cfg  = amqp.Config{Heartbeat: heartBeat, Locale: defaultLocale} // use default locale of amqp091-go
-	)
+func dial(ctx context.Context, protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls.Config, externalSasl bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+	cfg := amqp.Config{Heartbeat: heartBeat, Locale: defaultLocale}
 	if len(clientName) > 0 {
 		cfg.Properties = map[string]interface{}{
 			propertyClientName: clientName,
@@ -147,22 +388,94 @@ func dial(protocol, uri, clientName string, heartBeat time.Duration, tlsCfg *tls
 			cfg.SASL = []amqp.Authentication{&amqp.ExternalAuth{}}
 		}
 	}
+	return dialWithConfig(ctx, uri, cfg, nil)
+}
+
+func dialWithConfig(ctx context.Context, uri string, cfg amqp.Config, networkDial func(context.Context, string, string) (net.Conn, error)) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+	var (
+		conn *amqp.Connection
+		ch   *amqp.Channel
+		err  error
+	)
+	if err = ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	// Preserve the library's default/URI handshake timeout in addition to the
+	// caller's cancellation budget. Its custom Dial hook otherwise loses this.
+	parsed, err := amqp.ParseURI(uri)
+	if err != nil {
+		return nil, nil, err
+	}
+	timeout := 30 * time.Second
+	if parsed.ConnectionTimeout != 0 {
+		timeout = time.Duration(parsed.ConnectionTimeout) * time.Millisecond
+	}
+	if networkDial == nil {
+		networkDial = (&net.Dialer{Timeout: timeout}).DialContext
+	}
+	var transport net.Conn
+	stopAbort := func() {}
+	defer func() { stopAbort() }()
+	cfg.Dial = func(network, address string) (net.Conn, error) {
+		transport, err = networkDial(ctx, network, address)
+		if err != nil {
+			return nil, err
+		}
+		if err = transport.SetDeadline(time.Now().Add(timeout)); err != nil {
+			_ = transport.Close()
+			return nil, err
+		}
+		// Capture the raw transport, including during TLS and AMQP handshakes.
+		raw := transport
+		done := make(chan struct{})
+		stop := context.AfterFunc(ctx, func() {
+			defer close(done)
+			_ = raw.Close()
+		})
+		var once sync.Once
+		stopAbort = func() {
+			once.Do(func() {
+				if !stop() {
+					<-done
+				}
+			})
+		}
+		return transport, nil
+	}
 	conn, err = amqp.DialConfig(uri, cfg)
 	if err != nil {
-		return nil, nil, err
+		if transport != nil {
+			_ = transport.Close()
+		}
+		return nil, nil, operationError(ctx, err)
 	}
 
+	if err = ctx.Err(); err != nil {
+		_ = transport.Close()
+		return nil, nil, err
+	}
+	connectionClose := conn.NotifyClose(make(chan *amqp.Error, 1))
 	ch, err = conn.Channel()
 	if err != nil {
-		_ = conn.Close()
-		return nil, nil, err
+		_ = transport.Close()
+		return nil, nil, operationError(ctx, err)
 	}
 
-	return conn, ch, nil
+	stopAbort()
+	if err = ctx.Err(); err != nil {
+		_ = transport.Close()
+		return nil, nil, err
+	}
+	return &rabbitMQAMQPConnection{Connection: conn, transport: transport}, &rabbitMQAMQPChannel{
+		Channel:         ch,
+		confirmations:   ch.NotifyPublish(make(chan amqp.Confirmation, 1)),
+		channelClose:    ch.NotifyClose(make(chan *amqp.Error, 1)),
+		connectionClose: connectionClose,
+	}, nil
 }
 
 // Init does metadata parsing and connection creation.
-func (r *rabbitMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
+func (r *rabbitMQ) Init(ctx context.Context, metadata pubsub.Metadata) error {
 	meta, err := createMetadata(metadata, r.logger)
 	if err != nil {
 		return err
@@ -174,20 +487,25 @@ func (r *rabbitMQ) Init(_ context.Context, metadata pubsub.Metadata) error {
 		r.logger.Infof("%s exchange kind is %s: publishers must set the '%s' publish metadata to the partition key, and subscribers must set it to the queue's bucket weight", logMessagePrefix, exchangeKindConsistentHash, reqMetadataRoutingKey)
 	}
 
-	if err := r.reconnect(0); err != nil {
+	if err := r.reconnect(ctx, 0); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (r *rabbitMQ) reconnect(connectionCount int) error {
-	r.channelMutex.Lock()
+func (r *rabbitMQ) reconnect(ctx context.Context, connectionCount int) error {
+	if err := r.channelMutex.Lock(ctx); err != nil {
+		return err
+	}
 	defer r.channelMutex.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	if r.isStopped() {
 		// Do not reconnect on stopped service.
-		return errors.New("cannot connect after component is stopped")
+		return pubsub.NewTerminalError(errors.New("cannot connect after component is stopped"))
 	}
 
 	r.logger.Infof("%s connectionCount: current=%d reference=%d", logMessagePrefix, r.connectionCount, connectionCount)
@@ -208,21 +526,34 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 		return err
 	}
 
-	r.connection, r.channel, err = r.connectionDial(r.metadata.internalProtocol, r.metadata.connectionURI(), r.metadata.ClientName, r.metadata.HeartBeat, tlsCfg, r.metadata.SaslExternal)
+	connection, channel, err := r.connectionDial(ctx, r.metadata.internalProtocol, r.metadata.connectionURI(), r.metadata.ClientName, r.metadata.HeartBeat, tlsCfg, r.metadata.SaslExternal)
 	if err != nil {
-		_ = r.reset()
-
+		return operationError(ctx, err)
+	}
+	stopAbort := abortOnCancel(ctx, connection)
+	defer stopAbort()
+	installed := false
+	defer func() {
+		if !installed {
+			_ = connection.Abort()
+		}
+	}()
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 
 	if r.metadata.PublisherConfirm {
-		err = r.channel.Confirm(false)
+		err = channel.Confirm(false)
 		if err != nil {
-			_ = r.reset()
-
-			return err
+			return operationError(ctx, err)
 		}
 	}
+	stopAbort()
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	r.connection, r.channel = connection, channel
+	installed = true
 
 	r.connectionCount++
 
@@ -232,16 +563,34 @@ func (r *rabbitMQ) reconnect(connectionCount int) error {
 }
 
 func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) (rabbitMQChannelBroker, int, error) {
-	r.channelMutex.Lock()
+	if err := r.channelMutex.Lock(ctx); err != nil {
+		return nil, 0, err
+	}
 	defer r.channelMutex.Unlock()
+	if err := ctx.Err(); err != nil {
+		return r.channel, r.connectionCount, err
+	}
+	if r.closed.Load() {
+		return r.channel, r.connectionCount, pubsub.NewTerminalError(errors.New("component is closed"))
+	}
 
 	if r.channel == nil {
 		return r.channel, r.connectionCount, errors.New(errorChannelNotInitialized)
 	}
+	if r.unresolvedPublish {
+		// A return could still arrive for the earlier publication. A nil channel
+		// makes the caller reconnect before publishing.
+		return nil, r.connectionCount, errPublishUnresolved
+	}
+	stopAbort := abortOnCancel(ctx, r.connection)
+	defer stopAbort()
 
 	if err := r.ensureExchangeDeclared(r.channel, req.Topic, r.metadata.ExchangeKind, r.metadata.Durable, r.metadata.DeleteWhenUnused, r.metadata.isPassiveExchangeDeclare()); err != nil {
 		r.logger.Errorf("%s publishing to %s failed in ensureExchangeDeclared: %v", logMessagePrefix, req.Topic, err)
 
+		return r.channel, r.connectionCount, operationError(ctx, err)
+	}
+	if err := ctx.Err(); err != nil {
 		return r.channel, r.connectionCount, err
 	}
 	routingKey := ""
@@ -278,20 +627,33 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	}
 
 	common.ApplyMetadataToPublishing(req.Metadata, &p)
+	if err = ctx.Err(); err != nil {
+		return r.channel, r.connectionCount, err
+	}
 
-	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, false, false, p)
+	// immediate stays false: RabbitMQ rejects it by closing the connection.
+	confirm, err := r.channel.PublishWithDeferredConfirmWithContext(ctx, req.Topic, routingKey, r.metadata.PublishMandatory, false, p)
 	if err != nil {
 		r.logger.Errorf("%s publishing to %s failed in channel.Publish: %v", logMessagePrefix, req.Topic, err)
 
-		return r.channel, r.connectionCount, err
+		return r.unresolvedChannel(), r.connectionCount, operationError(ctx, err)
 	}
 
 	// confirm will be nil if are not requesting publish confirmations
 	if confirm != nil {
 		// Blocks until the server confirms
-		if err = confirmationError(confirm); err != nil {
+		if err = confirmationError(ctx, confirm); err != nil {
 			r.logger.Errorf("%s publishing to %s failed: %v", logMessagePrefix, req.Topic, err)
+			if errors.Is(err, errPublishConfirmation) || errors.Is(err, errPublishUnroutable) {
+				// The broker's confirmation resolved this attempt.
+				return r.channel, r.connectionCount, err
+			}
 
+			return r.unresolvedChannel(), r.connectionCount, err
+		}
+	} else {
+		stopAbort()
+		if err = ctx.Err(); err != nil {
 			return r.channel, r.connectionCount, err
 		}
 	}
@@ -299,13 +661,51 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	return r.channel, r.connectionCount, nil
 }
 
+// unresolvedChannel is called under channelMutex when a publication may have
+// been handed to the channel without an observed confirmation. In mandatory
+// mode a return for it could still arrive, so the generation is marked and a
+// nil channel makes the caller reconnect. Otherwise the channel is unchanged.
+func (r *rabbitMQ) unresolvedChannel() rabbitMQChannelBroker {
+	if !r.metadata.PublishMandatory {
+		return r.channel
+	}
+	r.unresolvedPublish = true
+	return nil
+}
+
 // confirmationError waits for the broker's confirmation and returns an error if the broker did not ack the message.
-func confirmationError(confirm interface{ Wait() bool }) error {
-	if !confirm.Wait() {
-		return errors.New("did not receive confirmation of publishing")
+func confirmationError(ctx context.Context, confirm rabbitMQConfirmation) error {
+	acked, err := confirm.WaitContext(ctx)
+	if err != nil {
+		return err
+	}
+	if !acked {
+		// Closing a transport also completes native deferred confirmations with
+		// ack=false. A cancellation-induced completion is not a broker NACK.
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		return errPublishConfirmation
 	}
 
 	return nil
+}
+
+// Cancellation can make the AMQP handshake return the library's generic
+// ErrCredentials. Only an actual server exception remains conclusive here.
+func operationError(ctx context.Context, err error) error {
+	if ctx.Err() != nil {
+		var brokerError *amqp.Error
+		if !errors.As(err, &brokerError) || !brokerError.Server {
+			return ctx.Err()
+		}
+	}
+	return err
+}
+
+func authorizationError(err error) bool {
+	var brokerError *amqp.Error
+	return errors.As(err, &brokerError) && brokerError.Code == amqp.AccessRefused
 }
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
@@ -315,35 +715,77 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 
 	r.logger.Debugf("%s publishing message to %s", logMessagePrefix, req.Topic)
 
-	attempt := 0
-	for {
-		attempt++
-		channel, connectionCount, err := r.publishSync(ctx, req)
+	var (
+		failure         error
+		conclusive      error
+		connectionCount int
+		reconnect       bool
+	)
+	result := func() error {
+		if conclusive != nil {
+			return pubsub.NewRetriableError(conclusive)
+		}
+		if ctx.Err() != nil {
+			return pubsub.NewRetriableError(ctx.Err())
+		}
+		if failure != nil {
+			return pubsub.NewRetriableError(failure)
+		}
+		return pubsub.NewRetriableError(errors.New("publishing failed without a confirmation"))
+	}
+	remember := func(err error, attempt int) {
+		r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt+1, publishMaxRetries, err)
+		failure = err
+		var brokerError *amqp.Error
+		if errors.Is(err, errPublishConfirmation) || (errors.As(err, &brokerError) && brokerError.Server) {
+			conclusive = err
+		}
+	}
+	for attempt := range publishMaxRetries {
+		if ctx.Err() != nil {
+			return result()
+		}
+		if attempt > 0 {
+			delay := publishRetryWaitSeconds * time.Second
+			if reconnect {
+				r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.ReconnectWait.String())
+				delay = r.metadata.ReconnectWait
+			}
+			timer := time.NewTimer(delay)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				timer.Stop()
+				return result()
+			}
+		}
+		if ctx.Err() != nil {
+			return result()
+		}
+		if reconnect {
+			if err := r.reconnect(ctx, connectionCount); err != nil {
+				remember(err, attempt)
+				if authorizationError(err) || status.Code(err) == codes.FailedPrecondition {
+					return pubsub.NewTerminalError(err)
+				}
+				continue
+			}
+		}
+		channel, count, err := r.publishSync(ctx, req)
+		connectionCount = count
 		if err == nil {
 			return nil
 		}
-		if attempt >= publishMaxRetries {
-			r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
-			return pubsub.NewRetriableError(err)
+		remember(err, attempt)
+		// Retrying cannot route a returned publication; stop at once.
+		if authorizationError(err) || status.Code(err) == codes.FailedPrecondition || errors.Is(err, errPublishUnroutable) {
+			return pubsub.NewTerminalError(err)
 		}
-		if mustReconnect(channel, err) {
-			r.logger.Warnf("%s publisher is reconnecting in %s ...", logMessagePrefix, r.metadata.ReconnectWait.String())
-			select {
-			case <-time.After(r.metadata.ReconnectWait):
-			case <-ctx.Done():
-				return nil
-			}
-
-			_ = r.reconnect(connectionCount) //nolint:errcheck // legacy behavior preserved
-		} else {
-			r.logger.Warnf("%s publishing attempt (%d/%d) failed: %v", logMessagePrefix, attempt, publishMaxRetries, err)
-			select {
-			case <-time.After(publishRetryWaitSeconds * time.Second):
-			case <-ctx.Done():
-				return nil
-			}
-		}
+		reconnect = mustReconnect(channel, err)
 	}
+	err := result()
+	r.logger.Errorf("%s publishing failed: %v", logMessagePrefix, err)
+	return err
 }
 
 func (r *rabbitMQ) Subscribe(ctx context.Context, req pubsub.SubscribeRequest, handler pubsub.Handler) error {
@@ -650,7 +1092,7 @@ func (r *rabbitMQ) validateBindingRoutingKeys(topic, queueName string, routingKe
 }
 
 func (r *rabbitMQ) ensureSubscription(req pubsub.SubscribeRequest, queueName string) (rabbitMQChannelBroker, int, *amqp.Queue, error) {
-	r.channelMutex.Lock()
+	_ = r.channelMutex.Lock(context.Background())
 	defer r.channelMutex.Unlock()
 
 	if r.channel == nil {
@@ -763,7 +1205,7 @@ func (r *rabbitMQ) subscribeForever(ctx context.Context, req pubsub.SubscribeReq
 				r.logger.Infof("%s subscription for %s has context canceled", logMessagePrefix, queueName)
 				return
 			}
-			_ = r.reconnect(connectionCount) //nolint:errcheck // legacy behavior preserved
+			_ = r.reconnect(ctx, connectionCount) //nolint:errcheck // legacy behavior preserved
 		}
 	}
 }
@@ -924,10 +1366,22 @@ func (r *rabbitMQ) reset() (err error) {
 	if len(r.declaredExchanges) > 0 {
 		r.declaredExchanges = make(map[string]bool)
 	}
+	r.unresolvedPublish = false
+	// Abort before graceful closes: a protocol Close itself can wait for a
+	// blocked writer or an unresponsive broker. The transport belongs to the
+	// generation protected by channelMutex.
+	if r.connection != nil {
+		_ = r.connection.Abort()
+	}
 
 	if r.channel != nil {
 		if err = r.channel.Close(); err != nil {
 			r.logger.Errorf("%s reset: channel.Close() failed: %v", logMessagePrefix, err)
+			if r.connection != nil {
+				// Abort deliberately invalidated every pending Close RPC.
+				// Its transport errors are cleanup results, not reset failures.
+				err = nil
+			}
 		}
 		r.channel = nil
 	}
@@ -951,7 +1405,7 @@ func (r *rabbitMQ) isStopped() bool {
 
 // Close closes the rabbitMQ connection. Blocks until all go routines are done.
 func (r *rabbitMQ) Close() error {
-	r.channelMutex.Lock()
+	_ = r.channelMutex.Lock(context.Background())
 	defer r.channelMutex.Unlock()
 
 	if r.closed.CompareAndSwap(false, true) {
@@ -969,6 +1423,9 @@ func (r *rabbitMQ) Features() []pubsub.Feature {
 
 func mustReconnect(channel rabbitMQChannelBroker, err error) bool {
 	if channel == nil {
+		return true
+	}
+	if channel.IsClosed() {
 		return true
 	}
 

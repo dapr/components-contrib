@@ -28,6 +28,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
@@ -599,4 +601,54 @@ func TestPassiveExchangeWithDeadLetter(t *testing.T) {
 	require.NoError(t, verify.ExchangeDeclarePassive("dlx-dlxcheck-dlx-queue", fanoutExchangeKind, true, false, false, false, nil),
 		"the dead letter exchange should have been declared by the component, not required from the operator")
 	t.Log("passive topic exchange + component-declared dead letter objects: OK")
+}
+
+// TestMandatoryUnroutablePublish verifies that, with publishMandatory, a
+// publication to an exchange without any bound queue fails with the broker's
+// unroutable return, while routed publications before and after it succeed.
+func TestMandatoryUnroutablePublish(t *testing.T) {
+	conn, err := amqp.Dial(testRabbitMQURL)
+	require.NoError(t, err, "RabbitMQ must be running at %s", testRabbitMQURL)
+	conn.Close()
+
+	r := NewRabbitMQ(logger.NewLogger("test")).(*rabbitMQ)
+	err = r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataConnectionStringKey: testRabbitMQURL,
+			metadataConsumerIDKey:       "mandatory-test",
+			metadataPublisherConfirmKey: "true",
+			metadataPublishMandatoryKey: "true",
+		},
+	}})
+	require.NoError(t, err)
+	defer r.Close()
+
+	const bound, unbound = "mandatory-bound", "mandatory-unbound"
+	received := make(chan string, 2)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	err = r.Subscribe(ctx, pubsub.SubscribeRequest{Topic: bound}, func(_ context.Context, msg *pubsub.NewMessage) error {
+		received <- string(msg.Data)
+		return nil
+	})
+	require.NoError(t, err)
+	publishRouted := func(data string) {
+		t.Helper()
+		require.NoError(t, r.Publish(t.Context(), &pubsub.PublishRequest{Topic: bound, Data: []byte(data)}))
+		select {
+		case got := <-received:
+			assert.Equal(t, data, got)
+		case <-time.After(10 * time.Second):
+			t.Fatalf("routed publication %s was not delivered", data)
+		}
+	}
+
+	publishRouted("routed-before")
+	// The component declares the unbound topic's exchange; no queue is bound.
+	err = r.Publish(t.Context(), &pubsub.PublishRequest{Topic: unbound, Data: []byte("unroutable")})
+	var returned *publishReturnedError
+	require.ErrorAs(t, err, &returned)
+	assert.Equal(t, uint16(amqp.NoRoute), returned.ReplyCode)
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+	publishRouted("routed-after")
 }

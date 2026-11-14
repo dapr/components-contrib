@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	mdata "github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/pubsub"
 	"github.com/dapr/kit/logger"
 )
@@ -50,6 +51,8 @@ type publishTestBroker struct {
 	declarations atomic.Int32
 	aborts       atomic.Int32
 	closed       atomic.Bool
+	mandatory    atomic.Int32
+	immediate    atomic.Int32
 }
 
 func (b *publishTestBroker) IsClosed() bool { return b.closed.Load() }
@@ -58,8 +61,14 @@ func newPublishTestBroker() *publishTestBroker {
 	return &publishTestBroker{rabbitMQInMemoryBroker: newBroker()}
 }
 
-func (b *publishTestBroker) PublishWithDeferredConfirmWithContext(ctx context.Context, _, _ string, _, _ bool, msg amqp.Publishing) (rabbitMQConfirmation, error) {
+func (b *publishTestBroker) PublishWithDeferredConfirmWithContext(ctx context.Context, _, _ string, mandatory, immediate bool, msg amqp.Publishing) (rabbitMQConfirmation, error) {
 	b.publishes.Add(1)
+	if mandatory {
+		b.mandatory.Add(1)
+	}
+	if immediate {
+		b.immediate.Add(1)
+	}
 	if b.publish != nil {
 		return b.publish(ctx, msg)
 	}
@@ -702,4 +711,285 @@ func TestPublishPublicFailureLogging(t *testing.T) {
 			require.Equal(t, 1, exhausted)
 		})
 	}
+}
+
+func newMandatoryPublisher(b *publishTestBroker) *rabbitMQ {
+	r := newPublicPublisher(b)
+	r.metadata.PublisherConfirm, r.metadata.PublishMandatory = true, true
+	return r
+}
+
+func unroutableReturn() error {
+	return &publishReturnedError{ReplyCode: amqp.NoRoute, ReplyText: "NO_ROUTE"}
+}
+
+func requireUnroutable(t *testing.T, err error) {
+	t.Helper()
+	var returned *publishReturnedError
+	require.ErrorAs(t, err, &returned)
+	require.ErrorIs(t, err, errPublishUnroutable)
+	require.Equal(t, uint16(amqp.NoRoute), returned.ReplyCode)
+	require.Equal(t, "NO_ROUTE", returned.ReplyText)
+	require.EqualError(t, err, "broker returned the mandatory message as unroutable: 312 NO_ROUTE")
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+func TestInitMandatoryRequiresPublisherConfirm(t *testing.T) {
+	t.Parallel()
+	for _, confirm := range []string{"", "false"} {
+		t.Run("publisherConfirm="+confirm, func(t *testing.T) {
+			t.Parallel()
+			r := NewRabbitMQ(logger.NewLogger("test")).(*rabbitMQ)
+			var dials atomic.Int32
+			r.connectionDial = func(context.Context, string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+				dials.Add(1)
+				return nil, nil, errors.New("an incompatible configuration must not dial")
+			}
+			properties := map[string]string{metadataHostnameKey: "anyhost", metadataPublishMandatoryKey: "true"}
+			if confirm != "" {
+				properties[metadataPublisherConfirmKey] = confirm
+			}
+			err := r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{Properties: properties}})
+			require.EqualError(t, err, "rabbitmq pub/sub error: publishMandatory requires publisherConfirm to be true")
+			require.Zero(t, dials.Load())
+			require.Nil(t, r.connection)
+			require.Nil(t, r.channel)
+			require.Zero(t, r.connectionCount)
+		})
+	}
+}
+
+func TestPublishPublicMandatoryOptOut(t *testing.T) {
+	t.Parallel()
+	b := newPublishTestBroker()
+	r := newPublicPublisher(b)
+	r.metadata.PublisherConfirm = true
+	failed := make(chan struct{})
+	b.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+		if b.publishes.Load() == 1 {
+			return publishConfirmationFunc(func(context.Context) (bool, error) {
+				close(failed)
+				return false, errors.New("uncertain confirmation failure")
+			}), nil
+		}
+		return fakeConfirmation{acked: true}, nil
+	}
+	var dials atomic.Int32
+	r.connectionDial = func(context.Context, string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		dials.Add(1)
+		return nil, nil, errors.New("opt-out must keep the live channel")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := startPublicPublish(r, ctx, "topic")
+	awaitPublishGate(t, failed)
+	// The existing two-second retry delay on the live channel, not a forced
+	// reconnect: a reconnect would dial at once with ReconnectWait 0.
+	select {
+	case <-done:
+		t.Fatal("opt-out publish ended before its unchanged retry delay")
+	case <-time.After(100 * time.Millisecond):
+	}
+	cancel()
+	require.ErrorIs(t, awaitPublish(t, done), context.Canceled)
+	require.Zero(t, dials.Load())
+	require.NoError(t, r.channelMutex.Lock(t.Context()))
+	require.False(t, r.unresolvedPublish)
+	r.channelMutex.Unlock()
+	require.NoError(t, r.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"}))
+	require.Equal(t, int32(2), b.publishes.Load())
+	require.Zero(t, b.mandatory.Load())
+	require.Zero(t, b.immediate.Load())
+	require.Zero(t, dials.Load())
+}
+
+func TestPublishPublicMandatoryOutcomes(t *testing.T) {
+	t.Parallel()
+	for _, stage := range []string{"routed", "unroutable", "unroutable while canceled", "unroutable at deadline", "unroutable after reconnect"} {
+		t.Run(stage, func(t *testing.T) {
+			t.Parallel()
+			old, next := newPublishTestBroker(), newPublishTestBroker()
+			r := newMandatoryPublisher(old)
+			var dials atomic.Int32
+			r.connectionDial = func(context.Context, string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+				dials.Add(1)
+				return next, next, nil
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if stage == "unroutable at deadline" {
+				// Long enough that only the confirmation below waits for it.
+				ctx, cancel = context.WithTimeout(t.Context(), time.Second)
+				defer cancel()
+			}
+			returned := func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+				return publishConfirmationFunc(func(ctx context.Context) (bool, error) {
+					// The return and its ACK arrived as the caller's context ended; the
+					// conclusive outcome must not be replaced by cancellation or timeout.
+					switch stage {
+					case "unroutable while canceled":
+						cancel()
+					case "unroutable at deadline":
+						<-ctx.Done()
+					}
+					return false, unroutableReturn()
+				}), nil
+			}
+			switch stage {
+			case "routed":
+				old.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+					return fakeConfirmation{acked: true}, nil
+				}
+			case "unroutable after reconnect":
+				old.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+					return nil, errors.New("uncertain write failure")
+				}
+				next.publish = returned
+			default:
+				old.publish = returned
+			}
+			err := r.Publish(ctx, &pubsub.PublishRequest{Topic: "topic"})
+			if stage == "routed" {
+				require.NoError(t, err)
+			} else {
+				requireUnroutable(t, err)
+			}
+			total := old.publishes.Load() + next.publishes.Load()
+			if stage == "unroutable after reconnect" {
+				require.Equal(t, int32(1), old.publishes.Load())
+				require.Equal(t, int32(1), next.publishes.Load())
+				require.Equal(t, int32(1), dials.Load())
+			} else {
+				require.Equal(t, int32(1), total)
+				require.Zero(t, dials.Load())
+			}
+			require.Equal(t, total, old.mandatory.Load()+next.mandatory.Load())
+			require.Zero(t, old.immediate.Load()+next.immediate.Load())
+			require.False(t, r.unresolvedPublish)
+		})
+	}
+}
+
+func TestPublishPublicMandatoryUnresolvedForcesReconnect(t *testing.T) {
+	t.Parallel()
+	for _, stage := range []string{"uncertain confirmation", "write error", "mismatched return", "canceled confirmation then later caller"} {
+		t.Run(stage, func(t *testing.T) {
+			t.Parallel()
+			old, next := newPublishTestBroker(), newPublishTestBroker()
+			r := newMandatoryPublisher(old)
+			var dials atomic.Int32
+			r.connectionDial = func(context.Context, string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+				dials.Add(1)
+				return next, next, nil
+			}
+			entered := make(chan struct{})
+			old.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+				if old.publishes.Load() > 1 {
+					return nil, errors.New("published again on the unresolved generation")
+				}
+				switch stage {
+				case "write error":
+					return nil, errors.New("write interrupted")
+				case "mismatched return":
+					return publishConfirmationFunc(func(context.Context) (bool, error) { return false, errPublishReturnMismatch }), nil
+				case "canceled confirmation then later caller":
+					return publishConfirmationFunc(func(ctx context.Context) (bool, error) { close(entered); <-ctx.Done(); return false, ctx.Err() }), nil
+				default:
+					return publishConfirmationFunc(func(context.Context) (bool, error) {
+						return false, errors.New("uncertain confirmation failure")
+					}), nil
+				}
+			}
+			next.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+				return fakeConfirmation{acked: true}, nil
+			}
+			if stage == "canceled confirmation then later caller" {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				done := startPublicPublish(r, ctx, "topic")
+				awaitPublishGate(t, entered)
+				cancel()
+				err := awaitPublish(t, done)
+				require.ErrorIs(t, err, context.Canceled)
+				require.NotErrorIs(t, err, errPublishUnroutable)
+				require.NotEqual(t, codes.FailedPrecondition, status.Code(err))
+				// The transport abort is unchanged; the live generation is only marked.
+				require.Equal(t, int32(1), old.aborts.Load())
+				require.NoError(t, r.channelMutex.Lock(t.Context()))
+				require.True(t, r.unresolvedPublish)
+				r.channelMutex.Unlock()
+				require.Zero(t, dials.Load())
+			}
+			// The live channel is never published on again; the call reconnects.
+			require.NoError(t, r.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"}))
+			require.Equal(t, int32(1), old.publishes.Load())
+			require.Equal(t, int32(1), next.publishes.Load())
+			require.Equal(t, int32(1), dials.Load())
+			require.Equal(t, 2, r.connectionCount)
+			require.False(t, r.unresolvedPublish)
+		})
+	}
+}
+
+func TestPublishPublicMandatoryMismatchedReturnExhaustion(t *testing.T) {
+	t.Parallel()
+	generations := []*publishTestBroker{newPublishTestBroker(), newPublishTestBroker(), newPublishTestBroker()}
+	for _, b := range generations {
+		b.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+			return publishConfirmationFunc(func(context.Context) (bool, error) { return false, errPublishReturnMismatch }), nil
+		}
+	}
+	r := newMandatoryPublisher(generations[0])
+	var dials atomic.Int32
+	r.connectionDial = func(context.Context, string, string, string, time.Duration, *tls.Config, bool) (rabbitMQConnectionBroker, rabbitMQChannelBroker, error) {
+		next := generations[dials.Add(1)]
+		return next, next, nil
+	}
+	err := r.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
+	// Fail closed and non-conclusive: no success, no unroutable claim.
+	require.ErrorIs(t, err, errPublishReturnMismatch)
+	require.NotErrorIs(t, err, errPublishUnroutable)
+	require.Equal(t, codes.Unavailable, status.Code(err))
+	require.Equal(t, int32(publishMaxRetries-1), dials.Load())
+	for _, b := range generations {
+		require.Equal(t, int32(1), b.publishes.Load())
+	}
+}
+
+func TestPublishPublicMandatoryLogging(t *testing.T) {
+	t.Parallel()
+	b := newPublishTestBroker()
+	b.publish = func(context.Context, amqp.Publishing) (rabbitMQConfirmation, error) {
+		return publishConfirmationFunc(func(context.Context) (bool, error) { return false, unroutableReturn() }), nil
+	}
+	r := newMandatoryPublisher(b)
+	var output bytes.Buffer
+	r.logger = logger.NewLogger(t.Name())
+	r.logger.EnableJSONOutput(true)
+	r.logger.SetOutput(&output)
+	t.Cleanup(func() { r.logger.SetOutput(io.Discard) })
+	err := r.Publish(t.Context(), &pubsub.PublishRequest{Topic: "topic"})
+	requireUnroutable(t, err)
+
+	var attempts, reconnects, exhausted int
+	for line := range bytes.SplitSeq(bytes.TrimSpace(output.Bytes()), []byte("\n")) {
+		var entry struct {
+			Level   string `json:"level"`
+			Message string `json:"msg"`
+		}
+		require.NoError(t, json.Unmarshal(line, &entry))
+		switch {
+		case strings.HasPrefix(entry.Message, logMessagePrefix+" publishing attempt ("):
+			attempts++
+			require.Equal(t, "warning", entry.Level)
+			require.Equal(t, fmt.Sprintf("%s publishing attempt (1/%d) failed: %v", logMessagePrefix, publishMaxRetries, err), entry.Message)
+		case strings.HasPrefix(entry.Message, logMessagePrefix+" publisher is reconnecting in "):
+			reconnects++
+		case strings.HasPrefix(entry.Message, logMessagePrefix+" publishing failed:"):
+			exhausted++
+		}
+	}
+	require.Equal(t, 1, attempts)
+	require.Zero(t, reconnects)
+	require.Zero(t, exhausted)
 }

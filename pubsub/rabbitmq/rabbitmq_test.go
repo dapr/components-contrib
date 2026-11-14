@@ -343,6 +343,32 @@ func TestPublishReconnect(t *testing.T) {
 	assert.Equal(t, "foo bar", lastMessage)
 }
 
+func TestPublishCanceledDuringRetryReturnsError(t *testing.T) {
+	broker := newBroker()
+	pubsubRabbitMQ := newRabbitMQTest(broker)
+	err := pubsubRabbitMQ.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{
+		Properties: map[string]string{
+			metadataHostnameKey:   "anyhost",
+			metadataConsumerIDKey: "consumer",
+		},
+	}})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	// Reconnect wait.
+	err = pubsubRabbitMQ.Publish(ctx, &pubsub.PublishRequest{Topic: "topic", Data: []byte(errorChannelConnection)})
+	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorContains(t, err, errorChannelConnection)
+
+	// Retry wait.
+	broker.exchangeDeclareErr = errors.New("declare failed")
+	err = pubsubRabbitMQ.Publish(ctx, &pubsub.PublishRequest{Topic: "othertopic"})
+	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorContains(t, err, "declare failed")
+}
+
 func TestPublishReconnectAfterClose(t *testing.T) {
 	broker := newBroker()
 	pubsubRabbitMQ := newRabbitMQTest(broker)

@@ -16,6 +16,8 @@ package mdns
 import (
 	"fmt"
 	"math"
+	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -123,6 +125,8 @@ func TestInitRegisterDuplicate(t *testing.T) {
 }
 
 func TestResolver(t *testing.T) {
+	skipOnMacOSCI(t)
+
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
@@ -145,6 +149,8 @@ func TestResolver(t *testing.T) {
 }
 
 func TestResolverClose(t *testing.T) {
+	skipOnMacOSCI(t)
+
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	md := nr.Metadata{Instance: nr.Instance{
@@ -172,6 +178,8 @@ func TestResolverClose(t *testing.T) {
 }
 
 func TestResolverMultipleInstances(t *testing.T) {
+	skipOnMacOSCI(t)
+
 	// arrange
 	resolver := NewResolver(logger.NewLogger("test")).(*Resolver)
 	defer resolver.Close()
@@ -251,6 +259,8 @@ func TestResolverNotFound(t *testing.T) {
 // series as they rely on a shared mDNS server on the host
 // machine.
 func TestResolverConcurrency(t *testing.T) {
+	skipOnMacOSCI(t)
+
 	tt := []struct {
 		name string
 		test func(t *testing.T)
@@ -743,5 +753,16 @@ func TestUnion(t *testing.T) {
 			}
 		}
 		require.Len(t, tt.expected, matches)
+	}
+}
+
+// skipOnMacOSCI skips tests that need mDNS multicast on GitHub-hosted macOS
+// runners. macOS 15 blocks multicast for processes without the Local Network
+// permission, which those runners cannot grant:
+// https://github.com/actions/runner-images/issues/10924
+func skipOnMacOSCI(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "darwin" && os.Getenv("CI") != "" {
+		t.Skip("mDNS multicast is blocked on GitHub-hosted macOS runners")
 	}
 }

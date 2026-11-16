@@ -16,9 +16,13 @@ package conversation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/tmc/langchaingo/httputil"
@@ -26,6 +30,7 @@ import (
 	"github.com/tmc/langchaingo/llms/cache"
 	"github.com/tmc/langchaingo/llms/cache/inmemory"
 	"github.com/tmc/langchaingo/llms/openai"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/oauth2"
 )
 
@@ -35,7 +40,8 @@ const PlaceholderToken = "dapr-workload-identity" //nolint:gosec
 
 // BuildOpenAIClientOptions is a helper function that is used by conversation components that use the OpenAI client under the hood.
 // HTTP client timeout is set from resiliency policy configuration.
-func BuildOpenAIClientOptions(model, key, endpoint string) []openai.Option {
+// headers are set on every request, see WithHeaders.
+func BuildOpenAIClientOptions(model, key, endpoint string, headers http.Header) []openai.Option {
 	options := []openai.Option{
 		openai.WithModel(model),
 		openai.WithToken(key),
@@ -46,7 +52,7 @@ func BuildOpenAIClientOptions(model, key, endpoint string) []openai.Option {
 	}
 
 	if httpClient := BuildHTTPClient(); httpClient != nil {
-		options = append(options, openai.WithHTTPClient(httpClient))
+		options = append(options, openai.WithHTTPClient(WithHeaders(httpClient, headers)))
 	}
 
 	return options
@@ -123,6 +129,145 @@ func (t *bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Del("x-api-key")
 	req.Header.Del("api-key")
 	tok.SetAuthHeader(req)
+
+	return t.base.RoundTrip(req)
+}
+
+// clientManagedHeaders are set by the HTTP client from the request itself, or
+// are hop-by-hop headers, so they cannot be set with the headers metadata.
+var clientManagedHeaders = map[string]struct{}{
+	"Host":              {},
+	"Content-Length":    {},
+	"Transfer-Encoding": {},
+	"Trailer":           {},
+	"Connection":        {},
+	"Keep-Alive":        {},
+	"Proxy-Connection":  {},
+	"Te":                {},
+	"Upgrade":           {},
+}
+
+// ParseHeaders parses the headers metadata field, a JSON object of HTTP header
+// names to values. An empty field or JSON null returns no headers. Errors do
+// not contain header values, because they can be credentials.
+func ParseHeaders(raw string) (http.Header, error) {
+	if raw == "" {
+		return nil, nil
+	}
+
+	// Read the object one name at a time. json.Unmarshal into a map keeps only
+	// the last value of a name that is set more than once.
+	dec := json.NewDecoder(strings.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, headersFormatError(err)
+	}
+	if tok == nil {
+		return nil, headersEnd(dec)
+	}
+	if tok != json.Delim('{') {
+		return nil, headersFormatError(nil)
+	}
+
+	headers := http.Header{}
+	for dec.More() {
+		tok, err = dec.Token()
+		if err != nil {
+			return nil, headersFormatError(err)
+		}
+		name, _ := tok.(string)
+		var value string
+		if err = dec.Decode(&value); err != nil {
+			return nil, headersFormatError(err)
+		}
+
+		if !httpguts.ValidHeaderFieldName(name) {
+			return nil, fmt.Errorf("headers: invalid header name %q", name)
+		}
+		if !httpguts.ValidHeaderFieldValue(value) {
+			return nil, fmt.Errorf("headers: invalid value for header %q", name)
+		}
+		key := http.CanonicalHeaderKey(name)
+		if _, ok := clientManagedHeaders[key]; ok {
+			return nil, fmt.Errorf("headers: header %q is set by the HTTP client and cannot be set", name)
+		}
+		if _, ok := headers[key]; ok {
+			return nil, fmt.Errorf("headers: header %q is set more than once", name)
+		}
+		headers[key] = []string{value}
+	}
+
+	// The closing brace of the object.
+	if _, err = dec.Token(); err != nil {
+		return nil, headersFormatError(err)
+	}
+	if err = headersEnd(dec); err != nil {
+		return nil, err
+	}
+
+	return headers, nil
+}
+
+// headersEnd returns an error if the headers field has more data after the
+// first JSON value.
+func headersEnd(dec *json.Decoder) error {
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return headersFormatError(nil)
+	}
+	return nil
+}
+
+func headersFormatError(err error) error {
+	const msg = "headers must be a JSON object of header names to string values"
+	switch {
+	case err == nil:
+		return errors.New(msg)
+	case errors.Is(err, io.EOF):
+		err = io.ErrUnexpectedEOF
+	}
+	return fmt.Errorf("%s: %w", msg, err)
+}
+
+// WithHeaders returns a copy of client that sets headers on every request,
+// replacing the values of headers with the same name. The transport of client
+// runs after the headers are set, so a transport that sets headers itself, such
+// as the bearer transport of BuildBearerHTTPClient, replaces them. Redirects to
+// another origin are refused, so the headers are not sent there. The redirect
+// policy of client also applies. With no headers, client is returned unchanged.
+func WithHeaders(client *http.Client, headers http.Header) *http.Client {
+	if len(headers) == 0 {
+		return client
+	}
+
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+
+	c := *client
+	c.Transport = &headerTransport{base: base, headers: headers}
+	c.CheckRedirect = sameOriginRedirect
+	if check := client.CheckRedirect; check != nil {
+		c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if err := check(req, via); err != nil {
+				return err
+			}
+			return sameOriginRedirect(req, via)
+		}
+	}
+	return &c
+}
+
+type headerTransport struct {
+	base    http.RoundTripper
+	headers http.Header
+}
+
+func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	for name, values := range t.headers {
+		req.Header[name] = slices.Clone(values)
+	}
 
 	return t.base.RoundTrip(req)
 }

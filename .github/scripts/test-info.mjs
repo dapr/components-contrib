@@ -41,7 +41,10 @@ const components = {
         conformanceDestroy: 'conformance-binarystore.gcp.bucket-destroy.sh',
         sourcePkg: ['binarystore/gcp/bucket'],
     },
-    'binarystore.oci.objectstorage': {
+    // This test is disabled because CI has no Oracle Cloud tenancy.
+    // The OCIConfigFile and OCICompartmentOCID secrets are not in the CI key vault,
+    // and the workflow does not write the private key file that the OCI config refers to.
+    /*'binarystore.oci.objectstorage': {
         conformance: true,
         requiredSecrets: [
             'OCIConfigFile',
@@ -50,7 +53,7 @@ const components = {
         conformanceSetup: 'conformance-binarystore.oci.objectstorage-setup.sh',
         conformanceDestroy: 'conformance-binarystore.oci.objectstorage-destroy.sh',
         sourcePkg: ['binarystore/oci/objectstorage'],
-    },
+    },*/
     // requireDocker excludes cloud-scheduled runs.
     'bindings.aws.s3': {
         certification: true,

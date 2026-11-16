@@ -62,6 +62,7 @@ const (
 	queueModeLazy                      = "lazy"
 	reqMetadataRoutingKey              = "routingKey"
 	reqMetadataQueueTypeKey            = "queueType" // at the moment, only supporting classic and quorum queues
+	reqMetadataDeadLetterQueueTypeKey  = "deadLetterQueueType"
 	reqMetadataSingleActiveConsumerKey = "singleActiveConsumer"
 	reqMetadataMaxLenKey               = "maxLen"
 	reqMetadataMaxLenBytesKey          = "maxLenBytes"
@@ -421,6 +422,11 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 
 	var args amqp.Table
 	if r.metadata.EnableDeadLetter {
+		dlqType, dlqErr := deadLetterQueueType(req.Metadata)
+		if dlqErr != nil {
+			return nil, dlqErr
+		}
+
 		// declare dead letter exchange
 		dlxName := fmt.Sprintf(defaultDeadLetterExchangeFormat, queueName)
 		dlqName := fmt.Sprintf(defaultDeadLetterQueueFormat, queueName)
@@ -436,8 +442,13 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 		var q amqp.Queue
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
-		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
-		dlqArgs[argQueueMode] = queueModeLazy
+		if dlqType == amqp.QueueTypeQuorum {
+			// Quorum queues keep messages on disk and reject x-queue-mode.
+			dlqArgs[amqp.QueueTypeArg] = amqp.QueueTypeQuorum
+		} else {
+			// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
+			dlqArgs[argQueueMode] = queueModeLazy
+		}
 		q, err = r.declareQueue(channel, dlqName, true, r.metadata.DeleteWhenUnused, dlqArgs)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, dlqName, err)
@@ -991,6 +1002,18 @@ func (r *rabbitMQ) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {
 	metadataStruct := rabbitmqMetadata{}
 	_ = metadata.GetMetadataInfoFromStructType(reflect.TypeOf(metadataStruct), &metadataInfo, metadata.PubSubType)
 	return
+}
+
+// deadLetterQueueType returns the dead letter queue type requested on the
+// subscription. An empty or "classic" value keeps the classic lazy queue, so
+// dead letter queues declared before this option existed still match.
+func deadLetterQueueType(md map[string]string) (string, error) {
+	val := md[reqMetadataDeadLetterQueueTypeKey]
+	if val == "" || queueTypeValid(val) {
+		return val, nil
+	}
+
+	return "", fmt.Errorf("%s %s for %s. Valid types are %s and %s", errorInvalidQueueType, val, reqMetadataDeadLetterQueueTypeKey, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
 }
 
 func queueTypeValid(qType string) bool {

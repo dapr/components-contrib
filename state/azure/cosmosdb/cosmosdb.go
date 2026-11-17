@@ -442,7 +442,7 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	// Upsert even with an etag, so an etag on a missing item creates it.
 	_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
 	if err != nil {
-		if isETagMismatch(err, req.HasETag()) {
+		if isETagMismatch(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
@@ -484,7 +484,7 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
 	// A missing item is not an error, with or without an etag.
 	if err != nil && !isNotFoundError(err) {
-		if isETagMismatch(err, req.HasETag()) {
+		if isETagMismatch(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
@@ -493,12 +493,9 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return nil
 }
 
-func isETagMismatch(err error, hasETag bool) bool {
+func isETagMismatch(err error) bool {
 	resErr := &azcore.ResponseError{}
-	if !errors.As(err, &resErr) {
-		return false
-	}
-	return resErr.StatusCode == http.StatusPreconditionFailed || (hasETag && resErr.StatusCode == http.StatusNotFound)
+	return errors.As(err, &resErr) && resErr.StatusCode == http.StatusPreconditionFailed
 }
 
 // MultiMaxSize returns the maximum number of operations allowed in a transaction.
@@ -642,10 +639,11 @@ func batchResultError(ops []batchOp, results []azcosmos.TransactionalBatchResult
 		switch {
 		case code == http.StatusFailedDependency:
 			continue
-		case code == http.StatusPreconditionFailed, code == http.StatusNotFound && ops[i].guarded:
-			return -1, state.NewETagError(state.ETagMismatch, fmt.Errorf("operation %d on key %s failed with status code %d", i, ops[i].id, code))
 		case code == http.StatusNotFound && ops[i].kind == batchDelete:
+			// A delete of a missing item is a no-op, with or without an etag.
 			return i, nil
+		case code == http.StatusPreconditionFailed:
+			return -1, state.NewETagError(state.ETagMismatch, fmt.Errorf("operation %d on key %s failed with status code %d", i, ops[i].id, code))
 		default:
 			return -1, fmt.Errorf("transaction failed due to operation %v which failed with status code %d", i, code)
 		}

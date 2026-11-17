@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"path"
@@ -204,16 +205,14 @@ func TestMulti(t *testing.T) {
 		assert.Equal(t, map[string]string{"a": "etag-1", "b": "etag-2"}, fake.items)
 	})
 
-	t.Run("etag delete of a missing item is an etag mismatch", func(t *testing.T) {
+	t.Run("etag delete of a missing item is a no-op", func(t *testing.T) {
 		s, fake := newFakeStore(t, map[string]string{})
-		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+		require.NoError(t, s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
 			state.SetRequest{Key: "a", Value: "v"},
 			state.DeleteRequest{Key: "b", ETag: ptr.Of("etag-1")},
-		}})
-		var etagErr *state.ETagError
-		require.ErrorAs(t, err, &etagErr)
-		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
-		assert.Empty(t, fake.items)
+		}}))
+		assert.Contains(t, fake.items, "a")
+		assert.NotContains(t, fake.items, "b")
 	})
 
 	t.Run("delete of a missing item keeps the other operations", func(t *testing.T) {
@@ -436,9 +435,7 @@ func TestBatchResultError(t *testing.T) {
 		code   int32
 	}{
 		"stale etag on upsert":    {1, http.StatusPreconditionFailed},
-		"etag on missing item":    {1, http.StatusNotFound},
 		"stale etag on delete":    {3, http.StatusPreconditionFailed},
-		"etag delete of missing":  {3, http.StatusNotFound},
 		"first write on existing": {0, http.StatusPreconditionFailed},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -455,6 +452,19 @@ func TestBatchResultError(t *testing.T) {
 		assert.Equal(t, 2, drop)
 	})
 
+	t.Run("etag delete of a missing item is dropped", func(t *testing.T) {
+		drop, err := batchResultError(ops, results(3, http.StatusNotFound))
+		require.NoError(t, err)
+		assert.Equal(t, 3, drop)
+	})
+
+	t.Run("404 on an etag upsert is not an etag mismatch", func(t *testing.T) {
+		_, err := batchResultError(ops, results(1, http.StatusNotFound))
+		require.Error(t, err)
+		var etagErr *state.ETagError
+		require.NotErrorAs(t, err, &etagErr)
+	})
+
 	t.Run("other failures stay untyped", func(t *testing.T) {
 		_, err := batchResultError(ops, results(0, http.StatusTooManyRequests))
 		require.Error(t, err)
@@ -466,4 +476,11 @@ func TestBatchResultError(t *testing.T) {
 		_, err := batchResultError(ops, results(0, http.StatusFailedDependency))
 		require.Error(t, err)
 	})
+}
+
+func TestIsETagMismatch(t *testing.T) {
+	assert.True(t, isETagMismatch(&azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}))
+	// With UpsertItem a 404 means the container or database is missing, not the item.
+	assert.False(t, isETagMismatch(&azcore.ResponseError{StatusCode: http.StatusNotFound}))
+	assert.False(t, isETagMismatch(errors.New("boom")))
 }

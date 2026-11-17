@@ -261,6 +261,7 @@ func TestSetETag(t *testing.T) {
 func TestMultiETags(t *testing.T) {
 	t.Run("etags are sent as change vectors", func(t *testing.T) {
 		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"c": `"v"`}
 		err := r.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
 				state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("A:1-x"), Options: state.SetStateOption{Concurrency: state.FirstWrite}},
@@ -316,6 +317,7 @@ func TestMultiETags(t *testing.T) {
 
 	t.Run("delete etag conflict is an etag mismatch", func(t *testing.T) {
 		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"b": `"v"`}
 		fake.conflict = true
 		err := r.Multi(t.Context(), &state.TransactionalStateRequest{
 			Operations: []state.TransactionalStateOperation{
@@ -325,6 +327,43 @@ func TestMultiETags(t *testing.T) {
 		var etagErr *state.ETagError
 		require.ErrorAs(t, err, &etagErr)
 		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+	})
+
+	t.Run("etag delete of a missing document is a no-op", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		require.NoError(t, r.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.DeleteRequest{Key: "b", ETag: ptr.Of("A:3-x")},
+			},
+		}))
+		assert.Empty(t, fake.commands)
+	})
+
+	t.Run("etag delete of an expired document deletes it at its change vector", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"b": `"v"`}
+		fake.expired = map[string]bool{"b": true}
+		require.NoError(t, r.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.DeleteRequest{Key: "b", ETag: ptr.Of("A:3-x")},
+			},
+		}))
+		cmd := fake.commandsByID(t)["b"]
+		assert.Equal(t, "DELETE", cmd["Type"])
+		assert.Equal(t, "A:1-b", cmd["ChangeVector"])
+	})
+
+	t.Run("last-write etag set then delete of a missing document is sent", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		require.NoError(t, r.Multi(t.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.SetRequest{Key: "b", Value: "v", ETag: ptr.Of("A:3-x")},
+				state.DeleteRequest{Key: "b"},
+			},
+		}))
+		cmd := fake.commandsByID(t)["b"]
+		assert.Equal(t, "DELETE", cmd["Type"])
+		assert.Equal(t, "A:3-x", cmd["ChangeVector"])
 	})
 
 	t.Run("first-write on a key set earlier in the transaction is a mismatch", func(t *testing.T) {

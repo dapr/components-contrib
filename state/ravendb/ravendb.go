@@ -251,9 +251,10 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 			switch {
 			case !req.HasETag() && concurrency == state.FirstWrite:
 				_, err = r.checkMissing(session, req.Key)
-			case req.HasETag() && concurrency == state.FirstWrite:
-				// The guard is a first-write set with an etag, which creates a missing or expired
-				// document, so deleting it afterwards leaves only an expired document to remove.
+			case req.HasETag() && (concurrency == state.FirstWrite || isDelete(o.Guard)):
+				// The guard is a delete with an etag, which is a no-op on a missing document as before #4666,
+				// or a first-write set with an etag, which creates a missing or expired document so deleting
+				// it afterwards leaves nothing to do. Either way only an expired document is left to remove.
 				var live bool
 				var expiredCV string
 				live, expiredCV, err = loadForWrite(session, req.Key)
@@ -283,6 +284,11 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	}
 
 	return nil
+}
+
+func isDelete(op state.TransactionalStateOperation) bool {
+	_, ok := op.(state.DeleteRequest)
+	return ok
 }
 
 func guardOf(op state.TransactionalStateOperation) (*string, string) {

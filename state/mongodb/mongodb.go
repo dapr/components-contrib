@@ -564,6 +564,10 @@ func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 		return errors.New("using transactions with MongoDB requires connecting to a replica set")
 	}
 
+	if err := stateutils.CheckETagAfterDelete(request.Operations); err != nil {
+		return err
+	}
+
 	sess, err := m.client.StartSession()
 	if err != nil {
 		return fmt.Errorf("error starting the transaction: %w", err)

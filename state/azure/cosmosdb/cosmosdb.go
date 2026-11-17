@@ -513,6 +513,10 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		return nil
 	}
 
+	if err := stateutils.CheckETagAfterDelete(request.Operations); err != nil {
+		return err
+	}
+
 	partitionKey := request.Metadata[metadataPartitionKey]
 	ops, err := buildBatchOps(c.contentType, partitionKey, request.Operations)
 	if err != nil {

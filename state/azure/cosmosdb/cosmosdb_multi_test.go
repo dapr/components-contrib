@@ -215,6 +215,18 @@ func TestMulti(t *testing.T) {
 		assert.NotContains(t, fake.items, "b")
 	})
 
+	t.Run("etag set after a delete of the same item is an etag mismatch", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"d": "etag-1"})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "d"},
+			state.SetRequest{Key: "d", Value: "v", ETag: ptr.Of("stale")},
+		}})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+		assert.Equal(t, map[string]string{"d": "etag-1"}, fake.items)
+	})
+
 	t.Run("delete of a missing item keeps the other operations", func(t *testing.T) {
 		s, fake := newFakeStore(t, map[string]string{"c": "etag-1"})
 		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{

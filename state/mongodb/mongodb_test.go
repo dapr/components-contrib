@@ -562,6 +562,19 @@ func TestETagWrites(t *testing.T) {
 		assert.Equal(mt, "commitTransaction", events[2].CommandName)
 	})
 
+	mt.Run("multi with etag set after a delete of the same key is a mismatch", func(mt *mtest.T) {
+		err := newStore(mt).Multi(mt.Context(), &state.TransactionalStateRequest{
+			Operations: []state.TransactionalStateOperation{
+				state.DeleteRequest{Key: "k"},
+				state.SetRequest{Key: "k", Value: "v", ETag: ptr.Of("e")},
+			},
+		})
+		var etagErr *state.ETagError
+		require.ErrorAs(mt, err, &etagErr)
+		assert.Equal(mt, state.ETagMismatch, etagErr.Kind())
+		assert.Empty(mt, mt.GetAllStartedEvents())
+	})
+
 	mt.Run("multi returns commit errors", func(mt *mtest.T) {
 		mt.AddMockResponses(
 			mtest.CreateSuccessResponse(bson.E{Key: "n", Value: 1}),

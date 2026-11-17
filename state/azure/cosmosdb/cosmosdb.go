@@ -439,12 +439,8 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	upsertCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	if req.HasETag() {
-		// Replace so an etag on a missing item fails instead of creating it.
-		_, err = c.client.ReplaceItem(upsertCtx, pk, req.Key, marsh, &options)
-	} else {
-		_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
-	}
+	// Upsert even with an etag, so an etag on a missing item creates it.
+	_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
 	if err != nil {
 		if isETagMismatch(err, req.HasETag()) {
 			return state.NewETagError(state.ETagMismatch, err)
@@ -486,7 +482,8 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
-	if err != nil && (req.HasETag() || !isNotFoundError(err)) {
+	// A missing item is not an error, with or without an etag.
+	if err != nil && !isNotFoundError(err) {
 		if isETagMismatch(err, req.HasETag()) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
@@ -532,8 +529,6 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			switch op.kind {
 			case batchUpsert:
 				batch.UpsertItem(op.body, options)
-			case batchReplace:
-				batch.ReplaceItem(op.id, op.body, options)
 			case batchDelete:
 				batch.DeleteItem(op.id, options)
 			}
@@ -576,7 +571,6 @@ type batchOpKind int
 
 const (
 	batchUpsert batchOpKind = iota
-	batchReplace
 	batchDelete
 )
 
@@ -605,8 +599,7 @@ func buildBatchOps(contentType string, partitionKey string, operations []state.T
 
 			op := batchOp{kind: batchUpsert, id: req.Key, body: body}
 			if req.HasETag() {
-				// Replace so an etag on a missing item fails instead of creating it.
-				op.kind = batchReplace
+				// Upsert, so an etag on a missing item creates it.
 				op.ifMatch = ptr.Of(azcore.ETag(*req.ETag))
 				op.guarded = true
 			} else if req.Options.Concurrency == state.FirstWrite {

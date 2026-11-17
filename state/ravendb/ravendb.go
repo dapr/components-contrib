@@ -248,9 +248,18 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 		case state.DeleteRequest:
 			var concurrency string
 			req.ETag, concurrency = guardOf(o.Guard)
-			if !req.HasETag() && concurrency == state.FirstWrite {
+			switch {
+			case !req.HasETag() && concurrency == state.FirstWrite:
 				_, err = r.checkMissing(session, req.Key)
-			} else {
+			case req.HasETag() && concurrency == state.FirstWrite:
+				// The guard is a first-write set with an etag, which creates a missing document,
+				// so deleting it afterwards leaves nothing to do.
+				var missing bool
+				missing, err = isMissing(session, req.Key)
+				if err == nil && !missing {
+					err = r.deleteInternal(ctx, &req, session, true)
+				}
+			default:
 				err = r.deleteInternal(ctx, &req, session, true)
 			}
 		}
@@ -279,6 +288,22 @@ func guardOf(op state.TransactionalStateOperation) (*string, string) {
 		return req.ETag, ""
 	}
 	return nil, ""
+}
+
+// isMissing reports whether key has no document. A loaded document is evicted so a later
+// store or delete of the key with an etag isn't rejected by the session's tracking.
+func isMissing(session *ravendb.DocumentSession, key string) (bool, error) {
+	var existing *Item
+	if err := session.Load(&existing, key); err != nil {
+		return false, fmt.Errorf("error loading data: %w", err)
+	}
+	if existing == nil {
+		return true, nil
+	}
+	if err := session.Advanced().Evict(existing); err != nil {
+		return false, fmt.Errorf("error evicting data: %w", err)
+	}
+	return false, nil
 }
 
 // checkMissing returns the change vector of an expired document, so a store can replace exactly that version.
@@ -426,8 +451,20 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 
 	switch {
 	case req.HasETag():
-		// The server also rejects a missing document.
-		err = session.StoreWithChangeVectorAndID(item, *req.ETag, req.Key)
+		missing := false
+		if req.Options.Concurrency == state.FirstWrite {
+			// First-write with an etag on a missing document creates it.
+			missing, err = isMissing(session, req.Key)
+			if err != nil {
+				return err
+			}
+		}
+		if missing {
+			err = session.Store(item)
+		} else {
+			// The server also rejects a missing document.
+			err = session.StoreWithChangeVectorAndID(item, *req.ETag, req.Key)
+		}
 		if err != nil {
 			return fmt.Errorf("error storing data: %w", err)
 		}

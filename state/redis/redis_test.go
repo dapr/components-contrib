@@ -620,7 +620,7 @@ func TestMultiETags(t *testing.T) {
 		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "b", Value: "b1"}))
 		err := multi(ss,
 			state.SetRequest{Key: "a", Value: "a2"},
-			state.DeleteRequest{Key: "b"},
+			state.DeleteRequest{Key: "c"},
 			state.SetRequest{Key: "c", Value: "c1"},
 			state.SetRequest{Key: "b", Value: "b2", ETag: ptr.Of("7"), Options: firstWrite},
 		)
@@ -644,12 +644,20 @@ func TestMultiETags(t *testing.T) {
 		assert.Nil(t, get(t, ss, "b").Data)
 	})
 
-	t.Run("etag on missing key mismatches", func(t *testing.T) {
+	t.Run("etag on missing key applies", func(t *testing.T) {
 		ss := newStore(t)
-		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a1", ETag: ptr.Of("1"), Options: firstWrite}), state.ETagMismatch)
-		assert.Nil(t, get(t, ss, "a").Data)
-		requireKind(t, multi(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("1")}), state.ETagMismatch)
+		require.NoError(t, multi(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("1")}))
+		require.NoError(t, multi(ss,
+			state.SetRequest{Key: "a", Value: "a1", ETag: ptr.Of("1234"), Options: firstWrite},
+			state.SetRequest{Key: "b", Value: "b1", ETag: ptr.Of("1")},
+		))
+		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
+		assert.Equal(t, "1", *get(t, ss, "a").ETag)
+		assert.JSONEq(t, `"b1"`, string(get(t, ss, "b").Data))
+	})
 
+	t.Run("etag 0 on existing key mismatches", func(t *testing.T) {
+		ss := newStore(t)
 		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "a", Value: "a1"}))
 		requireKind(t, multi(ss, state.SetRequest{Key: "a", Value: "a2", ETag: ptr.Of("0"), Options: firstWrite}), state.ETagMismatch)
 		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data))
@@ -820,6 +828,7 @@ func TestMultiETags(t *testing.T) {
 		// Documents the non-atomic cross slot fallback on purpose.
 		assert.JSONEq(t, `"a1"`, string(get(t, ss, "a").Data), "cross slot fallback isn't atomic")
 
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "{x}b", Value: "b1"}))
 		err = multi(ss,
 			state.SetRequest{Key: "{x}a", Value: "a1"},
 			state.SetRequest{Key: "{x}b", Value: "b2", ETag: ptr.Of("5")},
@@ -833,6 +842,7 @@ func TestMultiETags(t *testing.T) {
 		ss.clientSettings.RedisType = rediscomponent.ClusterType
 		require.Equal(t, keySlot("a"), keySlot("{a}x"))
 		require.NotEqual(t, keySlot("a"), keySlot("b"))
+		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "{a}x", Value: "x0"}))
 		err := multi(ss,
 			state.SetRequest{Key: "a", Value: "a1"},
 			state.SetRequest{Key: "b", Value: "b1"},
@@ -917,10 +927,16 @@ func TestSingleOpETags(t *testing.T) {
 
 	for name, setFn := range map[string]func(*StateStore, state.SetRequest) error{"set": set, "bulk set": bulkSet} {
 		t.Run(name, func(t *testing.T) {
-			t.Run("etag on a missing key mismatches", func(t *testing.T) {
+			t.Run("etag on a missing key creates it", func(t *testing.T) {
 				ss, s := newStore(t)
-				requireKind(t, setFn(ss, state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("5")}), state.ETagMismatch)
-				assert.False(t, s.Exists("a"))
+				require.NoError(t, setFn(ss, state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("5")}))
+				assert.JSONEq(t, `"v"`, s.HGet("a", "data"))
+				assert.Equal(t, "1", s.HGet("a", "version"))
+			})
+			t.Run("first-write etag on a missing key creates it", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, setFn(ss, state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("1"), Options: state.SetStateOption{Concurrency: state.FirstWrite}}))
+				assert.JSONEq(t, `"v"`, s.HGet("a", "data"))
 			})
 			t.Run("etag 0 on an existing key mismatches", func(t *testing.T) {
 				ss, s := newStore(t)
@@ -957,9 +973,10 @@ func TestSingleOpETags(t *testing.T) {
 
 	for name, delFn := range map[string]func(*StateStore, state.DeleteRequest) error{"delete": del, "bulk delete": bulkDel} {
 		t.Run(name, func(t *testing.T) {
-			t.Run("etag on a missing key mismatches", func(t *testing.T) {
-				ss, _ := newStore(t)
-				requireKind(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("5")}), state.ETagMismatch)
+			t.Run("etag on a missing key succeeds", func(t *testing.T) {
+				ss, s := newStore(t)
+				require.NoError(t, delFn(ss, state.DeleteRequest{Key: "a", ETag: ptr.Of("5")}))
+				assert.False(t, s.Exists("a"))
 			})
 			t.Run("etag 0 on an existing key mismatches", func(t *testing.T) {
 				ss, s := newStore(t)

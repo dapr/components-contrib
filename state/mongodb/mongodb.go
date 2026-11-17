@@ -287,7 +287,21 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		return fmt.Errorf("error in updating document: %w", err)
 	}
 	if !upsert && res.MatchedCount == 0 {
-		return state.NewETagError(state.ETagMismatch, nil)
+		// An etag on a missing key creates it. MongoDB rejects the $expr TTL filter in an upsert,
+		// so this upserts with an etag that never matches: an existing or expired doc makes the
+		// insert collide on _id, which is an etag mismatch.
+		noMatch, err := uuid.NewRandom()
+		if err != nil {
+			return err
+		}
+		filter = bson.D{{Key: id, Value: req.Key}, {Key: etag, Value: noMatch.String()}}
+		_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+		if err != nil {
+			if mongo.IsDuplicateKeyError(err) {
+				return state.NewETagError(state.ETagMismatch, err)
+			}
+			return fmt.Errorf("error in updating document: %w", err)
+		}
 	}
 
 	return nil

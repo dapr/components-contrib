@@ -427,10 +427,22 @@ func TestETagWrites(t *testing.T) {
 		update := events[0].Command.Lookup("updates").Array().Index(0).Value().Document()
 		upsert, ok := update.Lookup("upsert").BooleanOK()
 		assert.False(mt, ok && upsert)
+		// The filter matches the etag on a live doc, or any expired doc.
 		var q bson.D
 		require.NoError(mt, bson.Unmarshal(update.Lookup("q").Document(), &q))
-		assert.Contains(mt, q, bson.E{Key: etag, Value: "e"})
-		assert.Equal(mt, ttlFilter.Key, q[len(q)-1].Key)
+		require.Len(mt, q, 2)
+		assert.Equal(mt, bson.E{Key: id, Value: "k"}, q[0])
+		assert.Equal(mt, "$or", q[1].Key)
+		or, ok := q[1].Value.(bson.A)
+		require.True(mt, ok)
+		require.Len(mt, or, 2)
+		assert.Contains(mt, or[0], bson.E{Key: etag, Value: "e"})
+		assert.Equal(mt, ttlFilter.Key, or[0].(bson.D)[1].Key)
+		wantExpired, err := bson.Marshal(getFilterExpired())
+		require.NoError(mt, err)
+		gotExpired, err := bson.Marshal(or[1])
+		require.NoError(mt, err)
+		assert.Equal(mt, wantExpired, gotExpired)
 
 		// No match falls back to an upsert whose etag never matches, so only a missing key is inserted.
 		update = events[1].Command.Lookup("updates").Array().Index(0).Value().Document()

@@ -229,7 +229,11 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	filter := bson.D{{Key: id, Value: req.Key}}
 	upsert := true
 	if req.HasETag() {
-		filter = append(filter, bson.E{Key: etag, Value: *req.ETag}, getFilterTTL()[0])
+		// A matching etag on a live doc, or any expired doc, which counts as missing.
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
+			bson.D{{Key: etag, Value: *req.ETag}, getFilterTTL()[0]},
+			getFilterExpired(),
+		}})
 		upsert = false
 	} else if req.Options.Concurrency == state.FirstWrite {
 		uuid, err := uuid.NewRandom()
@@ -288,8 +292,8 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 	}
 	if !upsert && res.MatchedCount == 0 {
 		// An etag on a missing key creates it. MongoDB rejects the $expr TTL filter in an upsert,
-		// so this upserts with an etag that never matches: an existing or expired doc makes the
-		// insert collide on _id, which is an etag mismatch.
+		// so this upserts with an etag that never matches: a live doc makes the insert collide
+		// on _id, which is an etag mismatch.
 		noMatch, err := uuid.NewRandom()
 		if err != nil {
 			return err
@@ -448,6 +452,19 @@ func getFilterTTL() bson.D {
 				primitive.Null{},
 			}}},
 			bson.D{{Key: "$gte", Value: bson.A{"$_ttl", "$$NOW"}}},
+		}},
+	}}}
+}
+
+// getFilterExpired matches documents whose TTL has passed but that MongoDB has not removed yet.
+func getFilterExpired() bson.D {
+	return bson.D{{Key: "$expr", Value: bson.D{
+		{Key: "$and", Value: bson.A{
+			bson.D{{Key: "$ne", Value: bson.A{
+				bson.D{{Key: "$ifNull", Value: bson.A{"$_ttl", primitive.Null{}}}},
+				primitive.Null{},
+			}}},
+			bson.D{{Key: "$lt", Value: bson.A{"$_ttl", "$$NOW"}}},
 		}},
 	}}}
 }

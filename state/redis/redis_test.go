@@ -620,7 +620,7 @@ func TestMultiETags(t *testing.T) {
 		require.NoError(t, ss.Set(t.Context(), &state.SetRequest{Key: "b", Value: "b1"}))
 		err := multi(ss,
 			state.SetRequest{Key: "a", Value: "a2"},
-			state.DeleteRequest{Key: "c"},
+			state.DeleteRequest{Key: "b"},
 			state.SetRequest{Key: "c", Value: "c1"},
 			state.SetRequest{Key: "b", Value: "b2", ETag: ptr.Of("7"), Options: firstWrite},
 		)

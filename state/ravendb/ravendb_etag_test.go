@@ -167,6 +167,24 @@ func TestSetETag(t *testing.T) {
 		assert.Equal(t, "A:1-x", cmd["ChangeVector"])
 	})
 
+	t.Run("first-write etag on an expired document replaces it", func(t *testing.T) {
+		r, fake := newFakeRaven(t)
+		fake.existing = map[string]string{"a": `"v"`}
+		fake.expired = map[string]bool{"a": true}
+		err := r.Set(t.Context(), &state.SetRequest{
+			Key: "a", Value: "w", ETag: ptr.Of("A:1-x"),
+			Options: state.SetStateOption{Concurrency: state.FirstWrite},
+		})
+		require.NoError(t, err)
+
+		cmd := fake.commandsByID(t)["a"]
+		assert.Equal(t, "PUT", cmd["Type"])
+		assert.Equal(t, "A:1-a", cmd["ChangeVector"])
+		doc := cmd["Document"].(map[string]any)
+		assert.Equal(t, `"w"`, doc["Value"])
+		assert.NotContains(t, doc["@metadata"], "@expires")
+	})
+
 	t.Run("last-write etag on a missing document is sent as a change vector", func(t *testing.T) {
 		r, fake := newFakeRaven(t)
 		err := r.Set(t.Context(), &state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("A:1-x")})
@@ -415,6 +433,15 @@ func TestMultiETags(t *testing.T) {
 		cmd := fake.commandsByID(t)["a"]
 		assert.Equal(t, "DELETE", cmd["Type"])
 		assert.Equal(t, "A:1-x", cmd["ChangeVector"])
+
+		// An expired document counts as missing, so it is deleted at its own change vector.
+		r, fake = newFakeRaven(t)
+		fake.existing = map[string]string{"a": `"old"`}
+		fake.expired = map[string]bool{"a": true}
+		require.NoError(t, r.Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+		cmd = fake.commandsByID(t)["a"]
+		assert.Equal(t, "DELETE", cmd["Type"])
+		assert.Equal(t, "A:1-a", cmd["ChangeVector"])
 	})
 
 	t.Run("etag on a key already used in the transaction is a mismatch", func(t *testing.T) {

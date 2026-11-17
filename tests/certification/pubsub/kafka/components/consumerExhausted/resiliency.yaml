@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: pubsub-bounded-retry
+spec:
+  policies:
+    retries:
+      pubsubRetry:
+        policy: constant
+        duration: 200ms
+        maxRetries: 3
+  targets:
+    components:
+      messagebus:
+        inbound:
+          retry: pubsubRetry

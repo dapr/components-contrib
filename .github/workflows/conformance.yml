@@ -210,6 +210,13 @@ jobs:
           echo "OCIConfigProfile=DEFAULT" >> "$GITHUB_ENV"
         fi
 
+    - name: Install OCI CLI
+      if: matrix.component == 'binarystore.oci.objectstorage'
+      run: |
+        python3 -m venv "$RUNNER_TEMP/oci-cli"
+        "$RUNNER_TEMP/oci-cli/bin/python" -m pip install --disable-pip-version-check oci-cli
+        echo "$RUNNER_TEMP/oci-cli/bin" >> "$GITHUB_PATH"
+
     # Authenticate with GCP Workload Identity Pool
     # Exports GCP ENV Vars:
     #    - GCP_PROJECT

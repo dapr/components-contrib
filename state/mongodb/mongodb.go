@@ -86,9 +86,10 @@ type MongoDB struct {
 	operationTimeout time.Duration
 	metadata         mongoDBMetadata
 
-	features     []state.Feature
-	logger       logger.Logger
-	isReplicaSet bool
+	features      []state.Feature
+	logger        logger.Logger
+	isReplicaSet  bool
+	deleteWithNow bool
 }
 
 type mongoDBMetadata struct {
@@ -147,6 +148,14 @@ func (m *MongoDB) Init(ctx context.Context, metadata state.Metadata) (err error)
 
 	if err = client.Ping(ctx, nil); err != nil {
 		return fmt.Errorf("error in connecting to mongodb, host: %s error: %s", m.metadata.Host, err)
+	}
+
+	// Only MongoDB 4.4 and later accept $$NOW in the delete command.
+	var build struct {
+		VersionArray []int32 `bson:"versionArray"`
+	}
+	if client.Database("admin").RunCommand(ctx, bson.D{{Key: "buildInfo", Value: 1}}).Decode(&build) == nil && len(build.VersionArray) >= 2 {
+		m.deleteWithNow = build.VersionArray[0] > 4 || (build.VersionArray[0] == 4 && build.VersionArray[1] >= 4)
 	}
 
 	// get the write concern
@@ -217,16 +226,17 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		v = req.Value
 	}
 
-	// create a document based on request key and value
-	filter := bson.M{id: req.Key}
+	filter := bson.D{{Key: id, Value: req.Key}}
+	upsert := true
 	if req.HasETag() {
-		filter[etag] = *req.ETag
+		filter = append(filter, bson.E{Key: etag, Value: *req.ETag}, getFilterTTL()[0])
+		upsert = false
 	} else if req.Options.Concurrency == state.FirstWrite {
 		uuid, err := uuid.NewRandom()
 		if err != nil {
 			return err
 		}
-		filter[etag] = uuid.String()
+		filter = append(filter, bson.E{Key: etag, Value: uuid.String()})
 	}
 
 	reqTTL, err := stateutils.ParseTTL(req.Metadata)
@@ -269,12 +279,15 @@ func (m *MongoDB) setInternal(ctx context.Context, req *state.SetRequest) error 
 		}
 	}
 
-	_, err = m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	res, err := m.collection.UpdateOne(ctx, filter, update, options.Update().SetUpsert(upsert))
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return fmt.Errorf("error in updating document: %w", err)
+	}
+	if !upsert && res.MatchedCount == 0 {
+		return state.NewETagError(state.ETagMismatch, nil)
 	}
 
 	return nil
@@ -493,20 +506,25 @@ func (m *MongoDB) Delete(ctx context.Context, req *state.DeleteRequest) error {
 }
 
 func (m *MongoDB) deleteInternal(ctx context.Context, req *state.DeleteRequest) error {
-	filter := bson.M{id: req.Key}
+	filter := bson.D{{Key: id, Value: req.Key}}
 	if req.HasETag() {
-		filter[etag] = *req.ETag
-	}
-	result, err := m.collection.DeleteOne(ctx, filter)
-	if err != nil {
+		filter = append(filter, bson.E{Key: etag, Value: *req.ETag}, getFilterTTL()[0])
+		if m.deleteWithNow {
+			res, err := m.collection.DeleteOne(ctx, filter)
+			if err == nil && res.DeletedCount == 0 {
+				return state.NewETagError(state.ETagMismatch, nil)
+			}
+			return err
+		}
+		// MongoDB 4.2 rejects $$NOW in the delete command but allows it in findAndModify.
+		err := m.collection.FindOneAndDelete(ctx, filter, options.FindOneAndDelete().SetProjection(bson.D{{Key: id, Value: 1}})).Err()
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return state.NewETagError(state.ETagMismatch, nil)
+		}
 		return err
 	}
-
-	if result.DeletedCount == 0 && req.ETag != nil && *req.ETag != "" {
-		return state.NewETagError(state.ETagMismatch, err)
-	}
-
-	return nil
+	_, err := m.collection.DeleteOne(ctx, filter)
+	return err
 }
 
 // Multi performs a transactional operation. succeeds only if all operations succeed, and fails if one or more operations fail.
@@ -524,9 +542,8 @@ func (m *MongoDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	txnOpts := options.Transaction().
 		SetReadConcern(readconcern.Snapshot()).
 		SetWriteConcern(writeconcern.Majority())
-	_, _ = sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) { //nolint:errcheck // legacy behavior preserved
-		err = m.doTransaction(sessCtx, request.Operations)
-		return nil, err
+	_, err = sess.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+		return nil, m.doTransaction(sessCtx, request.Operations)
 	}, txnOpts)
 
 	return err

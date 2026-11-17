@@ -71,6 +71,9 @@ func NewFake(log logger.Logger) binarystore.BinaryStore {
 
 func newFake(log logger.Logger) *Fake {
 	backing := inmemory.NewInMemoryBinaryStore(log)
+	// Apply the default configuration so the fake is usable without an
+	// explicit Init call; a later Init simply reconfigures it.
+	_ = backing.Init(context.Background(), binarystore.Metadata{})
 
 	f := &Fake{
 		fnInit:     backing.Init,

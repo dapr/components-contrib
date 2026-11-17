@@ -142,7 +142,7 @@ func (g *GCPStorage) getClient(ctx context.Context, m *gcpMetadata) (*storage.Cl
 			return nil, err
 		}
 
-		clientOptions := option.WithCredentialsJSON(b)
+		clientOptions := option.WithCredentialsJSON(b) //nolint:staticcheck // SA1019: deprecated by the google.golang.org/api update. Kept to avoid a behavior change in a dependency-only update.
 		client, err = storage.NewClient(ctx, clientOptions)
 		if err != nil {
 			return nil, err

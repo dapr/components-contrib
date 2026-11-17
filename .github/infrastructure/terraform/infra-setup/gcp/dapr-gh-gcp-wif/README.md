@@ -8,9 +8,21 @@ for the Conformance and Certification Tests.
 The Authn/Authz is handled by 2 resources already deployed in the GCP Project:
 
 - Workload Identity Pool & Workload Identity Provider Configured **specifically** for this GitHub repository -  **(Authentication)**
-- A GCP IAM Service Account (SA) used to impersonate this GitHub Actions workflow within the GCP Project **(Authorization)**. This SA has been assigned the roles **`roles/pubsub.admin`** and **`roles/datastore.owner`** which will be used for the `GCP PusbSub` and `GCP Firestore` Certification Tests.
+- A GCP IAM Service Account (SA) used to impersonate this GitHub Actions workflow within the GCP Project **(Authorization)**. This SA requires **`roles/pubsub.admin`**, **`roles/datastore.owner`**, and **`roles/storage.admin`** for the GCP Pub/Sub, Firestore, and binary-store bucket tests. Storage Admin allows the bucket conformance job to provision a bucket, read and write test objects, and delete the bucket during teardown.
 
  **Note:** Changes to the roles for the SA should be made in the `roles` local variable in the file `service_account.tf`
+
+After you change these roles, apply this infrastructure module before you run the affected tests. The conformance workflow does not update its own IAM permissions.
+
+Always run `terraform plan` and read the plan before you apply it. The file `pubsub_roles.tf` uses `google_project_iam_binding`, which is authoritative for its role. An apply removes all other members of `roles/pubsub.publisher` and `roles/pubsub.subscriber` in the project.
+
+The deployed resources use these names. Use the same names in the Terraform variables, or Terraform creates a second service account and pool:
+
+| Resource | Name | Terraform variable |
+|----------|------|--------------------|
+| Service account | `dapr-contrib-cert-wif-sa` | `service_account=dapr-contrib-cert-wif-sa` |
+| Workload Identity Pool | `cert-tests-gh-pool` | `wif_pool_name=cert-tests-gh` |
+| Workload Identity Provider | `cert-tests-gh-provider` | `wif_pool_name=cert-tests-gh` |
 
 The Terraform scripts follow steps similar to the suggested in the [Google GitHub Actions Auth](https://github.com/google-github-actions/auth#setting-up-workload-identity-federation)
 
@@ -38,6 +50,7 @@ Before this module can be used on a project, you must ensure that the following 
     "cloudresourcemanager.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
+    "storage.googleapis.com",
     ```
 
 1. The GCP Account or Service Account used to deploy this module has the following roles
@@ -53,17 +66,12 @@ Before this module can be used on a project, you must ensure that the following 
 ```
 $ terraform init
 
-$ terraform refresh -var="gh_repo=dapr/components-contrib" \
-                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-wif-sa" \
-                 -var="wif_pool_name=dapr-contrib-cert-tests"
+$ terraform plan -out=tfplan -var="gh_repo=dapr/components-contrib" \
+                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-cert-wif-sa" \
+                 -var="wif_pool_name=cert-tests-gh"
 
-$ terraform plan -var="gh_repo=dapr/components-contrib" \
-                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-wif-sa" \
-                 -var="wif_pool_name=dapr-contrib-cert-tests"
-
-$ terraform apply --auto-approve -var="gh_repo=dapr/components-contrib" \
-                 -var="project_id=dapr-tests" -var="service_account=dapr-contrib-wif-sa" \
-                 -var="wif_pool_name=dapr-contrib-cert-tests"
+# Read the plan. Apply it only if every change is expected.
+$ terraform apply tfplan
 ```
 
 
@@ -72,7 +80,7 @@ $ terraform apply --auto-approve -var="gh_repo=dapr/components-contrib" \
 ```
 $ terraform output                                                   
     
-pool_name = "projects/***/locations/global/workloadIdentityPools/dapr-contrib-cert-tests-pool"
-provider_name = "projects/***/locations/global/workloadIdentityPools/dapr-contrib-cert-tests-pool/providers/dapr-contrib-cert-tests-provider"
+pool_name = "projects/***/locations/global/workloadIdentityPools/cert-tests-gh-pool"
+provider_name = "projects/***/locations/global/workloadIdentityPools/cert-tests-gh-pool/providers/cert-tests-gh-provider"
 sa_email = "***"
 ```

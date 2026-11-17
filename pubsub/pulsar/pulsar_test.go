@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2410,7 +2412,15 @@ func TestSubscribe_AppliesMetadataOptions(t *testing.T) {
 
 type MockPulsarClient struct {
 	pulsar.Client
-	SubscribeFn func(pulsar.ConsumerOptions) (pulsar.Consumer, error)
+	SubscribeFn      func(pulsar.ConsumerOptions) (pulsar.Consumer, error)
+	CreateProducerFn func(pulsar.ProducerOptions) (pulsar.Producer, error)
+}
+
+func (m *MockPulsarClient) CreateProducer(options pulsar.ProducerOptions) (pulsar.Producer, error) {
+	if m.CreateProducerFn != nil {
+		return m.CreateProducerFn(options)
+	}
+	return nil, nil
 }
 
 func (m *MockPulsarClient) Subscribe(options pulsar.ConsumerOptions) (pulsar.Consumer, error) {
@@ -2803,6 +2813,112 @@ func TestPublishErrorClassification(t *testing.T) {
 		require.True(t, ok, "publish error must carry a gRPC status")
 		assert.Equal(t, codes.FailedPrecondition, st.Code())
 	})
+}
+
+type mockProducer struct {
+	pulsar.Producer
+	sends  atomic.Int32
+	closed atomic.Bool
+}
+
+func (m *mockProducer) Send(context.Context, *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+	m.sends.Add(1)
+	return nil, nil
+}
+
+func (m *mockProducer) Close() {
+	m.closed.Store(true)
+}
+
+func newPulsarWithMockClient(t *testing.T, client *MockPulsarClient) *Pulsar {
+	t.Helper()
+	p := NewPulsar(logger.NewLogger("test")).(*Pulsar)
+	p.newClientFn = func(pulsar.ClientOptions) (pulsar.Client, error) {
+		return client, nil
+	}
+	md := pubsub.Metadata{}
+	md.Properties = map[string]string{"host": "localhost:6650"}
+	require.NoError(t, p.Init(t.Context(), md))
+	return p
+}
+
+func TestPublish_ConcurrentCacheMissCreatesOneProducer(t *testing.T) {
+	const publishers = 100
+
+	var (
+		creates  atomic.Int32
+		producer = &mockProducer{}
+		release  = make(chan struct{})
+	)
+	p := newPulsarWithMockClient(t, &MockPulsarClient{
+		CreateProducerFn: func(pulsar.ProducerOptions) (pulsar.Producer, error) {
+			creates.Add(1)
+			<-release
+			return producer, nil
+		},
+	})
+
+	errs := make(chan error, publishers)
+	var started, done sync.WaitGroup
+	started.Add(publishers)
+	done.Add(publishers)
+	for range publishers {
+		go func() {
+			defer done.Done()
+			started.Done()
+			errs <- p.Publish(t.Context(), &pubsub.PublishRequest{Topic: "new-topic", Data: []byte("a")})
+		}()
+	}
+
+	// Let every publisher reach the cache miss before the first producer is returned.
+	started.Wait()
+	require.Eventually(t, func() bool { return creates.Load() >= 1 }, 5*time.Second, time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	done.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, int32(1), creates.Load(), "concurrent cache misses must create a single producer")
+	assert.Equal(t, int32(publishers), producer.sends.Load())
+	assert.False(t, producer.closed.Load())
+
+	require.NoError(t, p.Close())
+	assert.True(t, producer.closed.Load())
+}
+
+func TestPublish_ProducerCreatedDuringCloseIsClosed(t *testing.T) {
+	var (
+		producer = &mockProducer{}
+		entered  = make(chan struct{})
+		release  = make(chan struct{})
+	)
+	p := newPulsarWithMockClient(t, &MockPulsarClient{
+		CreateProducerFn: func(pulsar.ProducerOptions) (pulsar.Producer, error) {
+			close(entered)
+			<-release
+			return producer, nil
+		},
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- p.Publish(t.Context(), &pubsub.PublishRequest{Topic: "new-topic", Data: []byte("a")})
+	}()
+
+	<-entered
+	require.NoError(t, p.Close())
+	close(release)
+
+	err := <-errCh
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok, "publish error must carry a gRPC status")
+	assert.Equal(t, codes.FailedPrecondition, st.Code())
+	assert.True(t, producer.closed.Load(), "a producer created while the component closes must be closed")
+	assert.Equal(t, int32(0), producer.sends.Load())
 }
 
 // --- topicsPattern (regex / wildcard multi-topic subscriptions) ---

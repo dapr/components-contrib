@@ -18,7 +18,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -101,6 +103,18 @@ func TestSqliteIntegration(t *testing.T) {
 
 	t.Run("Bulk set and bulk delete", func(t *testing.T) {
 		testBulkSetAndBulkDelete(t, s)
+	})
+
+	t.Run("Bulk get with more keys than SQLite allows bind variables", func(t *testing.T) {
+		bulkGetManyKeys(t, s)
+	})
+
+	t.Run("Bulk get with duplicate keys", func(t *testing.T) {
+		bulkGetDuplicateKeys(t, s)
+	})
+
+	t.Run("Bulk get in chunks with TTL", func(t *testing.T) {
+		bulkGetChunksTTL(t, s)
 	})
 
 	t.Run("Update and delete with etag succeeds", func(t *testing.T) {
@@ -509,6 +523,180 @@ func getExpireTime(t *testing.T, s state.Store) {
 	expireTime, err := time.Parse(time.RFC3339, resp.Metadata["ttlExpireTime"])
 	require.NoError(t, err)
 	assert.InDelta(t, time.Now().Add(time.Second*1000).Unix(), expireTime.Unix(), 10)
+}
+
+// bulkGetManyKeys reads more keys in one BulkGet than SQLite allows bind
+// variables in one statement (SQLITE_MAX_VARIABLE_NUMBER is 32766 in the
+// bundled driver). The Dapr workflow engine loads a workflow history with one
+// BulkGet that has one key for each history event.
+func bulkGetManyKeys(t *testing.T, s state.Store) {
+	const n = 33_000 // more than SQLITE_MAX_VARIABLE_NUMBER (32766)
+	prefix := randomKey() + "-"
+	keys := make([]string, n)
+	ops := make([]state.TransactionalStateOperation, 0, 1000)
+	for i := range n {
+		keys[i] = prefix + strconv.Itoa(i)
+		ops = append(ops, state.SetRequest{Key: keys[i], Value: []byte(strconv.Itoa(i))})
+		if len(ops) == cap(ops) || i == n-1 {
+			require.NoError(t, s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+			ops = ops[:0]
+		}
+	}
+
+	// Each request has count keys that exist and 3 keys that do not exist:
+	// one query, two queries, and more keys than SQLite allows bind variables.
+	for _, count := range []int{bulkGetMaxKeysPerQuery - 3, bulkGetMaxKeysPerQuery - 2, n} {
+		t.Run(strconv.Itoa(count+3)+" keys", func(t *testing.T) {
+			req := make([]state.GetRequest, 0, count+3)
+			for _, k := range keys[:count] {
+				req = append(req, state.GetRequest{Key: k})
+			}
+			for i := range 3 {
+				req = append(req, state.GetRequest{Key: prefix + "missing-" + strconv.Itoa(i)})
+			}
+
+			res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+			require.NoError(t, err)
+			require.Len(t, res, count+3)
+
+			got := make(map[string]state.BulkGetResponse, len(res))
+			for _, r := range res {
+				got[r.Key] = r
+			}
+			require.Len(t, got, count+3)
+
+			var wrong int
+			for i, k := range keys[:count] {
+				r := got[k]
+				if r.Error != "" || r.ETag == nil || string(r.Data) != strconv.Itoa(i) {
+					wrong++
+				}
+			}
+			assert.Zero(t, wrong, "keys with a wrong value, an error, or no ETag")
+
+			for i := range 3 {
+				r, ok := got[prefix+"missing-"+strconv.Itoa(i)]
+				assert.True(t, ok)
+				assert.Empty(t, r.Data)
+				assert.Empty(t, r.Error)
+			}
+		})
+	}
+}
+
+// setBulkGetKeys stores n keys with the prefix. The value of each key is its
+// index.
+func setBulkGetKeys(t *testing.T, s state.Store, prefix string, n int) []string {
+	keys := make([]string, n)
+	ops := make([]state.TransactionalStateOperation, n)
+	for i := range n {
+		keys[i] = prefix + strconv.Itoa(i)
+		ops[i] = state.SetRequest{Key: keys[i], Value: []byte(strconv.Itoa(i))}
+	}
+	require.NoError(t, s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+	return keys
+}
+
+// bulkGetDuplicateKeys reads a request that has a key two times. The result
+// with chunks must be the same as the result with one query: a key that exists
+// has one response, and a key that does not exist has one empty response each
+// time it occurs in the request.
+func bulkGetDuplicateKeys(t *testing.T, s state.Store) {
+	prefix := randomKey() + "-"
+	keys := setBulkGetKeys(t, s, prefix, bulkGetMaxKeysPerQuery+100)
+	missing := prefix + "missing"
+
+	tests := []struct {
+		name string
+		keys []string
+	}{
+		// keys[0] and missing occur two times in one query.
+		{name: "one query", keys: slices.Concat(keys[:10], []string{missing}, keys[10:20], []string{keys[0], missing})},
+		// keys[0] and missing occur in the first chunk and in the second chunk.
+		{name: "chunks", keys: slices.Concat(keys[:300], []string{missing}, keys[300:], []string{keys[0], missing})},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := make([]state.GetRequest, len(tc.keys))
+			for i, k := range tc.keys {
+				req[i] = state.GetRequest{Key: k}
+			}
+
+			res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+			require.NoError(t, err)
+
+			count := make(map[string]int, len(res))
+			for _, r := range res {
+				count[r.Key]++
+				assert.Empty(t, r.Error)
+				if r.Key == missing {
+					assert.Empty(t, r.Data)
+					assert.Nil(t, r.ETag)
+				}
+			}
+			assert.Equal(t, 1, count[keys[0]], "a key that exists must have one response")
+			assert.Equal(t, 2, count[missing], "a key that does not exist must have one response each time it occurs")
+			assert.Len(t, res, len(tc.keys)-1)
+		})
+	}
+}
+
+// bulkGetChunksTTL reads keys with a TTL in a request that is read in chunks.
+// An expired key is not returned. A key with a TTL has the ttlExpireTime
+// metadata.
+func bulkGetChunksTTL(t *testing.T, s state.Store) {
+	const n = bulkGetMaxKeysPerQuery + 100
+	prefix := randomKey() + "-"
+	keys := make([]string, n)
+	ops := make([]state.TransactionalStateOperation, n)
+	for i := range n {
+		keys[i] = prefix + strconv.Itoa(i)
+		req := state.SetRequest{Key: keys[i], Value: []byte(strconv.Itoa(i))}
+		if i%bulkGetMaxKeysPerQuery == 10 || i%bulkGetMaxKeysPerQuery == 20 {
+			req.Metadata = map[string]string{"ttlInSeconds": "1000"}
+		}
+		ops[i] = req
+	}
+	require.NoError(t, s.(state.TransactionalStore).Multi(t.Context(), &state.TransactionalStateRequest{Operations: ops}))
+
+	// Keys 10 (first chunk) and 510 (second chunk) expired one hour ago. The
+	// garbage collector is off by default, so the rows stay in the table.
+	expired := map[string]bool{keys[10]: true, keys[bulkGetMaxKeysPerQuery+10]: true}
+	withTTL := map[string]bool{keys[20]: true, keys[bulkGetMaxKeysPerQuery+20]: true}
+	dba := s.(interface{ GetDBAccess() *sqliteDBAccess }).GetDBAccess()
+	stmt := fmt.Sprintf("UPDATE %s SET expiration_time = DATETIME(CURRENT_TIMESTAMP, '-3600 seconds') WHERE key = ?", dba.metadata.TableName) //nolint:gosec // table name from the test metadata
+	for k := range expired {
+		_, err := dba.db.ExecContext(t.Context(), stmt, k)
+		require.NoError(t, err)
+		require.True(t, storeItemExists(t, s, k))
+	}
+
+	req := make([]state.GetRequest, n)
+	for i, k := range keys {
+		req[i] = state.GetRequest{Key: k}
+	}
+	res, err := s.BulkGet(t.Context(), req, state.BulkGetOpts{})
+	require.NoError(t, err)
+	require.Len(t, res, n)
+
+	for _, r := range res {
+		assert.Empty(t, r.Error, r.Key)
+		switch {
+		case expired[r.Key]:
+			assert.Empty(t, r.Data, "expired key %s must not be returned", r.Key)
+			assert.Nil(t, r.ETag, r.Key)
+			assert.Empty(t, r.Metadata, r.Key)
+		case withTTL[r.Key]:
+			assert.NotEmpty(t, r.Data, r.Key)
+			require.Len(t, r.Metadata, 1, r.Key)
+			expireTime, err := time.Parse(time.RFC3339, r.Metadata[state.GetRespMetaKeyTTLExpireTime])
+			require.NoError(t, err)
+			assert.InDelta(t, time.Now().Add(1000*time.Second).Unix(), expireTime.Unix(), 10, r.Key)
+		default:
+			assert.NotEmpty(t, r.Data, r.Key)
+			assert.Empty(t, r.Metadata, r.Key)
+		}
+	}
 }
 
 func getBulkExpireTime(t *testing.T, s state.Store) {

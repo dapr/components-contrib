@@ -49,7 +49,7 @@ func (m *migration) newMigrationResult() migrationResult {
 		itemRefTableTypeName:     fmt.Sprintf("[%s].%s_Table", m.metadata.SchemaName, m.metadata.TableName),
 		upsertProcName:           "sp_Upsert_v5_" + m.metadata.TableName,
 		getCommand:               fmt.Sprintf("SELECT [Data], [RowVersion], [ExpireDate] FROM [%s].[%s] WHERE [Key] = @Key AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())", m.metadata.SchemaName, m.metadata.TableName),
-		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion`, m.metadata.SchemaName, m.metadata.TableName),
+		deleteWithETagCommand:    fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key AND [RowVersion]=@RowVersion AND ([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())`, m.metadata.SchemaName, m.metadata.TableName),
 		deleteWithoutETagCommand: fmt.Sprintf(`DELETE [%s].[%s] WHERE [Key]=@Key`, m.metadata.SchemaName, m.metadata.TableName),
 	}
 

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dapr/components-contrib/binarystore"
 	kitmd "github.com/dapr/kit/metadata"
 )
 
@@ -36,14 +37,31 @@ type s3Metadata struct {
 	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
 	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
 	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
+	// PartSize is the multipart upload part size, as a byte size quantity.
+	// Larger parts raise the maximum uploadable object size (10,000 parts per
+	// upload) at the cost of more memory per in-flight upload.
+	PartSize kitmd.ByteSize `json:"partSize" mapstructure:"partSize"`
+
+	partSizeBytes int64
 }
 
 func parseMetadata(meta map[string]string) (*s3Metadata, error) {
-	m := s3Metadata{}
+	m := s3Metadata{
+		PartSize: kitmd.NewByteSize(binarystore.DefaultUploadPartSize),
+	}
 	decodeErr := kitmd.DecodeMetadata(meta, &m)
 	if decodeErr != nil {
 		return nil, fmt.Errorf("failed to decode metadata: %w", decodeErr)
 	}
+
+	partSize, err := m.PartSize.GetBytes()
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for partSize: %w", err)
+	}
+	if partSize < minPartSize || partSize > maxPartSize {
+		return nil, fmt.Errorf("partSize must be between %d and %d bytes", minPartSize, maxPartSize)
+	}
+	m.partSizeBytes = partSize
 
 	if m.Bucket == "" {
 		return nil, errors.New("missing or empty bucket field from metadata")

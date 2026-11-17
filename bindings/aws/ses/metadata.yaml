@@ -4,7 +4,7 @@ type: bindings
 name: aws.ses
 version: v1
 status: stable
-title: "AWS Simple Email Service (SES)"
+title: "Amazon Simple Email Service (Amazon SES)"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-bindings/ses/

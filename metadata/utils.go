@@ -150,6 +150,8 @@ const (
 	CryptoType             ComponentType = "crypto"
 	NameResolutionType     ComponentType = "nameresolution"
 	ConversationType       ComponentType = "conversation"
+	SearchType             ComponentType = "search"
+	VectorType             ComponentType = "vector"
 	BinaryStoreType        ComponentType = "binarystore"
 	WorkflowType           ComponentType = "workflows"
 )
@@ -162,7 +164,8 @@ func (t ComponentType) IsValid() bool {
 		LockStoreType, ConfigurationStoreType,
 		MiddlewareType, CryptoType,
 		NameResolutionType,
-		ConversationType, BinaryStoreType, WorkflowType:
+		ConversationType, SearchType, VectorType,
+		BinaryStoreType, WorkflowType:
 		return true
 	default:
 		return false

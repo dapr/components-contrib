@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/IBM/sarama"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -46,7 +45,6 @@ import (
 	"github.com/dapr/components-contrib/tests/certification/flow/app"
 	"github.com/dapr/components-contrib/tests/certification/flow/dockercompose"
 	"github.com/dapr/components-contrib/tests/certification/flow/network"
-	"github.com/dapr/components-contrib/tests/certification/flow/retry"
 	"github.com/dapr/components-contrib/tests/certification/flow/sidecar"
 	"github.com/dapr/components-contrib/tests/certification/flow/simulate"
 	"github.com/dapr/components-contrib/tests/certification/flow/watcher"
@@ -238,24 +236,7 @@ func TestKafka_with_retry(t *testing.T) {
 		Step("wait for broker sockets",
 			network.WaitForAddresses(5*time.Minute, brokers...)).
 		Step("wait", flow.Sleep(5*time.Second)).
-		Step("wait for kafka readiness", retry.Do(10*time.Second, 30, func(ctx flow.Context) error {
-			config := sarama.NewConfig()
-			config.ClientID = "test-consumer"
-			config.Consumer.Return.Errors = true
-
-			// Create new consumer
-			client, err := sarama.NewConsumer(brokers, config)
-			if err != nil {
-				return err
-			}
-			defer client.Close()
-
-			// Ensure the brokers are ready by attempting to consume
-			// a topic partition.
-			_, err = client.ConsumePartition("myTopic", 0, sarama.OffsetOldest)
-
-			return err
-		})).
+		Step("wait for kafka readiness", waitForKafkaReadiness(brokers, "test-consumer")).
 		// Run the application logic above.
 		Step(app.Run(appID1, fmt.Sprintf(":%d", appPort),
 			application(appID1, consumerGroup1))).

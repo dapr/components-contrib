@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.amqp
+  version: v1
+  metadata:
+  - name: url
+    value: "amqp://localhost:5673"
+  - name: username
+    value: "artemis"
+  - name: password
+    value: "artemis"
+  # Exercises the addressing path a broker with namespaced destinations needs,
+  # such as an ActiveMQ Artemis acceptor configured with anycastPrefix and
+  # multicastPrefix. Artemis auto-creates the addresses, so publisher and
+  # subscriber meet as long as both apply the same prefix.
+  - name: topicAddressPrefix
+    value: "multicast://"
+  - name: queueAddressPrefix
+    value: "anycast://"
+  - name: backOffDuration
+    value: "1s"

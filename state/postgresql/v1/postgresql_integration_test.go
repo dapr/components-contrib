@@ -16,9 +16,15 @@ limitations under the License.
 package postgresql
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,7 +61,7 @@ func TestPostgreSQLIntegration(t *testing.T) {
 		Base: metadata.Base{Properties: map[string]string{"connectionString": connectionString}},
 	}
 
-	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*postgresql.PostgreSQL)
+	pgs := NewPostgreSQLStateStore(logger.NewLogger("test")).(*postgresql.PostgreSQLQuery)
 	t.Cleanup(func() {
 		defer pgs.Close()
 	})
@@ -148,7 +154,7 @@ func Test_KeysLiker(t *testing.T) {
 }
 
 // setGetUpdateDeleteOneItem validates setting one item, getting it, and deleting it.
-func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
+func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	key := randomKey()
 	value := &fakeItem{Color: "yellow"}
 
@@ -165,7 +171,7 @@ func setGetUpdateDeleteOneItem(t *testing.T, pgs *postgresql.PostgreSQL) {
 	deleteItem(t, pgs, key, getResponse.ETag)
 }
 
-func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
+func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	// Delete the item with a key not in the store
 	deleteReq := &state.DeleteRequest{
 		Key: randomKey(),
@@ -174,7 +180,7 @@ func deleteItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.NoError(t, err)
 }
 
-func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
+func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	var operations []state.TransactionalStateOperation //nolint:prealloc
 	var setRequests []state.SetRequest                 //nolint:prealloc
 	for range 3 {
@@ -197,7 +203,7 @@ func multiWithSetOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 }
 
-func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
+func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	var operations []state.TransactionalStateOperation //nolint:prealloc
 	var deleteRequests []state.DeleteRequest           //nolint:prealloc
 	for range 3 {
@@ -223,7 +229,7 @@ func multiWithDeleteOnly(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 }
 
-func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
+func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	var operations []state.TransactionalStateOperation //nolint:prealloc
 	var deleteRequests []state.DeleteRequest           //nolint:prealloc
 	for range 3 {
@@ -265,7 +271,7 @@ func multiWithDeleteAndSet(t *testing.T, pgs *postgresql.PostgreSQL) {
 	}
 }
 
-func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	// Create new item
 	key := randomKey()
 	value := &fakeItem{Color: "mauve"}
@@ -281,7 +287,7 @@ func deleteWithInvalidEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.Error(t, err)
 }
 
-func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	deleteReq := &state.DeleteRequest{
 		Key: "",
 	}
@@ -290,7 +296,7 @@ func deleteWithNoKeyFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // newItemWithEtagFails creates a new item and also supplies an ETag, which is invalid - expect failure.
-func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	value := &fakeItem{Color: "teal"}
 	invalidEtag := "12345"
 
@@ -304,7 +310,7 @@ func newItemWithEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.Error(t, err)
 }
 
-func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
+func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "gray"}
@@ -330,7 +336,7 @@ func updateWithOldEtagFails(t *testing.T, pgs *postgresql.PostgreSQL) {
 	require.Error(t, err)
 }
 
-func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
+func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	// Create and retrieve new item
 	key := randomKey()
 	value := &fakeItem{Color: "hazel"}
@@ -355,7 +361,7 @@ func updateAndDeleteWithEtagSucceeds(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // getItemThatDoesNotExist validates the behavior of retrieving an item that does not exist.
-func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
+func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	key := randomKey()
 	response, outputObject := getItem(t, pgs, key)
 	assert.Nil(t, response.Data)
@@ -363,7 +369,7 @@ func getItemThatDoesNotExist(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // getItemWithNoKey validates that attempting a Get operation without providing a key will return an error.
-func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
+func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	getReq := &state.GetRequest{
 		Key: "",
 	}
@@ -374,7 +380,7 @@ func getItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // setUpdatesTheUpdatedateField proves that the updateddate is set for an update, and not set upon insert.
-func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQL) {
+func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	key := randomKey()
 	value := &fakeItem{Color: "orange"}
 	setItem(t, pgs, key, value, nil)
@@ -395,7 +401,7 @@ func setUpdatesTheUpdatedateField(t *testing.T, pgs *postgresql.PostgreSQL) {
 	deleteItem(t, pgs, key, nil)
 }
 
-func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
+func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	setReq := &state.SetRequest{
 		Key: "",
 	}
@@ -405,7 +411,7 @@ func setItemWithNoKey(t *testing.T, pgs *postgresql.PostgreSQL) {
 }
 
 // Tests valid bulk sets and deletes.
-func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQL) {
+func testBulkSetAndBulkDelete(t *testing.T, pgs *postgresql.PostgreSQLQuery) {
 	setReq := []state.SetRequest{
 		{
 			Key:   randomKey(),
@@ -448,7 +454,7 @@ func testInitConfiguration(t *testing.T) {
 		{
 			name:        "Empty",
 			props:       map[string]string{},
-			expectedErr: errors.New("missing connection string"),
+			expectedErr: errors.New("failed to parse metadata: failed to build connection string"),
 		},
 		{
 			name:        "Valid connection string",
@@ -459,7 +465,7 @@ func testInitConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewPostgreSQLStateStore(logger).(*postgresql.PostgreSQL)
+			p := NewPostgreSQLStateStore(logger).(*postgresql.PostgreSQLQuery)
 			defer p.Close()
 
 			metadata := state.Metadata{
@@ -471,9 +477,64 @@ func testInitConfiguration(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				assert.Equal(t, tt.expectedErr, err)
+				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
+	}
+}
+
+// TestPostgreSQLConcurrentInit starts many stores at once against a metadata
+// table that does not exist yet, as sidecars do on a new database: every Init
+// must succeed although their CREATE TABLE IF NOT EXISTS statements race.
+func TestPostgreSQLConcurrentInit(t *testing.T) {
+	connectionString := getConnectionString()
+	if connectionString == "" {
+		t.Skipf("PostgreSQL state integration tests skipped. To enable define the connection string using environment variable '%s'", connectionStringEnvKey)
+	}
+
+	const (
+		rounds = 30
+		stores = 32
+	)
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 36)
+	tables := make([]string, 0, 2*rounds)
+	t.Cleanup(func() {
+		if len(tables) == 0 {
+			return
+		}
+		ctx := context.Background()
+		db, err := pgx.Connect(ctx, connectionString)
+		require.NoError(t, err)
+		defer db.Close(ctx)
+		_, err = db.Exec(ctx, "DROP TABLE IF EXISTS "+strings.Join(tables, ", "))
+		require.NoError(t, err)
+	})
+
+	for r := range rounds {
+		props := map[string]string{
+			"connectionString":  connectionString,
+			"tableName":         fmt.Sprintf("state_concinit_%s_%d", suffix, r),
+			"metadataTableName": fmt.Sprintf("meta_concinit_%s_%d", suffix, r),
+		}
+		tables = append(tables, props["tableName"], props["metadataTableName"])
+		errs := make(chan error, stores)
+		var wg sync.WaitGroup
+		for range stores {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				p := NewPostgreSQLStateStore(logger.NewLogger("test"))
+				if c, ok := p.(io.Closer); ok {
+					defer c.Close()
+				}
+				errs <- p.Init(t.Context(), state.Metadata{Base: metadata.Base{Properties: props}})
+			}()
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			require.NoError(t, err, "round %d", r)
+		}
 	}
 }
 
@@ -481,7 +542,7 @@ func getConnectionString() string {
 	return os.Getenv(connectionStringEnvKey)
 }
 
-func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interface{}, etag *string) {
+func setItem(t *testing.T, pgs *postgresql.PostgreSQLQuery, key string, value interface{}, etag *string) {
 	setReq := &state.SetRequest{
 		Key:   key,
 		ETag:  etag,
@@ -494,7 +555,7 @@ func setItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, value interfa
 	assert.True(t, itemExists)
 }
 
-func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetResponse, *fakeItem) {
+func getItem(t *testing.T, pgs *postgresql.PostgreSQLQuery, key string) (*state.GetResponse, *fakeItem) {
 	getReq := &state.GetRequest{
 		Key:     key,
 		Options: state.GetStateOption{},
@@ -509,7 +570,7 @@ func getItem(t *testing.T, pgs *postgresql.PostgreSQL, key string) (*state.GetRe
 	return response, outputObject
 }
 
-func deleteItem(t *testing.T, pgs *postgresql.PostgreSQL, key string, etag *string) {
+func deleteItem(t *testing.T, pgs *postgresql.PostgreSQLQuery, key string, etag *string) {
 	deleteReq := &state.DeleteRequest{
 		Key:     key,
 		ETag:    etag,

@@ -236,7 +236,7 @@ func getGCPClient(_ context.Context, metadata *firestoreMetadata, l logger.Logge
 			return nil, err
 		}
 
-		opt := option.WithCredentialsJSON(b)
+		opt := option.WithCredentialsJSON(b) //nolint:staticcheck // SA1019: deprecated by the google.golang.org/api update. Kept to avoid a behavior change in a dependency-only update.
 		gcpClient, err = datastore.NewClient(context.Background(), metadata.ProjectID, opt)
 		if err != nil {
 			return nil, err

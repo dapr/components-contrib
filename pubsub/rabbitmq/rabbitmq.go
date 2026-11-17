@@ -289,14 +289,23 @@ func (r *rabbitMQ) publishSync(ctx context.Context, req *pubsub.PublishRequest) 
 	// confirm will be nil if are not requesting publish confirmations
 	if confirm != nil {
 		// Blocks until the server confirms
-		ok := confirm.Wait()
-		if !ok {
-			err = errors.New("did not receive confirmation of publishing")
+		if err = confirmationError(confirm); err != nil {
 			r.logger.Errorf("%s publishing to %s failed: %v", logMessagePrefix, req.Topic, err)
+
+			return r.channel, r.connectionCount, err
 		}
 	}
 
 	return r.channel, r.connectionCount, nil
+}
+
+// confirmationError waits for the broker's confirmation and returns an error if the broker did not ack the message.
+func confirmationError(confirm interface{ Wait() bool }) error {
+	if !confirm.Wait() {
+		return errors.New("did not receive confirmation of publishing")
+	}
+
+	return nil
 }
 
 func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) error {
@@ -837,7 +846,14 @@ func (r *rabbitMQ) handleMessage(ctx context.Context, d amqp.Delivery, topic str
 		if !r.metadata.AutoAck {
 			// if message is not auto acked we need to ack/nack
 			r.logger.Debugf("%s nacking message '%s' from topic '%s', requeue=%t", logMessagePrefix, d.MessageId, topic, r.metadata.RequeueInFailure)
-			if err = d.Nack(false, r.metadata.RequeueInFailure); err != nil {
+			if r.metadata.RequeueInFailure {
+				// basic.reject marks the delivery as failed, so RabbitMQ >= 4.3 counts it against a quorum queue's
+				// delivery-limit. basic.nack with requeue=true is an explicit return there and is never limited.
+				err = d.Reject(true)
+			} else {
+				err = d.Nack(false, false)
+			}
+			if err != nil {
 				r.logger.Errorf("%s error nacking message '%s' from topic '%s', %s", logMessagePrefix, d.MessageId, topic, err)
 			}
 		}

@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: vector
+name: in-memory
+version: v1
+status: alpha
+title: "In-memory"
+description: |
+  Keeps every collection in the memory of the Dapr sidecar. Data is lost when the
+  sidecar stops. Meant for development and tests.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-vector/in-memory/
+capabilities:
+  # Queries are scored by exhaustive search over every record. Collections
+  # default to cosine similarity; dot product and euclidean distance are also
+  # supported. The default top_k is 10.
+  - vectorSearch
+  - denseVectors
+  - cosineMetric
+  - dotProductMetric
+  - euclideanMetric
+  - queryById
+  - scoreThreshold
+  - filtering
+  - queuedAck
+  - waitForCompletion
+  - batchQuery
+metadata:
+  - name: indexingDelay
+    required: false
+    description: |
+      Queues every write and applies it once this delay has passed, so that
+      queued acknowledgements and wait timeouts can be observed. By default
+      writes are applied before the call returns.
+    default: '"0s"'
+    example: '"2s"'
+    type: duration

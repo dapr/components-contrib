@@ -40,8 +40,9 @@ func newTestStore(client datalakeStoreClient, prefix string) *AzureDataLakeStora
 			FileSystemClientOpts: storagecommon.FileSystemClientOpts{FileSystemName: "test-filesystem"},
 			Prefix:               prefix,
 		},
-		client: client,
-		logger: logger.NewLogger("test"),
+		client:      client,
+		logger:      logger.NewLogger("test"),
+		maxFileSize: serviceFileSizeLimit,
 	}
 }
 
@@ -169,6 +170,24 @@ func TestSetOverwriteDoesNotMaskConditionErrors(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.NotErrorIs(t, err, binarystore.ErrFileAlreadyExists)
+}
+
+func TestSetEnforcesFileSizeLimit(t *testing.T) {
+	client := newFakeDataLakeClient()
+	store := newTestStore(client, "")
+	store.maxFileSize = 7
+
+	require.NoError(t, store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "allowed.bin",
+		Data:     bytes.NewReader([]byte("payload")),
+	}))
+
+	err := store.Set(t.Context(), &binarystore.SetRequest{
+		FileName: "large.bin",
+		Data:     bytes.NewReader([]byte("too large")),
+	})
+	require.ErrorIs(t, err, binarystore.ErrFileTooLarge)
+	assert.NotContains(t, client.objects, "large.bin")
 }
 
 // --- metadata ---

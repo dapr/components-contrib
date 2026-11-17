@@ -28,17 +28,21 @@ func New(logger logger.Logger) state.Store {
 	return postgresql.NewPostgreSQLQueryStateStore(logger, postgresql.Options{
 		ETagColumn: "etag",
 		MigrateFn:  ensureTables,
-		SetQueryFn: func(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
-			// Sprintf is required for table name because the driver does not substitute parameters for table names.
-			if !req.HasETag() {
-				// We do an upsert in both cases, even when concurrency is first-write, because the row may exist but be expired (and not yet garbage collected)
-				// The difference is that with concurrency as first-write, we'll update the row only if it's expired
-				var whereClause string
-				if req.Options.Concurrency == state.FirstWrite {
-					whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < now())"
-				}
+		SetQueryFn: setQuery,
+	})
+}
 
-				return `
+func setQuery(req *state.SetRequest, opts postgresql.SetQueryOptions) string {
+	// Sprintf is required for table name because the driver does not substitute parameters for table names.
+	if !req.HasETag() {
+		// We do an upsert in both cases, even when concurrency is first-write, because the row may exist but be expired (and not yet garbage collected)
+		// The difference is that with concurrency as first-write, we'll update the row only if it's expired
+		var whereClause string
+		if req.Options.Concurrency == state.FirstWrite {
+			whereClause = " WHERE (t.expiredate IS NOT NULL AND t.expiredate < now())"
+		}
+
+		return `
 INSERT INTO ` + opts.TableName + ` AS t
   (key, value, isbinary, etag, expiredate)
 VALUES
@@ -47,13 +51,13 @@ ON CONFLICT (key) DO UPDATE SET
   value = $2,
   isbinary = $3,
   updatedate = now(),
-  etag = EXCLUDED.etag + 1,
+  etag = t.etag + 1,
   expiredate = ` + opts.ExpireDateValue +
-					whereClause
-			}
+			whereClause
+	}
 
-			// When an etag is provided do an update - no insert.
-			return `
+	// When an etag is provided do an update - no insert.
+	return `
 UPDATE ` + opts.TableName + `
 SET
   value = $2,
@@ -65,8 +69,6 @@ WHERE
   key = $1
   AND etag = $4
   AND (expiredate IS NULL OR expiredate >= now());`
-		},
-	})
 }
 
 func ensureTables(ctx context.Context, db pginterfaces.PGXPoolConn, opts postgresql.MigrateOptions) error {

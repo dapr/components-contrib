@@ -14,11 +14,15 @@ limitations under the License.
 package objectstorage
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -113,5 +117,37 @@ func TestClientCloseReleasesConnections(t *testing.T) {
 	t.Run("no transport", func(t *testing.T) {
 		c := &ociObjectStoreClient{}
 		require.NoError(t, c.close())
+	})
+}
+
+// failingReader fails every read with err.
+type failingReader struct{ err error }
+
+func (r *failingReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestEofOnError(t *testing.T) {
+	t.Run("passes data and EOF through unchanged", func(t *testing.T) {
+		r := &eofOnError{r: strings.NewReader("abc")}
+
+		got, err := io.ReadAll(r)
+		require.NoError(t, err)
+		assert.Equal(t, "abc", string(got))
+		require.NoError(t, r.err)
+	})
+
+	t.Run("converts a source error to EOF and captures it", func(t *testing.T) {
+		wantErr := errors.New("boom")
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		r := &eofOnError{
+			r:      io.MultiReader(strings.NewReader("abc"), &failingReader{err: wantErr}),
+			cancel: cancel,
+		}
+
+		got, err := io.ReadAll(r)
+		require.NoError(t, err, "the SDK must observe the source error as a clean stream end")
+		assert.Equal(t, "abc", string(got))
+		require.ErrorIs(t, r.err, wantErr)
+		require.ErrorIs(t, ctx.Err(), context.Canceled, "the upload context must be cancelled so a truncated object is not committed")
 	})
 }

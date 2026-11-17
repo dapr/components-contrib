@@ -329,7 +329,7 @@ func (o *oracleDatabaseAccess) doSet(ctx context.Context, db querier, req *state
 			  expiration_time = ` + ttlStatement + `
 			 WHERE key = :key
 			   AND etag = :etag
-			   AND (expiration_time IS NULL OR expiration_time >= systimestamp)`
+			   AND (expiration_time IS NULL OR expiration_time > systimestamp)`
 		result, err = db.ExecContext(ctx, updateStatement, value, binaryYN, etag, req.Key, *req.ETag)
 	}
 	if err != nil {
@@ -618,7 +618,7 @@ func (o *oracleDatabaseAccess) doDelete(ctx context.Context, db querier, req *st
 	if !req.HasETag() {
 		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key", req.Key)
 	} else {
-		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key AND etag = :etag", req.Key, *req.ETag)
+		result, err = db.ExecContext(ctx, "DELETE FROM "+o.metadata.TableName+" WHERE key = :key AND etag = :etag AND (expiration_time IS NULL OR expiration_time > systimestamp)", req.Key, *req.ETag)
 	}
 	if err != nil {
 		return err

@@ -59,6 +59,8 @@ This is a required step before an official Dapr release.`,
 		checkCryptographyComponents()
 		checkNameResolutionComponents()
 		checkMiddlewareComponents()
+		checkSearchComponents()
+		checkVectorComponents()
 
 		fmt.Println("\nCheck completed!")
 	},
@@ -100,7 +102,8 @@ func checkPubSubComponents() {
 	// mqtt3 = mqtt, so ignore mqtt (keep mqtt3 since it exists in contrib)
 	// azure.servicebusqueues is an alias for azure.servicebus.queues (keep azure.servicebus.queues) so ignore it
 	// azure.servicebus is an alias for azure.servicebus.topics (keep azure.servicebus.topics) so ignore it
-	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus"}
+	// solace.amqp is the back-compat name for amqp (keep amqp, which owns the metadata.yaml) so ignore it
+	ignoreDaprComponents := []string{"mqtt", "azure.servicebusqueues", "azure.servicebus", "solace.amqp"}
 	ignoreContribComponents := []string{}
 	checkComponents("pubsub", ignoreDaprComponents, ignoreContribComponents)
 }
@@ -154,6 +157,16 @@ func checkMiddlewareComponents() {
 	ignoreDaprComponents := []string{"uppercase"}
 	ignoreContribComponents := []string{}
 	checkComponents("middleware", ignoreDaprComponents, ignoreContribComponents)
+}
+
+func checkSearchComponents() {
+	fmt.Println("\nChecking search components...")
+	checkComponents("search", []string{}, []string{})
+}
+
+func checkVectorComponents() {
+	fmt.Println("\nChecking vector components...")
+	checkComponents("vector", []string{}, []string{})
 }
 
 // Note: because this cli cmd changes to the working directory to the root of the repo so pathing is relative to that.
@@ -303,6 +316,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		excludeFiles = []string{"--exclude=key.go", "--exclude=pubkey_cache.go"}
 	case "middleware":
 		excludeFiles = []string{"--exclude=mock*"}
+	case "search":
+		excludeFiles = []string{"--exclude=indexing.go"}
 	default:
 		excludeFiles = []string{}
 	}
@@ -327,7 +342,8 @@ func findComponentsInBothRepos(componentType string, ignoreContribComponents []s
 		} else {
 			searchPattern = fmt.Sprintf("../dapr/cmd/daprd/components/%s_*.go", componentType)
 		}
-		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -r "RegisterComponent" %s`, searchPattern))
+		// -H keeps the file name when the pattern matches a single file.
+		registeredCmd := exec.Command("sh", "-c", fmt.Sprintf(`grep -rH "RegisterComponent" %s`, searchPattern))
 		registeredOutput, err = registeredCmd.Output()
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not find all registered components in dapr/dapr: %v", err)

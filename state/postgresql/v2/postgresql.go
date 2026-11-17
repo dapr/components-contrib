@@ -601,7 +601,7 @@ func (p *PostgreSQL) doDelete(parentCtx context.Context, db pginterfaces.DBQueri
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 
-		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = $1 AND etag = $2", req.Key, etag)
+		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = $1 AND etag = $2 AND (expires_at IS NULL OR expires_at >= now())", req.Key, etag)
 	} else {
 		result, err = db.Exec(ctx, "DELETE FROM "+p.metadata.TableName(pgTableState)+" WHERE key = $1", req.Key)
 	}

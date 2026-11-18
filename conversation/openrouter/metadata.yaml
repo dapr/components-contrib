@@ -1,0 +1,181 @@
+# yaml-language-server: $schema=../../../component-metadata-schema.json
+schemaVersion: v1
+type: conversation
+name: openrouter
+version: v1
+status: alpha
+title: "OpenRouter"
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-conversation/openrouter/
+authenticationProfiles:
+  - title: "API Key"
+    description: "Authenticate using an API key"
+    metadata:
+      - name: key
+        type: string
+        required: true
+        sensitive: true
+        description: |
+          API key for OpenRouter.
+        example:  "**********"
+        default: ""
+metadata:
+  - name: model
+    required: false
+    description: |
+      The OpenRouter model to use, as an ID with the vendor prefix.
+      Configurable via OPENROUTER_MODEL environment variable.
+    type: string
+    example: 'anthropic/claude-sonnet-4.6'
+    default: 'openai/gpt-4o-mini'
+  - name: endpoint
+    required: false
+    description: |
+      Custom API endpoint URL for OpenRouter. If not specified, the default endpoint will be used.
+    type: string
+    example: 'https://openrouter.ai/api/v1'
+    default: 'https://openrouter.ai/api/v1'
+  - name: cacheTTL
+    required: false
+    description: |
+      A time-to-live value for a prompt cache to expire. Uses Golang durations
+    type: string
+    example: '10m'
+  - name: maxTokens
+    required: false
+    description: |
+      Default maximum number of tokens the model may generate per request.
+      A request-level maxTokens value greater than zero overrides this default.
+      When unset, no cap is sent and the provider's own default applies.
+    type: number
+    example: "2048"
+    default: ''
+  - name: appURL
+    required: false
+    description: |
+      The URL of your app, sent as the HTTP-Referer header. OpenRouter uses it
+      to attribute usage to your app in its rankings and analytics.
+    type: string
+    example: 'https://myapp.example.com'
+  - name: appTitle
+    required: false
+    description: |
+      The display name of your app, sent as the X-OpenRouter-Title header.
+      OpenRouter only uses it together with appURL.
+    type: string
+    example: 'My Agent App'
+  - name: appCategories
+    required: false
+    description: |
+      Comma-separated OpenRouter marketplace categories for your app, sent as
+      the X-OpenRouter-Categories header. OpenRouter only uses it together
+      with appURL.
+    type: string
+    example: 'personal-agent,general-chat'
+  - name: fallbackModels
+    required: false
+    description: |
+      Comma-separated model IDs that OpenRouter tries in order when the model
+      returns an error, for example when it is rate limited, down, or rejects
+      the request. Sent as the models request field.
+    type: string
+    example: 'openai/gpt-5-mini,anthropic/claude-haiku-4.5'
+  - name: providerOrder
+    required: false
+    description: |
+      Comma-separated provider slugs that OpenRouter tries in order.
+    type: string
+    example: 'anthropic,google-vertex'
+  - name: providerOnly
+    required: false
+    description: |
+      Comma-separated provider slugs. OpenRouter only routes to these providers.
+    type: string
+    example: 'azure,openai'
+  - name: providerIgnore
+    required: false
+    description: |
+      Comma-separated provider slugs that OpenRouter never routes to.
+    type: string
+    example: 'deepinfra'
+  - name: providerSort
+    required: false
+    description: |
+      Ranks the providers for the model by price, throughput or latency instead
+      of OpenRouter's default load balancing.
+    type: string
+    allowedValues:
+      - "price"
+      - "throughput"
+      - "latency"
+    example: 'price'
+  - name: allowProviderFallbacks
+    required: false
+    description: |
+      Whether OpenRouter may use other providers for the model when the
+      preferred ones are unavailable. When unset, OpenRouter allows it.
+    type: bool
+    example: 'false'
+  - name: requireParameters
+    required: false
+    description: |
+      Only route to providers that support every parameter in the request, for
+      example tools or a JSON schema response format. When unset, OpenRouter
+      may route to a provider that ignores unsupported parameters.
+    type: bool
+    example: 'true'
+  - name: dataCollection
+    required: false
+    description: |
+      Set to deny to only route to providers that do not store or train on
+      prompts. When unset, OpenRouter allows all providers.
+    type: string
+    allowedValues:
+      - "allow"
+      - "deny"
+    example: 'deny'
+  - name: zdr
+    required: false
+    description: |
+      Set to true to only route to Zero Data Retention endpoints.
+    type: bool
+    example: 'true'
+  - name: quantizations
+    required: false
+    description: |
+      Comma-separated quantization levels. OpenRouter only routes to providers
+      that serve the model at one of these levels. Allowed values: int4, int8,
+      fp4, mxfp4, nvfp4, fp6, fp8, mxfp8, fp16, bf16, fp32, unknown.
+    type: string
+    example: 'fp8,fp16'
+  - name: maxPromptPrice
+    required: false
+    description: |
+      The highest prompt price, in USD per million tokens, that OpenRouter may
+      route the request to.
+    type: number
+    example: '1'
+  - name: maxCompletionPrice
+    required: false
+    description: |
+      The highest completion price, in USD per million tokens, that OpenRouter
+      may route the request to.
+    type: number
+    example: '4'
+  - name: headers
+    required: false
+    sensitive: true
+    description: |
+      HTTP headers to send on every request to the model endpoint, as a JSON
+      object of header names to string values. Use it for headers that a
+      gateway or proxy in front of the provider requires, for example a tenant
+      ID or a gateway key. A header in this field replaces the header of the
+      same name that the component sets. This includes the Authorization
+      header that the component builds from key. key is still required, so set
+      key to any non-empty value if the gateway does its own authentication.
+      Host, Content-Length and hop-by-hop headers are not allowed. When this
+      field is set, the component does not follow redirects to a different
+      origin.
+    type: string
+    example: '{"X-Tenant-ID": "tenant-a", "X-Gateway-Key": "**********"}'

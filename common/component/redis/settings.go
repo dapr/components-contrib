@@ -16,6 +16,8 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -23,6 +25,7 @@ import (
 	"time"
 
 	"github.com/dapr/kit/config"
+	"github.com/dapr/kit/crypto/pem"
 )
 
 const defaultRedisPort = "6379"
@@ -98,6 +101,10 @@ type Settings struct {
 	// Client certificate and key
 	ClientCert string `mapstructure:"clientCert"`
 	ClientKey  string `mapstructure:"clientKey"`
+
+	// PEM-encoded CA certificate(s) used to verify the Redis server's TLS certificate, in addition to the system roots.
+	// Use it when Redis serves a certificate from a private CA. Several certificates may be given, e.g. during a CA rotation.
+	CACert string `mapstructure:"caCert"`
 
 	// == state only properties ==
 	TTLInSeconds *int   `mapstructure:"ttlInSeconds" mdonly:"state"`
@@ -179,6 +186,12 @@ func (s *Settings) Decode(in interface{}) error {
 		return fmt.Errorf("decode failed. %w", err)
 	}
 
+	// caCert only applies to a TLS connection. Without enableTLS it would be ignored and the component would connect in
+	// plain text, so refuse the misconfiguration instead.
+	if s.CACert != "" && !s.EnableTLS {
+		return errors.New("caCert is set but enableTLS is false: set enableTLS to true to verify the server with caCert")
+	}
+
 	resolved, err := resolveHost(s.Host, s.Port)
 	if err != nil {
 		return err
@@ -253,6 +266,26 @@ func (s *Settings) SetCertificate(fn func(cert *tls.Certificate)) error {
 		return err
 	}
 	fn(&cert)
+	return nil
+}
+
+// SetRootCAs calls fn with the system roots plus the configured CA certificate(s), when caCert is set.
+func (s *Settings) SetRootCAs(fn func(pool *x509.CertPool)) error {
+	if s.CACert == "" {
+		return nil
+	}
+	certs, err := pem.DecodePEMCertificates([]byte(s.CACert))
+	if err != nil {
+		return fmt.Errorf("error parsing caCert: %w", err)
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		pool = x509.NewCertPool()
+	}
+	for _, c := range certs {
+		pool.AddCert(c)
+	}
+	fn(pool)
 	return nil
 }
 

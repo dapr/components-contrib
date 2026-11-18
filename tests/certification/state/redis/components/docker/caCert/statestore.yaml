@@ -1,0 +1,18 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: localhost:6380
+  - name: enableTLS
+    value: "true"
+  - name: caCert
+    secretKeyRef:
+      name: REDIS_CA_CERT
+      key: REDIS_CA_CERT
+auth:
+  secretStore: envvar-secret-store

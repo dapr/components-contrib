@@ -16,6 +16,7 @@ package redis
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"strings"
 	"time"
@@ -377,6 +378,12 @@ func newV9FailoverClient(s *Settings) (RedisClient, error) {
 		if err != nil {
 			return nil, err
 		}
+		err = s.SetRootCAs(func(pool *x509.CertPool) {
+			opts.TLSConfig.RootCAs = pool
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// If multiple sentinel addresses are provided, split them regardless of RedisType.
@@ -437,6 +444,12 @@ func newV9Client(s *Settings) (RedisClient, error) {
 			if err != nil {
 				return nil, err
 			}
+			err = s.SetRootCAs(func(pool *x509.CertPool) {
+				options.TLSConfig.RootCAs = pool
+			})
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return v9Client{
@@ -474,6 +487,12 @@ func newV9Client(s *Settings) (RedisClient, error) {
 		}
 		err := s.SetCertificate(func(cert *tls.Certificate) {
 			options.TLSConfig.Certificates = []tls.Certificate{*cert}
+		})
+		if err != nil {
+			return nil, err
+		}
+		err = s.SetRootCAs(func(pool *x509.CertPool) {
+			options.TLSConfig.RootCAs = pool
 		})
 		if err != nil {
 			return nil, err

@@ -15,9 +15,15 @@ package appconfig
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"mime"
+	"net/url"
 	"reflect"
+	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +38,8 @@ import (
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
 	"github.com/dapr/components-contrib/configuration"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/components-contrib/secretstores"
+	"github.com/dapr/components-contrib/secretstores/azure/keyvault"
 
 	kitmd "github.com/dapr/kit/metadata"
 
@@ -60,8 +68,11 @@ type azAppConfigClient interface {
 
 // ConfigurationStore is a Azure App Configuration store.
 type ConfigurationStore struct {
-	client   azAppConfigClient
-	metadata metadata
+	client             azAppConfigClient
+	metadata           metadata
+	keyVaultProperties map[string]string
+	keyVaultDNSSuffix  string
+	keyVaultStores     sync.Map
 
 	cancelMap sync.Map
 	wg        sync.WaitGroup
@@ -106,6 +117,15 @@ func (r *ConfigurationStore) Init(_ context.Context, md configuration.Metadata) 
 
 	options := azappconfig.ClientOptions{
 		ClientOptions: coreClientOpts,
+	}
+
+	if r.metadata.ResolveKeyVaultReferences {
+		settings, settingsErr := azauth.NewEnvironmentSettings(md.Properties)
+		if settingsErr != nil {
+			return settingsErr
+		}
+		r.keyVaultProperties = maps.Clone(md.Properties)
+		r.keyVaultDNSSuffix = settings.EndpointSuffix(azauth.ServiceAzureKeyVault)
 	}
 
 	if r.metadata.ConnectionString != "" {
@@ -158,7 +178,10 @@ func (r *ConfigurationStore) Get(ctx context.Context, req *configuration.GetRequ
 				return &configuration.GetResponse{}, err
 			}
 
-			item := settingToConfigurationItem(resp.Setting)
+			item, err := r.settingToConfigurationItem(ctx, resp.Setting)
+			if err != nil {
+				return &configuration.GetResponse{}, fmt.Errorf("failed to load configuration key %q: %w", key, err)
+			}
 
 			items[key] = item
 		}
@@ -190,7 +213,10 @@ func (r *ConfigurationStore) getAll(ctx context.Context, req *configuration.GetR
 		cancel()
 		if err == nil {
 			for _, setting := range revResp.Settings {
-				item := settingToConfigurationItem(setting)
+				item, err := r.settingToConfigurationItem(ctx, setting)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load configuration key %q: %w", *setting.Key, err)
+				}
 
 				items[*setting.Key] = item
 			}
@@ -216,6 +242,78 @@ func settingToConfigurationItem(setting azappconfig.Setting) *configuration.Item
 	}
 
 	return item
+}
+
+const keyVaultReferenceContentType = "application/vnd.microsoft.appconfig.keyvaultref+json"
+
+var keyVaultSecretPath = regexp.MustCompile(`^/secrets/([a-zA-Z0-9-]+)(?:/([a-zA-Z0-9-]+))?$`)
+var keyVaultName = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
+
+func (r *ConfigurationStore) settingToConfigurationItem(ctx context.Context, setting azappconfig.Setting) (*configuration.Item, error) {
+	item := settingToConfigurationItem(setting)
+	if !r.metadata.ResolveKeyVaultReferences || setting.ContentType == nil {
+		return item, nil
+	}
+	contentType, _, err := mime.ParseMediaType(*setting.ContentType)
+	if err != nil {
+		if strings.HasPrefix(strings.ToLower(*setting.ContentType), keyVaultReferenceContentType) {
+			return nil, fmt.Errorf("invalid Key Vault reference content type: %w", err)
+		}
+		return item, nil
+	}
+	if !strings.EqualFold(contentType, keyVaultReferenceContentType) {
+		return item, nil
+	}
+
+	var reference struct {
+		URI string `json:"uri"`
+	}
+	if err = json.Unmarshal([]byte(item.Value), &reference); err != nil {
+		return nil, fmt.Errorf("invalid Key Vault reference: %w", err)
+	}
+	uri, err := url.Parse(reference.URI)
+	if err != nil {
+		return nil, errors.New("invalid Key Vault reference URI")
+	}
+	vaultName := strings.TrimSuffix(strings.ToLower(uri.Host), "."+r.keyVaultDNSSuffix)
+	path := keyVaultSecretPath.FindStringSubmatch(uri.Path)
+	if uri.Scheme != "https" || uri.User != nil || uri.RawQuery != "" || uri.ForceQuery ||
+		uri.Fragment != "" || uri.RawPath != "" || r.keyVaultDNSSuffix == "" ||
+		vaultName == strings.ToLower(uri.Host) || !keyVaultName.MatchString(vaultName) || path == nil {
+		return nil, errors.New("key vault reference must be an HTTPS secret URI in the configured Azure environment")
+	}
+
+	store, ok := r.keyVaultStores.Load(vaultName)
+	if !ok {
+		properties := maps.Clone(r.keyVaultProperties)
+		if properties == nil {
+			properties = make(map[string]string)
+		}
+		properties["vaultName"] = vaultName
+		newStore := keyvault.NewAzureKeyvaultSecretStore(r.logger)
+		if err = newStore.Init(ctx, secretstores.Metadata{Base: contribMetadata.Base{Properties: properties}}); err != nil {
+			return nil, fmt.Errorf("failed to initialize Key Vault secret store: %w", err)
+		}
+		store, _ = r.keyVaultStores.LoadOrStore(vaultName, newStore)
+	}
+
+	timeoutContext, cancel := context.WithTimeout(ctx, r.metadata.RequestTimeout)
+	defer cancel()
+	secret, err := store.(secretstores.SecretStore).GetSecret(timeoutContext, secretstores.GetSecretRequest{
+		Name: path[1],
+		Metadata: map[string]string{
+			keyvault.VersionID: path[2],
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve Key Vault reference: %w", err)
+	}
+	value, ok := secret.Data[path[1]]
+	if !ok {
+		return nil, errors.New("key vault response does not contain the referenced secret")
+	}
+	item.Value = value
+	return item, nil
 }
 
 func (r *ConfigurationStore) getLabelFromMetadata(metadata map[string]string) *string {

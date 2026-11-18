@@ -117,3 +117,34 @@ func TestCollapseOps(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckETagAfterDelete(t *testing.T) {
+	t.Run("etag set after a delete of the same key is a mismatch", func(t *testing.T) {
+		err := CheckETagAfterDelete([]state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "a"},
+			state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("1")},
+		})
+		var etagErr *state.ETagError
+		require.ErrorAs(t, err, &etagErr)
+		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+	})
+
+	for name, ops := range map[string][]state.TransactionalStateOperation{
+		"set without etag after a delete": {
+			state.DeleteRequest{Key: "a"},
+			state.SetRequest{Key: "a", Value: "v"},
+		},
+		"etag set after a delete of another key": {
+			state.DeleteRequest{Key: "b"},
+			state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("1")},
+		},
+		"etag set before a delete": {
+			state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("1")},
+			state.DeleteRequest{Key: "a"},
+		},
+	} {
+		t.Run(name+" passes", func(t *testing.T) {
+			require.NoError(t, CheckETagAfterDelete(ops))
+		})
+	}
+}

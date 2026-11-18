@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: binarystore
+name: localstorage
+version: v1
+status: alpha
+title: "Local Storage"
+description: |
+  Binary store backed by the local filesystem. Files are stored beneath a root
+  directory, with slashes in file names mapping to nested directories. Uploads
+  are staged in a temporary file and atomically renamed into place.
+  Reads do not take mutation locks; create-only uploads may briefly expose an
+  empty placeholder before the completed content is published.
+  Each root directory must be exclusively owned by one process. Writes and
+  deletes to the same path are serialized across component instances in that
+  process. Concurrent access by other sidecars or external writers is unsupported.
+  Delete removes only the requested file and leaves parent directories intact.
+  Cancellation is cooperative: contexts are checked between reads and before
+  publishing or deleting files, but cannot interrupt an already-blocked read
+  or filesystem operation. Completed writes and deletes are not rolled back.
+  Download streams must still be closed after cancellation.
+  Closing the component waits for active operations and their cleanup, but not
+  for already-returned download streams. A blocked upload reader must finish or
+  unblock before component closure can complete.
+urls:
+  - title: Reference
+    url: https://docs.dapr.io/reference/components-reference/supported-binarystore/localstorage/
+metadata:
+  - name: rootPath
+    type: string
+    required: true
+    description: |
+      The root directory beneath which files are stored. It is created if it
+      does not exist. Relative paths are resolved against the working
+      directory of the process. Writing to /proc, /sys, /boot and
+      /var/run/secrets is not allowed. Initialization does not remove existing
+      files. Staging files left behind by a process that died mid-upload
+      (named ".dapr-upload-*") require operator cleanup. Names and modification
+      times alone cannot distinguish abandoned uploads from stored objects or
+      active uploads on another instance sharing this directory.
+    example: '"/var/lib/dapr/binarystore"'
+  - name: prefix
+    type: string
+    required: false
+    description: |
+      An optional prefix prepended to all file names stored by this component.
+      Slashes in the prefix map to nested directories beneath rootPath.
+    example: '"myprefix"'
+  - name: maxSize
+    type: bytesize
+    required: false
+    default: '"0"'
+    description: |
+      Maximum size of a single file that can be stored, as a byte size
+      quantity. Uploads larger than this are rejected and leave no file
+      behind. Zero means unlimited.
+    example: '"8388608" (as bytes), "1Ki", "8Mi", "1Gi"'

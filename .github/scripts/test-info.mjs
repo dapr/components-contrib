@@ -10,6 +10,10 @@ const components = {
         conformance: true,
         sourcePkg: ['binarystore/in-memory'],
     },
+    'binarystore.localstorage': {
+        conformance: true,
+        sourcePkg: ['binarystore/localstorage'],
+    },
     'binarystore.azure.blobstorage': {
         conformance: true,
         requiredSecrets: [

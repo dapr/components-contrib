@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: binarystore-localstorage-prefix
+spec:
+  type: binarystore.localstorage
+  version: v1
+  metadata:
+  # Relative to the working directory of the conformance test binary
+  # (tests/conformance); the directory is ignored by git.
+  - name: rootPath
+    value: .tmp/binarystore-localstorage
+  - name: prefix
+    value: conf-prefix/nested

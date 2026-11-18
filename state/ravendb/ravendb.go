@@ -248,9 +248,24 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 		case state.DeleteRequest:
 			var concurrency string
 			req.ETag, concurrency = guardOf(o.Guard)
-			if !req.HasETag() && concurrency == state.FirstWrite {
+			switch {
+			case !req.HasETag() && concurrency == state.FirstWrite:
 				_, err = r.checkMissing(session, req.Key)
-			} else {
+			case req.HasETag() && (concurrency == state.FirstWrite || isDelete(o.Guard)):
+				// The guard is a delete with an etag, which is a no-op on a missing document as before #4666,
+				// or a first-write set with an etag, which creates a missing or expired document so deleting
+				// it afterwards leaves nothing to do. Either way only an expired document is left to remove.
+				var live bool
+				var expiredCV string
+				live, expiredCV, err = loadForWrite(session, req.Key)
+				switch {
+				case err != nil:
+				case live:
+					err = r.deleteInternal(ctx, &req, session, true)
+				case expiredCV != "":
+					err = session.DeleteByID(req.Key, expiredCV)
+				}
+			default:
 				err = r.deleteInternal(ctx, &req, session, true)
 			}
 		}
@@ -271,6 +286,11 @@ func (r *RavenDB) Multi(ctx context.Context, request *state.TransactionalStateRe
 	return nil
 }
 
+func isDelete(op state.TransactionalStateOperation) bool {
+	_, ok := op.(state.DeleteRequest)
+	return ok
+}
+
 func guardOf(op state.TransactionalStateOperation) (*string, string) {
 	switch req := op.(type) {
 	case state.SetRequest:
@@ -281,28 +301,46 @@ func guardOf(op state.TransactionalStateOperation) (*string, string) {
 	return nil, ""
 }
 
-// checkMissing returns the change vector of an expired document, so a store can replace exactly that version.
-func (r *RavenDB) checkMissing(session *ravendb.DocumentSession, key string) (string, error) {
+// loadForWrite reports whether key has a live document, and returns the change vector of an
+// expired one, so a store can replace exactly that version. A missing key returns false and "".
+// A loaded document is evicted, so a later store or delete of the key isn't rejected by the
+// session's tracking, and a store replaces it whole: the client can't drop @expires from a loaded document.
+func loadForWrite(session *ravendb.DocumentSession, key string) (bool, string, error) {
 	var existing *Item
 	if err := session.Load(&existing, key); err != nil {
-		return "", fmt.Errorf("error loading data: %w", err)
+		return false, "", fmt.Errorf("error loading data: %w", err)
 	}
 	if existing == nil {
-		return "", nil
+		return false, "", nil
 	}
 	meta, err := session.Advanced().GetMetadataFor(existing)
 	if err != nil {
-		return "", fmt.Errorf("error loading metadata: %w", err)
+		return false, "", fmt.Errorf("error loading metadata: %w", err)
 	}
+	live, expiredCV := true, ""
 	if expiry, ok := expiryFromMetadata(meta); ok && isExpired(expiry) {
 		cv, err := session.Advanced().GetChangeVectorFor(existing)
 		if err != nil {
-			return "", fmt.Errorf("error loading change vector: %w", err)
+			return false, "", fmt.Errorf("error loading change vector: %w", err)
 		}
-		// Evicted so a store of the key replaces it whole, the client can't drop @expires from a loaded document.
-		return *cv, session.Advanced().Evict(existing)
+		live, expiredCV = false, *cv
 	}
-	return "", state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
+	if err := session.Advanced().Evict(existing); err != nil {
+		return false, "", fmt.Errorf("error evicting data: %w", err)
+	}
+	return live, expiredCV, nil
+}
+
+// checkMissing returns the change vector of an expired document, so a store can replace exactly that version.
+func (r *RavenDB) checkMissing(session *ravendb.DocumentSession, key string) (string, error) {
+	live, expiredCV, err := loadForWrite(session, key)
+	if err != nil {
+		return "", err
+	}
+	if live {
+		return "", state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s already exists", key))
+	}
+	return expiredCV, nil
 }
 
 func (r *RavenDB) BulkGet(ctx context.Context, req []state.GetRequest, _ state.BulkGetOpts) ([]state.BulkGetResponse, error) {
@@ -427,7 +465,24 @@ func (r *RavenDB) setInternal(ctx context.Context, req *state.SetRequest, sessio
 	switch {
 	case req.HasETag():
 		// The server also rejects a missing document.
-		err = session.StoreWithChangeVectorAndID(item, *req.ETag, req.Key)
+		cv := *req.ETag
+		if req.Options.Concurrency == state.FirstWrite {
+			// First-write with an etag on a missing or expired document creates it.
+			var live bool
+			var expiredCV string
+			live, expiredCV, err = loadForWrite(session, req.Key)
+			if err != nil {
+				return err
+			}
+			if !live {
+				cv = expiredCV
+			}
+		}
+		if cv == "" {
+			err = session.Store(item)
+		} else {
+			err = session.StoreWithChangeVectorAndID(item, cv, req.Key)
+		}
 		if err != nil {
 			return fmt.Errorf("error storing data: %w", err)
 		}

@@ -84,14 +84,16 @@ for i = 1, n do
   local target = "hash"
   if js == "1" then target = "ReJSON-RL" end
   if etag ~= "" then
-    if not p.exists or num(p.vs) ~= tonumber(etag) then
+    -- an etag on a missing key passes, like it did before the Multi rewrite,
+    -- unless an earlier op in this transaction deleted the key
+    if (p.exists and num(p.vs) ~= tonumber(etag)) or p.deleted then
       return redis.error_reply("` + etagMismatchReply + ` " .. key)
     end
   elseif kind == "s" and p.kind == target and p.vs ~= "" and fwr(key, p) then
     return redis.error_reply("` + etagMismatchReply + ` " .. key)
   end
   if kind == "d" then
-    pend[key] = {exists=false, vs="", kind="none", fwr=false}
+    pend[key] = {exists=false, vs="", kind="none", fwr=false, deleted=(p.exists or p.deleted)}
   else
     local nv = 1
     if p.kind == target and p.vs ~= "" then

@@ -19,6 +19,23 @@ import (
 	"github.com/dapr/components-contrib/state"
 )
 
+// CheckETagAfterDelete returns an ETagMismatch for a set with an etag on a key that an earlier op in ops deleted.
+// The stored version is gone by then, so the etag can't match, but a store that creates a missing key on an etag would write it.
+func CheckETagAfterDelete(ops []state.TransactionalStateOperation) error {
+	deleted := make(map[string]struct{}, len(ops))
+	for _, o := range ops {
+		switch req := o.(type) {
+		case state.DeleteRequest:
+			deleted[req.Key] = struct{}{}
+		case state.SetRequest:
+			if _, ok := deleted[req.Key]; ok && req.HasETag() {
+				return state.NewETagError(state.ETagMismatch, fmt.Errorf("key %s was deleted earlier in the transaction", req.Key))
+			}
+		}
+	}
+	return nil
+}
+
 // KeyOp applies the last op on a key, guarded by the first op's etag or first-write option.
 type KeyOp struct {
 	Op    state.TransactionalStateOperation

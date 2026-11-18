@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"path"
@@ -204,16 +205,26 @@ func TestMulti(t *testing.T) {
 		assert.Equal(t, map[string]string{"a": "etag-1", "b": "etag-2"}, fake.items)
 	})
 
-	t.Run("etag delete of a missing item is an etag mismatch", func(t *testing.T) {
+	t.Run("etag delete of a missing item is a no-op", func(t *testing.T) {
 		s, fake := newFakeStore(t, map[string]string{})
-		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+		require.NoError(t, s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
 			state.SetRequest{Key: "a", Value: "v"},
 			state.DeleteRequest{Key: "b", ETag: ptr.Of("etag-1")},
+		}}))
+		assert.Contains(t, fake.items, "a")
+		assert.NotContains(t, fake.items, "b")
+	})
+
+	t.Run("etag set after a delete of the same item is an etag mismatch", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{"d": "etag-1"})
+		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
+			state.DeleteRequest{Key: "d"},
+			state.SetRequest{Key: "d", Value: "v", ETag: ptr.Of("stale")},
 		}})
 		var etagErr *state.ETagError
 		require.ErrorAs(t, err, &etagErr)
 		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
-		assert.Empty(t, fake.items)
+		assert.Equal(t, map[string]string{"d": "etag-1"}, fake.items)
 	})
 
 	t.Run("delete of a missing item keeps the other operations", func(t *testing.T) {
@@ -314,15 +325,13 @@ func TestMulti(t *testing.T) {
 		assert.Equal(t, map[string]string{"b": "etag-2"}, fake.items)
 	})
 
-	t.Run("etag upsert of a missing item does not create it", func(t *testing.T) {
+	t.Run("etag upsert of a missing item creates it", func(t *testing.T) {
 		s, fake := newFakeStore(t, map[string]string{})
 		err := s.Multi(t.Context(), &state.TransactionalStateRequest{Operations: []state.TransactionalStateOperation{
 			state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("etag-1")},
 		}})
-		var etagErr *state.ETagError
-		require.ErrorAs(t, err, &etagErr)
-		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
-		assert.Empty(t, fake.items)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "etag-101"}, fake.items)
 	})
 
 	t.Run("matching etags apply", func(t *testing.T) {
@@ -337,13 +346,16 @@ func TestMulti(t *testing.T) {
 }
 
 func TestSetDeleteETags(t *testing.T) {
-	t.Run("etag set of a missing item does not create it", func(t *testing.T) {
+	t.Run("etag set of a missing item creates it", func(t *testing.T) {
 		s, fake := newFakeStore(t, map[string]string{})
-		err := s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("etag-1")})
-		var etagErr *state.ETagError
-		require.ErrorAs(t, err, &etagErr)
-		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
-		assert.Empty(t, fake.items)
+		require.NoError(t, s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("etag-1")}))
+		assert.Equal(t, map[string]string{"a": "etag-101"}, fake.items)
+	})
+
+	t.Run("first write etag set of a missing item creates it", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{})
+		require.NoError(t, s.Set(t.Context(), &state.SetRequest{Key: "a", Value: "v", ETag: ptr.Of("1234"), Options: state.SetStateOption{Concurrency: state.FirstWrite}}))
+		assert.Equal(t, map[string]string{"a": "etag-101"}, fake.items)
 	})
 
 	t.Run("stale etag set is an etag mismatch", func(t *testing.T) {
@@ -376,12 +388,10 @@ func TestSetDeleteETags(t *testing.T) {
 		assert.Equal(t, map[string]string{"a": "etag-1"}, fake.items)
 	})
 
-	t.Run("etag delete of a missing item is an etag mismatch", func(t *testing.T) {
-		s, _ := newFakeStore(t, map[string]string{})
-		err := s.Delete(t.Context(), &state.DeleteRequest{Key: "a", ETag: ptr.Of("etag-1")})
-		var etagErr *state.ETagError
-		require.ErrorAs(t, err, &etagErr)
-		assert.Equal(t, state.ETagMismatch, etagErr.Kind())
+	t.Run("etag delete of a missing item is a no-op", func(t *testing.T) {
+		s, fake := newFakeStore(t, map[string]string{})
+		require.NoError(t, s.Delete(t.Context(), &state.DeleteRequest{Key: "a", ETag: ptr.Of("etag-1")}))
+		assert.Empty(t, fake.items)
 	})
 
 	t.Run("stale etag delete is an etag mismatch", func(t *testing.T) {
@@ -405,26 +415,21 @@ func TestSetDeleteETags(t *testing.T) {
 		require.NoError(t, s.Delete(t.Context(), &state.DeleteRequest{Key: "a", Options: state.DeleteStateOption{Concurrency: state.FirstWrite}}))
 	})
 
-	t.Run("bulk set with an etag on a missing item fails that item", func(t *testing.T) {
+	t.Run("bulk set with an etag on a missing item creates it", func(t *testing.T) {
 		s, fake := newFakeStore(t, map[string]string{})
-		err := s.BulkSet(t.Context(), []state.SetRequest{
+		require.NoError(t, s.BulkSet(t.Context(), []state.SetRequest{
 			{Key: "a", Value: "v"},
 			{Key: "b", Value: "v", ETag: ptr.Of("etag-1")},
-		}, state.BulkStoreOpts{})
-		var bulkErr state.BulkStoreError
-		require.ErrorAs(t, err, &bulkErr)
-		assert.Equal(t, "b", bulkErr.Key())
-		require.NotNil(t, bulkErr.ETagError())
-		assert.Equal(t, state.ETagMismatch, bulkErr.ETagError().Kind())
+		}, state.BulkStoreOpts{}))
 		assert.Contains(t, fake.items, "a")
-		assert.NotContains(t, fake.items, "b")
+		assert.Contains(t, fake.items, "b")
 	})
 }
 
 func TestBatchResultError(t *testing.T) {
 	ops := []batchOp{
 		{kind: batchUpsert, id: "a"},
-		{kind: batchReplace, id: "b", guarded: true},
+		{kind: batchUpsert, id: "b", guarded: true},
 		{kind: batchDelete, id: "c"},
 		{kind: batchDelete, id: "d", guarded: true},
 	}
@@ -441,10 +446,8 @@ func TestBatchResultError(t *testing.T) {
 		failed int
 		code   int32
 	}{
-		"stale etag on replace":   {1, http.StatusPreconditionFailed},
-		"etag on missing item":    {1, http.StatusNotFound},
+		"stale etag on upsert":    {1, http.StatusPreconditionFailed},
 		"stale etag on delete":    {3, http.StatusPreconditionFailed},
-		"etag delete of missing":  {3, http.StatusNotFound},
 		"first write on existing": {0, http.StatusPreconditionFailed},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -461,6 +464,19 @@ func TestBatchResultError(t *testing.T) {
 		assert.Equal(t, 2, drop)
 	})
 
+	t.Run("etag delete of a missing item is dropped", func(t *testing.T) {
+		drop, err := batchResultError(ops, results(3, http.StatusNotFound))
+		require.NoError(t, err)
+		assert.Equal(t, 3, drop)
+	})
+
+	t.Run("404 on an etag upsert is not an etag mismatch", func(t *testing.T) {
+		_, err := batchResultError(ops, results(1, http.StatusNotFound))
+		require.Error(t, err)
+		var etagErr *state.ETagError
+		require.NotErrorAs(t, err, &etagErr)
+	})
+
 	t.Run("other failures stay untyped", func(t *testing.T) {
 		_, err := batchResultError(ops, results(0, http.StatusTooManyRequests))
 		require.Error(t, err)
@@ -472,4 +488,11 @@ func TestBatchResultError(t *testing.T) {
 		_, err := batchResultError(ops, results(0, http.StatusFailedDependency))
 		require.Error(t, err)
 	})
+}
+
+func TestIsETagMismatch(t *testing.T) {
+	assert.True(t, isETagMismatch(&azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}))
+	// With UpsertItem a 404 means the container or database is missing, not the item.
+	assert.False(t, isETagMismatch(&azcore.ResponseError{StatusCode: http.StatusNotFound}))
+	assert.False(t, isETagMismatch(errors.New("boom")))
 }

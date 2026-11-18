@@ -13,13 +13,15 @@ binding:
   input: false
   operations:
     - name: create
-      description: "Write file to local storage"
+      description: "Write a file to local storage. Set fileName in invocation metadata to choose its name; otherwise a random UUID is generated."
+    - name: get
+      description: "Read the file specified by fileName in invocation metadata."
+    - name: list
+      description: "Recursively list files under rootPath. Set fileName in invocation metadata to list a subdirectory."
+    - name: delete
+      description: "Delete the file specified by fileName in invocation metadata."
 metadata:
   - name: rootPath
     required: true
     description: "The root directory path"
     example: "/tmp/dapr"
-  - name: fileName
-    required: true
-    description: "The file name to write"
-    example: "data.txt"

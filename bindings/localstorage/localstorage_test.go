@@ -14,6 +14,8 @@ limitations under the License.
 package localstorage
 
 import (
+	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -112,6 +114,159 @@ func TestValidateRootPath(t *testing.T) {
 			require.Equal(t, tt.wantRes, res)
 		})
 	}
+}
+
+func TestOperations(t *testing.T) {
+	ls := newTestLocalStorage(t)
+	rootPath := ls.metadata.RootPath
+
+	// Names that point above the root, or are absolute, map to a path inside the root.
+	type file struct {
+		name string
+		rel  string
+	}
+	files := []file{
+		{name: "a.txt", rel: "a.txt"},
+		{name: "nested/dir/b.txt", rel: filepath.Join("nested", "dir", "b.txt")},
+		{name: "../c.txt", rel: "c.txt"},
+		{name: "/d.txt", rel: "d.txt"},
+		{name: "/../f.txt", rel: "f.txt"},
+	}
+	if runtime.GOOS == "windows" {
+		files = append(files,
+			file{name: `C:\e.txt`, rel: "e.txt"},
+			file{name: `\..\..\g.txt`, rel: "g.txt"},
+		)
+	}
+	want := make([]string, 0, len(files))
+	for _, f := range files {
+		res, err := invoke(t, ls, bindings.CreateOperation, f.name, []byte("data "+f.name))
+		require.NoError(t, err)
+		var created createResponse
+		require.NoError(t, json.Unmarshal(res.Data, &created))
+		assert.Equal(t, f.rel, created.FileName)
+
+		b, err := os.ReadFile(filepath.Join(rootPath, f.rel))
+		require.NoError(t, err)
+		assert.Equal(t, "data "+f.name, string(b))
+
+		res, err = invoke(t, ls, bindings.GetOperation, f.name, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "data "+f.name, string(res.Data))
+
+		want = append(want, filepath.Join(rootPath, f.rel))
+	}
+
+	res, err := invoke(t, ls, bindings.ListOperation, "", nil)
+	require.NoError(t, err)
+	var listed []string
+	require.NoError(t, json.Unmarshal(res.Data, &listed))
+	assert.ElementsMatch(t, want, listed)
+
+	res, err = invoke(t, ls, bindings.ListOperation, "nested", nil)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(res.Data, &listed))
+	assert.Equal(t, []string{filepath.Join(rootPath, "nested", "dir", "b.txt")}, listed)
+
+	for _, f := range files {
+		_, err = invoke(t, ls, bindings.DeleteOperation, f.name, nil)
+		require.NoError(t, err)
+		assert.NoFileExists(t, filepath.Join(rootPath, f.rel))
+
+		_, err = invoke(t, ls, bindings.GetOperation, f.name, nil)
+		require.ErrorContains(t, err, "file not found")
+	}
+
+	// The root directory is created again if it is removed after Init.
+	require.NoError(t, os.RemoveAll(rootPath))
+	_, err = invoke(t, ls, bindings.CreateOperation, "a.txt", []byte("again"))
+	require.NoError(t, err)
+	assert.FileExists(t, filepath.Join(rootPath, "a.txt"))
+}
+
+func TestSymlinkOutsideRoot(t *testing.T) {
+	outside := joinWithMustEvalSymlinks(t.TempDir())
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "file.txt"), []byte("outside"), 0o600))
+
+	ls := newTestLocalStorage(t)
+	rootPath := ls.metadata.RootPath
+	rel, err := filepath.Rel(rootPath, outside)
+	require.NoError(t, err)
+	links := []struct{ name, target string }{
+		{name: "abs", target: outside},
+		{name: "rel", target: rel},
+	}
+	for _, l := range links {
+		require.NoError(t, os.Symlink(l.target, filepath.Join(rootPath, l.name)))
+	}
+
+	for _, l := range links {
+		_, err = invoke(t, ls, bindings.CreateOperation, l.name+"/new.txt", []byte("data"))
+		require.Error(t, err, l.name)
+		_, err = invoke(t, ls, bindings.GetOperation, l.name+"/file.txt", nil)
+		require.Error(t, err, l.name)
+		_, err = invoke(t, ls, bindings.DeleteOperation, l.name+"/file.txt", nil)
+		require.Error(t, err, l.name)
+		_, err = invoke(t, ls, bindings.ListOperation, l.name, nil)
+		require.Error(t, err, l.name)
+	}
+
+	// Listing the root returns the links as entries without following them.
+	res, err := invoke(t, ls, bindings.ListOperation, "", nil)
+	require.NoError(t, err)
+	var listed []string
+	require.NoError(t, json.Unmarshal(res.Data, &listed))
+	assert.Equal(t, []string{filepath.Join(rootPath, "abs"), filepath.Join(rootPath, "rel")}, listed)
+
+	b, err := os.ReadFile(filepath.Join(outside, "file.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "outside", string(b))
+	assert.NoFileExists(t, filepath.Join(outside, "new.txt"))
+}
+
+func TestListSkipsUnreadableDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission bits are not enforced on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can read every directory")
+	}
+
+	ls := newTestLocalStorage(t)
+	rootPath := ls.metadata.RootPath
+	_, err := invoke(t, ls, bindings.CreateOperation, "a.txt", []byte("data"))
+	require.NoError(t, err)
+	// The directory is empty, so it can be removed without its own permissions.
+	require.NoError(t, os.Mkdir(filepath.Join(rootPath, "locked"), 0))
+
+	res, err := invoke(t, ls, bindings.ListOperation, "", nil)
+	require.NoError(t, err)
+	var listed []string
+	require.NoError(t, json.Unmarshal(res.Data, &listed))
+	assert.Equal(t, []string{filepath.Join(rootPath, "a.txt")}, listed)
+
+	// Listing the unreadable directory itself still fails.
+	_, err = invoke(t, ls, bindings.ListOperation, "locked", nil)
+	require.ErrorIs(t, err, fs.ErrPermission)
+}
+
+func newTestLocalStorage(t *testing.T) *LocalStorage {
+	t.Helper()
+	ls := NewLocalStorage(logger.NewLogger("test")).(*LocalStorage)
+	m := bindings.Metadata{}
+	m.Properties = map[string]string{"rootPath": t.TempDir()}
+	require.NoError(t, ls.Init(t.Context(), m))
+	t.Cleanup(func() { assert.NoError(t, ls.Close()) })
+	return ls
+}
+
+func invoke(t *testing.T, ls *LocalStorage, op bindings.OperationKind, fileName string, data []byte) (*bindings.InvokeResponse, error) {
+	t.Helper()
+	return ls.Invoke(t.Context(), &bindings.InvokeRequest{
+		Operation: op,
+		Data:      data,
+		Metadata:  map[string]string{fileNameMetadataKey: fileName},
+	})
 }
 
 func joinWithMustEvalSymlinks(v ...string) string {

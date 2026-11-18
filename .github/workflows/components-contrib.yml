@@ -82,9 +82,24 @@ jobs:
           IPFS_TEST: "1"
         if: steps.skip_check.outputs.should_skip != 'true'
         run: make test
+      - name: Start Floci GCP
+        id: start-floci-gcp
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-gcp floci-gcp up-wait binarystore-gcp
+      - name: Run GCP binary store integration tests with Floci
+        if: steps.skip_check.outputs.should_skip != 'true'
+        run: go test -count=1 -tags=integration_test -timeout=5m -coverprofile=coverage-floci-gcp.txt -covermode=atomic -run '^TestStoreBehaviourWithFloci$' ./binarystore/gcp/bucket
+      - name: Capture Floci GCP logs
+        if: failure() && steps.start-floci-gcp.outcome != 'skipped'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-gcp floci-gcp logs binarystore-gcp
+      - name: Stop Floci GCP
+        if: always() && steps.start-floci-gcp.outcome != 'skipped'
+        run: .github/scripts/components-scripts/docker-compose.sh floci-gcp floci-gcp down binarystore-gcp
       - name: Codecov
         if: matrix.target_arch == 'amd64' && matrix.target_os == 'linux'
         uses: codecov/codecov-action@v7
+        with:
+          files: coverage.txt,coverage-floci-gcp.txt
 
   check-metadata-bundle-changes:
     name: Detect metadata file changes

@@ -1,0 +1,18 @@
+x-dapr-test-env:
+  FLOCI_GCP_PORT: "${FLOCI_GCP_PORT:-4588}"
+  STORAGE_EMULATOR_HOST: "http://127.0.0.1:${FLOCI_GCP_PORT:-4588}"
+  GOOGLE_CLOUD_PROJECT: "floci-local"
+
+services:
+  floci-gcp:
+    image: floci/floci-gcp:0.12.0@sha256:d02e70407d6b37c3e24e31b5ccf100606735cba4f84fd476708b35afd052abb3
+    profiles: ["binarystore-gcp"]
+    ports:
+      - "127.0.0.1:${FLOCI_GCP_PORT:-4588}:4588"
+    environment:
+      FLOCI_GCP_DEFAULT_PROJECT_ID: floci-local
+      FLOCI_GCP_SERVICES_GCS_ENABLED: "true"
+      FLOCI_GCP_STORAGE_MODE: memory
+      FLOCI_GCP_TLS_ENABLED: "false"
+    tmpfs:
+      - /app/data

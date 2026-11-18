@@ -8,6 +8,7 @@ run:
   build-tags:
     - certtests
     - conftests
+    - integration_test
     - metadata
 
 output:

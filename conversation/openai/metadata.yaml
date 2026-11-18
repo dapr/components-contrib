@@ -135,6 +135,14 @@ metadata:
     type: bool
     example: "true"
     default: 'false'
+  - name: reasoningSummary
+    required: false
+    description: |
+      Ask the Responses API for a summary of the model's reasoning, returned as
+      the message's reasoning: auto, concise or detailed. Requires useResponsesAPI.
+      OpenAI may require a verified organization to generate reasoning summaries.
+    type: string
+    example: 'auto'
   - name: headers
     required: false
     sensitive: true

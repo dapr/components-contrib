@@ -1012,6 +1012,32 @@ func TestMetadataProducerRequiredAcks(t *testing.T) {
 	}
 }
 
+func TestMetadataEnableAvroDecimalSpecCompliantEncoding(t *testing.T) {
+	k := getKafka()
+
+	t.Run("default is false", func(t *testing.T) {
+		meta, err := k.getKafkaMetadata(getBaseMetadata())
+		require.NoError(t, err)
+		require.False(t, meta.EnableAvroDecimalSpecCompliantEncoding)
+	})
+
+	t.Run("explicit true is accepted", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["enableAvroDecimalSpecCompliantEncoding"] = "true"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.True(t, meta.EnableAvroDecimalSpecCompliantEncoding)
+	})
+
+	t.Run("explicit false is accepted", func(t *testing.T) {
+		m := getBaseMetadata()
+		m["enableAvroDecimalSpecCompliantEncoding"] = "false"
+		meta, err := k.getKafkaMetadata(m)
+		require.NoError(t, err)
+		require.False(t, meta.EnableAvroDecimalSpecCompliantEncoding)
+	})
+}
+
 func TestMetadataProducerRetryMax(t *testing.T) {
 	k := getKafka()
 

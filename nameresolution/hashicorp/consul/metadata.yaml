@@ -8,90 +8,110 @@ title: "HashiCorp Consul"
 urls:
   - title: Reference
     url: https://docs.dapr.io/reference/components-reference/supported-name-resolution/setup-nr-consul/
-authenticationProfiles:
-  - title: "Token Authentication"
-    description: "Connect to Consul using a token for authentication."
-    metadata:
-      - name: token
-        type: string
-        required: true
-        description: The Consul ACL token for authentication.
-        sensitive: true
-        example: "consul-token"
-  - title: "Username/Password Authentication"
-    description: "Connect to Consul using a username and password."
-    metadata:
-      - name: username
-        type: string
-        required: false
-        description: Username for HTTP basic authentication.
-        example: "username"
-      - name: password
-        type: string
-        required: false
-        description: Password for HTTP basic authentication.
-        sensitive: true
-        example: "password"
-  - title: "TLS Authentication"
-    description: "Connect to Consul using TLS encryption with certificates."
-    metadata:
-      - name: tlsAddress
-        type: string
-        required: true
-        description: The TLS address of the Consul server.
-        example: "localhost:8501"
-      - name: caFile
-        type: string
-        required: true
-        description: Path to the CA certificate file.
-        example: "/path/to/ca.crt"
-      - name: certFile
-        type: string
-        required: true
-        description: Path to the client certificate file.
-        example: "/path/to/client.crt"
-      - name: keyFile
-        type: string
-        required: true
-        description: Path to the client private key file.
-        example: "/path/to/client.key"
-      - name: insecureSkipVerify
-        type: bool
-        required: false
-        description: Skip TLS certificate verification.
-        example: "false"
-        default: "false"
 metadata:
-  - name: address
+  - name: client.address
     type: string
-    required: true
-    description: The address of the Consul server.
+    required: false
+    description: The address of the Consul agent. If `client` is not set, the Consul SDK defaults apply.
     example: "localhost:8500"
-  - name: scheme
+    default: "127.0.0.1:8500"
+  - name: client.scheme
     type: string
     required: false
     description: The scheme to use for connecting to Consul (http or https).
     example: "https"
     default: "http"
-  - name: datacenter
+  - name: client.datacenter
     type: string
     required: false
     description: The Consul datacenter to use.
     example: "dc1"
-  - name: waitTime
+  - name: client.token
     type: string
     required: false
-    description: The wait time for Consul operations.
-    example: "10s"
-  - name: tokenFile
+    description: The Consul ACL token for authentication.
+    sensitive: true
+    example: "consul-token"
+  - name: client.tokenFile
     type: string
     required: false
     description: Path to a file containing the Consul ACL token.
     example: "/path/to/token"
+  - name: client.httpAuth.username
+    type: string
+    required: false
+    description: Username for HTTP basic authentication.
+    example: "username"
+  - name: client.httpAuth.password
+    type: string
+    required: false
+    description: Password for HTTP basic authentication.
+    sensitive: true
+    example: "password"
+  - name: client.tlsConfig.address
+    type: string
+    required: false
+    description: The TLS address of the Consul agent, used as the server name for TLS verification.
+    example: "localhost:8501"
+  - name: client.tlsConfig.caFile
+    type: string
+    required: false
+    description: Path to the CA certificate file.
+    example: "/path/to/ca.crt"
+  - name: client.tlsConfig.caPath
+    type: string
+    required: false
+    description: Path to a directory of CA certificates.
+    example: "/path/to/certs"
+  - name: client.tlsConfig.certFile
+    type: string
+    required: false
+    description: Path to the client certificate file.
+    example: "/path/to/client.crt"
+  - name: client.tlsConfig.keyFile
+    type: string
+    required: false
+    description: Path to the client private key file.
+    example: "/path/to/client.key"
+  - name: client.tlsConfig.insecureSkipVerify
+    type: bool
+    required: false
+    description: Skip TLS certificate verification.
+    example: "false"
+    default: "false"
+  - name: queryOptions.datacenter
+    type: string
+    required: false
+    description: The Consul datacenter to use for queries.
+    example: "dc1"
+  - name: queryOptions.token
+    type: string
+    required: false
+    description: The Consul ACL token to use for queries.
+    sensitive: true
+    example: "query-token"
+  - name: queryOptions.allowStale
+    type: bool
+    required: false
+    description: Whether to allow stale results in queries.
+    example: "true"
+    default: "false"
+  - name: queryOptions.requireConsistent
+    type: bool
+    required: false
+    description: Whether to require consistent reads in queries.
+    example: "true"
+    default: "false"
+  - name: queryOptions.useCache
+    type: bool
+    required: false
+    description: Whether queries use the Consul agent cache. Defaults to `true` only when `queryOptions` is not set at all.
+    example: "true"
+    default: "false"
   - name: daprPortMetaKey
     type: string
     required: false
-    description: The metadata key used to store the Dapr port.
+    description: The service metadata key that holds the Dapr sidecar port.
     example: "DAPR_PORT"
     default: "DAPR_PORT"
   - name: selfRegister
@@ -109,49 +129,24 @@ metadata:
   - name: useCache
     type: bool
     required: false
-    description: Whether to use caching for service lookups.
+    description: Whether to cache resolved services in memory, kept current with Consul blocking queries.
     example: "true"
     default: "false"
   - name: tags
     type: string
     required: false
-    description: Tags to associate with the service registration.
-    example: "dapr,v1"
-  - name: namespace
+    description: A list of tags to add when registering the service.
+    example: '["dapr", "v1"]'
+  - name: meta
     type: string
     required: false
-    description: The Consul namespace to use for queries.
-    example: "default"
-  - name: partition
+    description: A map of additional metadata to add when registering the service.
+    example: '{"env": "dev"}'
+  - name: checks
     type: string
     required: false
-    description: The Consul partition to use for queries.
-    example: "default"
-  - name: queryDatacenter
+    description: A list of health checks to add when registering the service. If not set, a single check on the Dapr sidecar health endpoint is added.
+  - name: advancedRegistration
     type: string
     required: false
-    description: The Consul datacenter to use for queries.
-    example: "dc1"
-  - name: queryToken
-    type: string
-    required: false
-    description: The Consul ACL token to use for queries.
-    sensitive: true
-    example: "query-token"
-  - name: queryWaitTime
-    type: string
-    required: false
-    description: The wait time for Consul queries.
-    example: "5s"
-  - name: allowStale
-    type: bool
-    required: false
-    description: Whether to allow stale results in queries.
-    example: "true"
-    default: "false"
-  - name: requireConsistent
-    type: bool
-    required: false
-    description: Whether to require consistent reads in queries.
-    example: "false"
-    default: "false"
+    description: A full Consul service registration. If set, `checks`, `tags`, `meta` and `selfRegister` are ignored.

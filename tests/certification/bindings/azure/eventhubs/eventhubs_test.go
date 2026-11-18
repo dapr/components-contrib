@@ -368,13 +368,13 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 		sim := simulate.PeriodicError(ctx, 100)
 		// Setup the binding endpoints
 		err = s.AddBindingInvocationHandler("azure-partitioned-binding", func(_ context.Context, in *common.BindingEvent) ([]byte, error) {
+			if !strings.HasSuffix(string(in.Data), runSuffix) {
+				return []byte("{}"), nil
+			}
 			if err := sim(); err != nil {
 				return nil, err
 			}
 			ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
-			if !strings.HasSuffix(string(in.Data), runSuffix) {
-				return []byte("{}"), nil
-			}
 			received.FailIfNotExpected(t, string(in.Data))
 			received.Observe(string(in.Data))
 			return []byte("{}"), nil

@@ -526,7 +526,7 @@ func TestPassiveMissingObjectDoesNotKeepEvictingHealthySubscriptions(t *testing.
 	// everyone on it reconnects. What must NOT happen is that cycle repeating:
 	// the failing subscription has given up, so the count has to settle.
 	time.Sleep(3 * time.Second)
-	r.channelMutex.RLock()
+	require.NoError(t, r.channelMutex.RLock(t.Context()))
 	settled := r.connectionCount
 	r.channelMutex.RUnlock()
 
@@ -538,7 +538,7 @@ func TestPassiveMissingObjectDoesNotKeepEvictingHealthySubscriptions(t *testing.
 	assert.Eventually(t, func() bool { return got.Load() >= before+8 }, 20*time.Second, 100*time.Millisecond,
 		"the healthy subscription stopped delivering")
 
-	r.channelMutex.RLock()
+	require.NoError(t, r.channelMutex.RLock(t.Context()))
 	final := r.connectionCount
 	r.channelMutex.RUnlock()
 	t.Logf("delivered=%d  connectionCount settled=%d final=%d (over ~10s and 8 publishes)", got.Load(), settled, final)

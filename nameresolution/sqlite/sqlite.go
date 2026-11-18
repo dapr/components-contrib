@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -121,14 +122,16 @@ func (s *resolver) initGC() (err error) {
 				VALUES ('nr-last-cleanup', CURRENT_TIMESTAMP)
 				ON CONFLICT (key)
 				DO UPDATE SET value = CURRENT_TIMESTAMP
-					WHERE unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)  > ?;`,
+					WHERE (unixepoch(CURRENT_TIMESTAMP) - unixepoch(value)) * 1000 > ?;`,
 				s.metadata.MetadataTableName,
 			), arg
 		},
+		// ResolveID already ignores hosts older than UpdateInterval.
+		// The extra Timeout + 1s keeps a host whose renewal is still in progress.
 		DeleteExpiredValuesQuery: fmt.Sprintf(
-			`DELETE FROM %s WHERE unixepoch(CURRENT_TIMESTAMP) - last_update < %d`,
+			`DELETE FROM %s WHERE unixepoch(CURRENT_TIMESTAMP) - last_update >= %d`,
 			s.metadata.TableName,
-			int(s.metadata.UpdateInterval.Seconds()),
+			int(s.metadata.UpdateInterval.Seconds()+math.Ceil(s.metadata.Timeout.Seconds()))+1,
 		),
 		CleanupInterval: s.metadata.CleanupInterval,
 		DB:              commonsql.AdaptDatabaseSQLConn(s.db),

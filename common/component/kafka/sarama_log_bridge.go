@@ -14,6 +14,10 @@ limitations under the License.
 package kafka
 
 import (
+	"errors"
+
+	"github.com/IBM/sarama"
+
 	"github.com/dapr/kit/logger"
 )
 
@@ -21,8 +25,23 @@ type SaramaLogBridge struct {
 	daprLogger logger.Logger
 }
 
-func (b SaramaLogBridge) Print(v ...interface{}) {
+// log sends consumer errors (which Sarama only reports through its Logger when
+// Consumer.Return.Errors is false) at error level and everything else at debug.
+func (b SaramaLogBridge) log(v ...interface{}) {
+	for _, a := range v {
+		if err, ok := a.(error); ok {
+			var cerr *sarama.ConsumerError
+			if errors.As(err, &cerr) {
+				b.daprLogger.Error(v...)
+				return
+			}
+		}
+	}
 	b.daprLogger.Debug(v...)
+}
+
+func (b SaramaLogBridge) Print(v ...interface{}) {
+	b.log(v...)
 }
 
 func (b SaramaLogBridge) Printf(format string, v ...interface{}) {
@@ -30,5 +49,5 @@ func (b SaramaLogBridge) Printf(format string, v ...interface{}) {
 }
 
 func (b SaramaLogBridge) Println(v ...interface{}) {
-	b.daprLogger.Debug(v...)
+	b.log(v...)
 }

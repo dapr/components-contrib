@@ -67,6 +67,7 @@ type httpMetadata struct {
 	MTLSClientKey       string         `mapstructure:"mtlsClientKey"`
 	MTLSRootCA          string         `mapstructure:"mtlsRootCA"`
 	MTLSRenegotiation   string         `mapstructure:"mtlsRenegotiation"`
+	InsecureSkipVerify  bool           `mapstructure:"insecureSkipVerify"`
 	SecurityToken       string         `mapstructure:"securityToken"`
 	SecurityTokenHeader string         `mapstructure:"securityTokenHeader"`
 	ResponseTimeout     *time.Duration `mapstructure:"responseTimeout"`
@@ -101,7 +102,10 @@ func (h *HTTPSource) Init(_ context.Context, meta bindings.Metadata) error {
 		return err
 	}
 	if tlsConfig == nil {
-		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		tlsConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: h.metadata.InsecureSkipVerify, //nolint:gosec
+		}
 	}
 	if h.metadata.MTLSClientCert != "" && h.metadata.MTLSClientKey != "" {
 		err = h.readMTLSClientCertificates(tlsConfig)
@@ -195,8 +199,9 @@ func (h *HTTPSource) addRootCAToCertPool() (*tls.Config, error) {
 		return nil, errors.New("failed to add root certificate to certpool")
 	}
 	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    caCertPool,
+		MinVersion:         tls.VersionTLS12,
+		RootCAs:            caCertPool,
+		InsecureSkipVerify: h.metadata.InsecureSkipVerify, //nolint:gosec
 	}, nil
 }
 

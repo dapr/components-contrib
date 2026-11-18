@@ -73,3 +73,54 @@ func TestRedisQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestParseQueryResponsePost28(t *testing.T) {
+	t.Run("no matches", func(t *testing.T) {
+		ret := map[any]any{
+			"attributes":    []any{},
+			"format":        "STRING",
+			"results":       []any{},
+			"total_results": int64(0),
+			"warning":       []any{},
+		}
+		res, ok, err := parseQueryResponsePost28(ret)
+		require.NoError(t, err)
+		assert.True(t, ok)
+		assert.Empty(t, res)
+	})
+
+	t.Run("one match", func(t *testing.T) {
+		ret := map[any]any{
+			"results": []any{
+				map[any]any{
+					"id": "key1",
+					"extra_attributes": map[any]any{
+						"$.data":    `{"n":1}`,
+						"$.version": "1",
+					},
+					"values": []any{},
+				},
+			},
+			"total_results": int64(1),
+		}
+		res, ok, err := parseQueryResponsePost28(ret)
+		require.NoError(t, err)
+		assert.True(t, ok)
+		require.Len(t, res, 1)
+		assert.Equal(t, "key1", res[0].Key)
+		assert.JSONEq(t, `{"n":1}`, string(res[0].Data))
+		require.NotNil(t, res[0].ETag)
+		assert.Equal(t, "1", *res[0].ETag)
+	})
+
+	t.Run("missing results", func(t *testing.T) {
+		_, _, err := parseQueryResponsePost28(map[any]any{"total_results": int64(0)})
+		require.Error(t, err)
+	})
+
+	t.Run("pre 2.8 response", func(t *testing.T) {
+		_, ok, err := parseQueryResponsePost28([]any{int64(0)})
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+}

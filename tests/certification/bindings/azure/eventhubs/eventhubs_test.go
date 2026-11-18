@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -305,6 +306,11 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 
 	received := watcher.NewUnordered()
 
+	// The hub and consumer group are shared with other tests and runs, and the
+	// component starts from the earliest event when no checkpoint exists. Tag
+	// this run's messages so the handler can skip events it did not send.
+	runSuffix := ", run: " + uuid.NewString()
+
 	metadata0 := map[string]string{
 		messageKey: partition0,
 	}
@@ -325,7 +331,7 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 			} else {
 				md = metadata1
 			}
-			outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s", i, md[messageKey])
+			outputmsg[i] = fmt.Sprintf("output binding: Message %d, partitionkey: %s%s", i, md[messageKey], runSuffix)
 		}
 		received.ExpectStrings(outputmsg...)
 
@@ -366,6 +372,9 @@ func TestEventhubBindingMultiplePartition(t *testing.T) {
 				return nil, err
 			}
 			ctx.Logf("Receiving eventhubs message: %s", string(in.Data))
+			if !strings.HasSuffix(string(in.Data), runSuffix) {
+				return []byte("{}"), nil
+			}
 			received.FailIfNotExpected(t, string(in.Data))
 			received.Observe(string(in.Data))
 			return []byte("{}"), nil

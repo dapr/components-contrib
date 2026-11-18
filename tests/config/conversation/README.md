@@ -12,6 +12,7 @@ This directory contains conformance tests for all conversation components, inclu
 - **huggingface** - HuggingFace models (using OpenAI compatibility layer)
 - **ollama** - Local Ollama models
 - **bedrock** - AWS Bedrock models
+- **openrouter** - Models from many vendors through OpenRouter (using OpenAI compatibility layer)
 
 ## Running the Tests
 
@@ -59,6 +60,7 @@ export GOOGLEAI_MODEL="gemini-2.5-flash-lite"   # Default: gemini-2.5-flash-lite
 export MISTRAL_MODEL="open-mistral-7b"     # Default: open-mistral-7b
 export HUGGINGFACE_MODEL="deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"  # Default: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
 export OLLAMA_MODEL="llama3.2:latest"      # Default: llama3.2:latest
+export OPENROUTER_MODEL="openai/gpt-4o-mini"  # Default: openai/gpt-4o-mini
 ```
 
 #### OpenAI
@@ -127,6 +129,14 @@ export OLLAMA_ENABLED="1"
 
 Requires a local Ollama server running with the `llama3.2:latest` model available.
 
+#### OpenRouter
+
+```bash
+export OPENROUTER_API_KEY="your_openrouter_api_key"
+```
+
+Get your API key from: <https://openrouter.ai/keys>
+
 ## Test Configuration
 
 Each component has its own configuration file in this directory:
@@ -139,6 +149,7 @@ Each component has its own configuration file in this directory:
 - `huggingface/huggingface.yml` - HuggingFace configuration (uses OpenAI compatibility layer)
 - `ollama/ollama.yml` - Ollama configuration with llama3.2:latest
 - `bedrock/bedrock.yml` - AWS Bedrock configuration with Claude 3 Haiku
+- `openrouter/openrouter.yml` - OpenRouter configuration with openai/gpt-4o-mini
 
 The configurations use cost-effective models where possible to minimize testing costs.
 

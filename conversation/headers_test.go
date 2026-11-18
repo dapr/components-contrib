@@ -34,6 +34,7 @@ import (
 	"github.com/dapr/components-contrib/conversation/mistral"
 	"github.com/dapr/components-contrib/conversation/ollama"
 	"github.com/dapr/components-contrib/conversation/openai"
+	"github.com/dapr/components-contrib/conversation/openrouter"
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/kit/logger"
 )
@@ -93,6 +94,11 @@ func TestComponentsSetHeaders(t *testing.T) {
 			path:         "/messages",
 			reply:        anthropicReply,
 		},
+		"openrouter": {
+			newComponent: openrouter.NewOpenrouter,
+			path:         "/chat/completions",
+			reply:        chatCompletionsReply,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var got http.Header
@@ -138,6 +144,7 @@ func TestComponentsRejectInvalidHeaders(t *testing.T) {
 		"huggingface": huggingface.NewHuggingface,
 		"ollama":      ollama.NewOllama,
 		"anthropic":   anthropic.NewAnthropic,
+		"openrouter":  openrouter.NewOpenrouter,
 	} {
 		t.Run(name, func(t *testing.T) {
 			err := newComponent(logger.NewLogger("test")).Init(t.Context(), conversation.Metadata{Base: metadata.Base{Properties: map[string]string{

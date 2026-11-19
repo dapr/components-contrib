@@ -9,6 +9,8 @@ spec:
   metadata:
     - name: enableEntityManagement
       value: true
+    - name: enableInOrderMessageDelivery
+      value: true
     - name: eventHubNamespace
       secretKeyRef:
         name: AzureEventHubsPubsubNamespace

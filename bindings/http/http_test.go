@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"maps"
 	"math/big"
 	"net"
 	"net/http"
@@ -707,6 +708,166 @@ func TestHTTPSBinding(t *testing.T) {
 		// For HTTP, request will not have TLS info only.
 		assert.Equal(t, 0, peerCerts)
 	})
+}
+
+func TestInsecureSkipVerifyTLSConfig(t *testing.T) {
+	// Each of these setups goes through a different instantiation of tls.Config in the binding.
+	tlsSetups := map[string]struct {
+		props         map[string]string
+		expectRootCAs bool
+	}{
+		"without root CA": {
+			props: map[string]string{},
+		},
+		"with root CA": {
+			props:         map[string]string{"MTLSRootCA": filepath.Join(".", "testdata", "ca.pem")},
+			expectRootCAs: true,
+		},
+	}
+
+	// An empty value means that the metadata property is not set.
+	values := map[string]struct {
+		value    string
+		expected bool
+	}{
+		"not set":      {value: "", expected: false},
+		"set to false": {value: "false", expected: false},
+		"set to true":  {value: "true", expected: true},
+	}
+
+	for setupName, setup := range tlsSetups {
+		t.Run(setupName, func(t *testing.T) {
+			for valueName, tc := range values {
+				t.Run(valueName, func(t *testing.T) {
+					props := map[string]string{"url": "https://localhost"}
+					maps.Copy(props, setup.props)
+					if tc.value != "" {
+						props["insecureSkipVerify"] = tc.value
+					}
+
+					hs := NewHTTP(logger.NewLogger("test"))
+					err := hs.Init(t.Context(), bindings.Metadata{Base: metadata.Base{Properties: props}})
+					require.NoError(t, err)
+
+					transport, ok := hs.(*HTTPSource).client.Transport.(*http.Transport)
+					require.True(t, ok)
+					tlsConfig := transport.TLSClientConfig
+					require.NotNil(t, tlsConfig)
+					assert.Equal(t, tc.expected, tlsConfig.InsecureSkipVerify)
+
+					// The other TLS settings are not affected.
+					assert.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+					assert.Equal(t, setup.expectRootCAs, tlsConfig.RootCAs != nil)
+				})
+			}
+		})
+	}
+}
+
+func TestInsecureSkipVerifyComponentMetadata(t *testing.T) {
+	md := NewHTTP(logger.NewLogger("test")).(*HTTPSource).GetComponentMetadata()
+	require.Contains(t, md, "insecureSkipVerify")
+	assert.Equal(t, "bool", md["insecureSkipVerify"].Type)
+}
+
+func TestInsecureSkipVerifyHTTPS(t *testing.T) {
+	// The server uses the self-signed certificate built into httptest, which is
+	// trusted neither by the system's root CAs nor by the CA in testdata.
+	handler := NewHTTPHandler()
+	server := httptest.NewTLSServer(handler)
+	defer server.Close()
+
+	// Each of these setups goes through a different instantiation of tls.Config in the binding.
+	tlsSetups := map[string]map[string]string{
+		"without root CA": {},
+		"with root CA that did not sign the server certificate": {
+			"MTLSRootCA": filepath.Join(".", "testdata", "ca.pem"),
+		},
+	}
+
+	for name, tlsProps := range tlsSetups {
+		t.Run(name, func(t *testing.T) {
+			t.Run("server certificate is verified by default", func(t *testing.T) {
+				hs, err := InitBindingForHTTPS(server, tlsProps)
+				require.NoError(t, err)
+
+				verifyServerCertificateRejected(t, hs)
+			})
+
+			t.Run("server certificate is verified when insecureSkipVerify is false", func(t *testing.T) {
+				hs, err := InitBindingForHTTPS(server, withInsecureSkipVerify(tlsProps, "false"))
+				require.NoError(t, err)
+
+				verifyServerCertificateRejected(t, hs)
+			})
+
+			t.Run("server certificate is not verified when insecureSkipVerify is true", func(t *testing.T) {
+				hs, err := InitBindingForHTTPS(server, withInsecureSkipVerify(tlsProps, "true"))
+				require.NoError(t, err)
+
+				verifyDefaultBehaviors(t, hs, handler)
+			})
+		})
+	}
+
+	t.Run("client certificate is presented when insecureSkipVerify is true", func(t *testing.T) {
+		// The server requires a client certificate. Its own certificate is signed by
+		// the CA in testdata, which the binding is not configured to trust here.
+		mux := http.NewServeMux()
+		mux.HandleFunc("/testmTLS", mTLSHandler)
+		mtlsServer := setupHTTPSServer(t, true, mux)
+		defer mtlsServer.Close()
+
+		props := map[string]string{
+			"MTLSClientCert": filepath.Join(".", "testdata", "client.pem"),
+			"MTLSClientKey":  filepath.Join(".", "testdata", "client.key"),
+		}
+
+		hs, err := InitBindingForHTTPS(mtlsServer, props)
+		require.NoError(t, err)
+		verifyServerCertificateRejected(t, hs)
+
+		hs, err = InitBindingForHTTPS(mtlsServer, withInsecureSkipVerify(props, "true"))
+		require.NoError(t, err)
+
+		req := TestCase{
+			input:      "GET",
+			operation:  "get",
+			metadata:   map[string]string{"path": "/testmTLS"},
+			path:       "/testmTLS",
+			err:        "",
+			statusCode: 200,
+		}.ToInvokeRequest()
+		response, err := hs.Invoke(t.Context(), &req)
+		require.NoError(t, err)
+		peerCerts, err := strconv.Atoi(string(response.Data))
+		require.NoError(t, err)
+		assert.Positive(t, peerCerts)
+	})
+}
+
+// withInsecureSkipVerify returns a copy of the metadata properties with the "insecureSkipVerify" property set.
+func withInsecureSkipVerify(props map[string]string, value string) map[string]string {
+	res := make(map[string]string, len(props)+1)
+	maps.Copy(res, props)
+	res["insecureSkipVerify"] = value
+	return res
+}
+
+// verifyServerCertificateRejected checks that invoking the binding fails because
+// the certificate presented by the server could not be verified.
+func verifyServerCertificateRejected(t *testing.T, hs bindings.OutputBinding) {
+	req := TestCase{
+		input:      "GET",
+		operation:  "get",
+		path:       "/",
+		err:        "",
+		statusCode: 200,
+	}.ToInvokeRequest()
+	_, err := hs.Invoke(t.Context(), &req)
+
+	var certErr *tls.CertificateVerificationError
+	require.ErrorAs(t, err, &certErr)
 }
 
 func setupHTTPSServer(t *testing.T, clientAuthEnabled bool, handler http.Handler) *httptest.Server {

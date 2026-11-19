@@ -439,14 +439,10 @@ func (c *StateStore) Set(ctx context.Context, req *state.SetRequest) error {
 	upsertCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
-	if req.HasETag() {
-		// Replace so an etag on a missing item fails instead of creating it.
-		_, err = c.client.ReplaceItem(upsertCtx, pk, req.Key, marsh, &options)
-	} else {
-		_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
-	}
+	// Upsert even with an etag, so an etag on a missing item creates it.
+	_, err = c.client.UpsertItem(upsertCtx, pk, marsh, &options)
 	if err != nil {
-		if isETagMismatch(err, req.HasETag()) {
+		if isETagMismatch(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
@@ -486,8 +482,9 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	defer cancel()
 	pk := azcosmos.NewPartitionKeyString(partitionKey)
 	_, err = c.client.DeleteItem(deleteCtx, pk, req.Key, &options)
-	if err != nil && (req.HasETag() || !isNotFoundError(err)) {
-		if isETagMismatch(err, req.HasETag()) {
+	// A missing item is not an error, with or without an etag.
+	if err != nil && !isNotFoundError(err) {
+		if isETagMismatch(err) {
 			return state.NewETagError(state.ETagMismatch, err)
 		}
 		return err
@@ -496,12 +493,9 @@ func (c *StateStore) Delete(ctx context.Context, req *state.DeleteRequest) error
 	return nil
 }
 
-func isETagMismatch(err error, hasETag bool) bool {
+func isETagMismatch(err error) bool {
 	resErr := &azcore.ResponseError{}
-	if !errors.As(err, &resErr) {
-		return false
-	}
-	return resErr.StatusCode == http.StatusPreconditionFailed || (hasETag && resErr.StatusCode == http.StatusNotFound)
+	return errors.As(err, &resErr) && resErr.StatusCode == http.StatusPreconditionFailed
 }
 
 // MultiMaxSize returns the maximum number of operations allowed in a transaction.
@@ -519,6 +513,10 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 		return nil
 	}
 
+	if err := stateutils.CheckETagAfterDelete(request.Operations); err != nil {
+		return err
+	}
+
 	partitionKey := request.Metadata[metadataPartitionKey]
 	ops, err := buildBatchOps(c.contentType, partitionKey, request.Operations)
 	if err != nil {
@@ -532,8 +530,6 @@ func (c *StateStore) Multi(ctx context.Context, request *state.TransactionalStat
 			switch op.kind {
 			case batchUpsert:
 				batch.UpsertItem(op.body, options)
-			case batchReplace:
-				batch.ReplaceItem(op.id, op.body, options)
 			case batchDelete:
 				batch.DeleteItem(op.id, options)
 			}
@@ -576,7 +572,6 @@ type batchOpKind int
 
 const (
 	batchUpsert batchOpKind = iota
-	batchReplace
 	batchDelete
 )
 
@@ -605,8 +600,7 @@ func buildBatchOps(contentType string, partitionKey string, operations []state.T
 
 			op := batchOp{kind: batchUpsert, id: req.Key, body: body}
 			if req.HasETag() {
-				// Replace so an etag on a missing item fails instead of creating it.
-				op.kind = batchReplace
+				// Upsert, so an etag on a missing item creates it.
 				op.ifMatch = ptr.Of(azcore.ETag(*req.ETag))
 				op.guarded = true
 			} else if req.Options.Concurrency == state.FirstWrite {
@@ -649,10 +643,11 @@ func batchResultError(ops []batchOp, results []azcosmos.TransactionalBatchResult
 		switch {
 		case code == http.StatusFailedDependency:
 			continue
-		case code == http.StatusPreconditionFailed, code == http.StatusNotFound && ops[i].guarded:
-			return -1, state.NewETagError(state.ETagMismatch, fmt.Errorf("operation %d on key %s failed with status code %d", i, ops[i].id, code))
 		case code == http.StatusNotFound && ops[i].kind == batchDelete:
+			// A delete of a missing item is a no-op, with or without an etag.
 			return i, nil
+		case code == http.StatusPreconditionFailed:
+			return -1, state.NewETagError(state.ETagMismatch, fmt.Errorf("operation %d on key %s failed with status code %d", i, ops[i].id, code))
 		default:
 			return -1, fmt.Errorf("transaction failed due to operation %v which failed with status code %d", i, code)
 		}

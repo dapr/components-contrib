@@ -41,6 +41,10 @@ const (
 	streamTTL         = "streamTTL"
 )
 
+// defaultPollBlock is how long XREADGROUP waits for new messages when readTimeout is not set.
+// It matches the go-redis default read timeout.
+const defaultPollBlock = 3 * time.Second
+
 // redisStreams handles consuming from a Redis stream using
 // `XREADGROUP` for reading new messages and `XPENDING` and
 // `XCLAIM` for redelivering messages that previously failed.
@@ -386,6 +390,15 @@ func (r *redisStreams) processMessage(msg redisMessageWrapper) error {
 // pollMessagesLoop calls `XReadGroup` for new messages and funnels them to the message channel
 // by calling `enqueueMessages`.
 func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, handler pubsub.Handler) {
+	// go-redis cannot interrupt a read that is already waiting on the socket, so a cancelled
+	// subscription only gets its connection back when the read returns. Never block forever
+	// (BLOCK 0): without a readTimeout, a reader on a quiet stream would hold its pooled
+	// connection after the subscription is cancelled, and every resubscribe would add another.
+	block := time.Duration(r.clientSettings.ReadTimeout)
+	if block == 0 {
+		block = defaultPollBlock
+	}
+
 	for {
 		// Return on cancelation
 		if ctx.Err() != nil {
@@ -394,7 +407,7 @@ func (r *redisStreams) pollNewMessagesLoop(ctx context.Context, stream string, h
 
 		// Read messages
 		//nolint:gosec
-		streams, err := r.client.XReadGroupResult(ctx, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, []string{stream, ">"}, int64(r.clientSettings.QueueDepth), time.Duration(r.clientSettings.ReadTimeout))
+		streams, err := r.client.XReadGroupResult(ctx, r.clientSettings.ConsumerID, r.clientSettings.ConsumerID, []string{stream, ">"}, int64(r.clientSettings.QueueDepth), block)
 		if err != nil {
 			if !r.client.IsNilValueError(err) && err != context.Canceled {
 				if strings.Contains(err.Error(), "NOGROUP") {

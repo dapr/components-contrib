@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -627,4 +628,32 @@ func TestEnqueueHoldsWholeBatchWhileBlocked(t *testing.T) {
 	<-done
 
 	assert.Len(t, r.heldEntries("stream"), 1, "only the message already queued should still be held")
+}
+
+// TestResubscribeDoesNotLeakBlockedReads cancels subscriptions on a stream that receives no
+// messages and checks that their reads give their connections back. If a cancelled reader kept
+// its connection, the two-connection pool would be exhausted and Subscribe would fail.
+func TestResubscribeDoesNotLeakBlockedReads(t *testing.T) {
+	srv := miniredis.RunT(t)
+
+	r := NewRedisStreams(logger.NewLogger("test")).(*redisStreams)
+	require.NoError(t, r.Init(t.Context(), pubsub.Metadata{Base: mdata.Base{Properties: map[string]string{
+		"redisHost":   srv.Addr(),
+		consumerID:    "group",
+		"poolSize":    "2",
+		"poolTimeout": "10s",
+		concurrency:   "1",
+	}}}))
+	t.Cleanup(func() { r.Close() })
+
+	handler := func(context.Context, *pubsub.NewMessage) error { return nil }
+	start := time.Now()
+	for i := range 4 {
+		ctx, cancel := context.WithCancel(t.Context())
+		require.NoError(t, r.Subscribe(ctx, pubsub.SubscribeRequest{Topic: "quiet"}, handler), "subscribe %d", i)
+		// Let the read reach the server and block before cancelling.
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}
+	assert.Less(t, time.Since(start), 4*defaultPollBlock)
 }

@@ -556,6 +556,10 @@ const components = {
         certification: true,
         conformanceSetup: 'docker-compose.sh rabbitmq',
     },
+    'pubsub.redis': {
+        certification: true,
+        sourcePkg: ['pubsub/redis', 'common/component/redis'],
+    },
     'pubsub.redis.v6': {
         conformance: true,
         conformanceSetup: 'docker-compose.sh redisjson redis',

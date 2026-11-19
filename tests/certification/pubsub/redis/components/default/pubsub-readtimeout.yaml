@@ -1,0 +1,17 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus-readtimeout
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: localhost:6399
+  # A database of its own, so the test can tell its connections apart in CLIENT LIST.
+  - name: redisDB
+    value: "1"
+  - name: consumerID
+    value: certification
+  - name: readTimeout
+    value: 500ms

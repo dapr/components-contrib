@@ -48,6 +48,8 @@ const (
 	clusterName       = "redispubsubcertification"
 	dockerComposeYAML = "docker-compose.yml"
 	pubsubName        = "messagebus"
+	readTimeoutPubsub = "messagebus-readtimeout"
+	idleTopic         = "idle"
 	redisAddr         = "localhost:6399"
 	appPort           = 8000
 	healthPath        = "/healthz"
@@ -102,18 +104,46 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 				return err
 			}
 		}
-		return nil
+
+		return s.AddTopicEventHandler(&common.Subscription{
+			PubsubName: readTimeoutPubsub,
+			Topic:      idleTopic,
+			Route:      "/" + idleTopic,
+		}, func(context.Context, *common.TopicEvent) (bool, error) {
+			return false, nil
+		})
 	}
 
-	// blockedReaders counts the connections blocked in XREADGROUP on the server.
-	blockedReaders := func(ctx context.Context) (int, error) {
+	// xreadgroupConns lists the connections to database db whose last command was XREADGROUP.
+	xreadgroupConns := func(ctx context.Context, db string) ([]map[string]string, error) {
 		list, err := rdb.ClientList(ctx).Result()
+		if err != nil {
+			return nil, err
+		}
+		var conns []map[string]string
+		for _, line := range strings.Split(list, "\n") {
+			fields := map[string]string{}
+			for _, f := range strings.Fields(line) {
+				if k, v, ok := strings.Cut(f, "="); ok {
+					fields[k] = v
+				}
+			}
+			if fields["db"] == db && fields["cmd"] == "xreadgroup" {
+				conns = append(conns, fields)
+			}
+		}
+		return conns, nil
+	}
+
+	// blockedReaders counts the messagebus connections blocked in XREADGROUP on the server.
+	blockedReaders := func(ctx context.Context) (int, error) {
+		conns, err := xreadgroupConns(ctx, "0")
 		if err != nil {
 			return 0, err
 		}
 		n := 0
-		for _, line := range strings.Split(list, "\n") {
-			if strings.Contains(line, " cmd=xreadgroup") && hasFlag(line, 'b') {
+		for _, c := range conns {
+			if strings.Contains(c["flags"], "b") {
 				n++
 			}
 		}
@@ -136,6 +166,27 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 		require.Eventually(ctx, func() bool {
 			return counter.Load() > before
 		}, 10*time.Second, 50*time.Millisecond, "no health probe received")
+	}
+
+	// With readTimeout set, an idle read has to return empty when BLOCK elapses. If it fails
+	// with an i/o timeout instead, go-redis drops the connection and the reader redials.
+	idleReaderKeepsConnection := func(ctx flow.Context) error {
+		var first []map[string]string
+		require.EventuallyWithT(ctx, func(c *assert.CollectT) {
+			var err error
+			first, err = xreadgroupConns(ctx, "1")
+			require.NoError(c, err)
+			assert.Len(c, first, 1)
+		}, 10*time.Second, 50*time.Millisecond, "reader on %s did not start", idleTopic)
+
+		// Several BLOCK periods on an idle stream.
+		time.Sleep(3 * time.Second)
+
+		conns, err := xreadgroupConns(ctx, "1")
+		require.NoError(ctx, err)
+		require.Len(ctx, conns, 1)
+		assert.Equal(ctx, first[0]["id"], conns[0]["id"], "the idle reader reconnected")
+		return nil
 	}
 
 	flapAppHealth := func(ctx flow.Context) error {
@@ -183,20 +234,11 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 			)...,
 		)).
 		Step("wait for subscriptions", expectBlockedReaders(len(quietTopics), 20*time.Second)).
+		Step("idle reader keeps its connection", idleReaderKeepsConnection).
 		Step("flap app health", flapAppHealth).
 		Step("no reads left behind", expectBlockedReaders(len(quietTopics), 10*time.Second)).
 		Step("publish and receive", publishAndReceive).
 		Run()
-}
-
-// hasFlag reports whether a CLIENT LIST line has the given client flag set.
-func hasFlag(line string, flag byte) bool {
-	for _, field := range strings.Fields(line) {
-		if v, ok := strings.CutPrefix(field, "flags="); ok {
-			return strings.IndexByte(v, flag) >= 0
-		}
-	}
-	return false
 }
 
 func withAppHealthCheck() embedded.Option {

@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -537,4 +539,68 @@ func TestSupportedFeatures(t *testing.T) {
 	assert.NotNil(t, actual)
 	assert.Equal(t, state.FeatureETag, actual[0])
 	assert.Equal(t, state.FeatureTransactional, actual[1])
+}
+
+// Compile-time assertion that *SQLServer implements state.KeysLiker. Before this fix, KeysLike's
+// receiver used a value parameter (state.KeysLikeRequest) instead of the pointer
+// (*state.KeysLikeRequest) the interface requires, so *SQLServer silently failed to satisfy
+// state.KeysLiker despite the method being fully implemented - dead, unreachable code via the
+// interface-based dispatch the runtime actually uses. Every other provider implementing KeysLike
+// (etcd, in-memory, mongodb, mysql, redis, sqlite, postgresql) already has this same assertion in
+// its own tests; sqlserver didn't, which is exactly how the signature mismatch went uncaught.
+var _ state.KeysLiker = (*SQLServer)(nil)
+
+func TestKeysLikeThroughInterface(t *testing.T) {
+	// Call KeysLike through a state.KeysLiker-typed variable, not a concrete *SQLServer one - this
+	// is what would fail to compile at all against the pre-fix value-receiver signature, since a
+	// value receiver does not satisfy an interface method declared with a pointer parameter.
+	var store state.KeysLiker = &SQLServer{}
+
+	_, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: ""})
+	require.ErrorIs(t, err, state.ErrKeysLikeEmptyPattern)
+}
+
+func TestKeysLikeFeatureAdvertised(t *testing.T) {
+	// New() built the real feature list without state.FeatureKeysLike even after the interface
+	// signature fix above - the method was reachable but the store never told callers it supported
+	// it. Every other KeysLike implementer (mongodb, mysql, postgresql/v2) advertises this feature
+	// from its own New()/features list; sqlserver's is what actually gets registered with Dapr, so
+	// asserting on it directly (not a hand-built features slice) is what would have caught this.
+	s := New(logger.NewLogger("test"))
+	assert.True(t, state.FeatureKeysLike.IsPresent(s.Features()), "SQLServer should advertise FeatureKeysLike")
+}
+
+func TestKeysLikeContinuationTokenIsLastReturnedKey(t *testing.T) {
+	// The next page seeks with [Key] > @token, so the token has to be the last key on this page.
+	// Using the first held-back key instead silently skipped one key at every page boundary.
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	s := &SQLServer{db: db, metadata: sqlServerMetadata{
+		SQLServerAuthMetadata: sqlserver.SQLServerAuthMetadata{SchemaName: defaultSchema},
+		TableName:             "state",
+	}}
+
+	// PageSize 2 over-fetches 3 rows to detect whether another page exists.
+	mock.ExpectQuery(`SELECT TOP \(@take\) \[Key\]`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"Key"}).AddRow("a").AddRow("b").AddRow("c"))
+
+	got, err := s.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: "%", PageSize: ptr.Of(uint32(2))})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, got.Keys)
+	require.NotNil(t, got.ContinuationToken)
+	assert.Equal(t, "b", *got.ContinuationToken)
+
+	// The follow-up page must seek from "b", so "c" is the first key it returns.
+	mock.ExpectQuery(`AND \[Key\] > @token`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"Key"}).AddRow("c"))
+
+	got, err = s.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: "%", PageSize: ptr.Of(uint32(2)), ContinuationToken: got.ContinuationToken})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"c"}, got.Keys)
+	assert.Nil(t, got.ContinuationToken)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

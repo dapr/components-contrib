@@ -127,7 +127,9 @@ func (k *kubernetesSecretStore) getNamespaceFromMetadata(metadata map[string]str
 
 // Features returns the features available in this secret store.
 func (k *kubernetesSecretStore) Features() []secretstores.Feature {
-	return []secretstores.Feature{}
+	// A Kubernetes Secret's Data field is a map[string][]byte: multiple keys per secret is
+	// the normal case, not an edge case, as GetSecret/BulkGetSecret above already reflect.
+	return []secretstores.Feature{secretstores.FeatureMultipleKeyValuesPerSecret}
 }
 
 func (k *kubernetesSecretStore) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

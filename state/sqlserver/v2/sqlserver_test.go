@@ -554,3 +554,38 @@ func TestSupportedFeatures(t *testing.T) {
 	assert.Equal(t, state.FeatureETag, actual[0])
 	assert.Equal(t, state.FeatureTransactional, actual[1])
 }
+
+func TestNewDeclaresKeysLike(t *testing.T) {
+	store := New(logger.NewLogger("test"))
+	assert.True(t, state.FeatureKeysLike.IsPresent(store.Features()))
+
+	_, ok := store.(state.KeysLiker)
+	assert.True(t, ok, "SQL Server v2 store must implement state.KeysLiker")
+}
+
+func TestKeysLikeEmptyPattern(t *testing.T) {
+	store := &SQLServer{logger: logger.NewLogger("test")}
+	got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: ""})
+	require.ErrorIs(t, err, state.ErrKeysLikeEmptyPattern)
+	assert.Nil(t, got)
+}
+
+func TestSQLServerLikePattern(t *testing.T) {
+	tests := map[string]string{
+		"%":                     "%",
+		"prefix||%":             "prefix||%",
+		"abc_":                  "abc_",
+		"[abc]%":                `\[abc]%`,
+		`a\[b%`:                 `a\[b%`,
+		`a\%b[`:                 `a\%b\[`,
+		`a\\[b`:                 `a\\\[b`,
+		`trailing\`:             `trailing\`,
+		"app||wf||[id]||%":      `app||wf||\[id]||%`,
+		"no special characters": "no special characters",
+	}
+	for in, want := range tests {
+		t.Run(in, func(t *testing.T) {
+			assert.Equal(t, want, sqlServerLikePattern(in))
+		})
+	}
+}

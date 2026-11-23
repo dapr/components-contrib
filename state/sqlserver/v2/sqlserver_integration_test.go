@@ -39,6 +39,7 @@ import (
 	"github.com/dapr/components-contrib/metadata"
 	"github.com/dapr/components-contrib/state"
 	"github.com/dapr/kit/logger"
+	"github.com/dapr/kit/ptr"
 )
 
 const (
@@ -80,6 +81,7 @@ func TestIntegrationCases(t *testing.T) {
 	t.Run("Insert and Update Set Record Dates", testInsertAndUpdateSetRecordDates)
 	t.Run("Multiple initializations", testMultipleInitializations)
 	t.Run("Should preserve byte data when not base64 encoded", testNonBase64ByteData)
+	t.Run("KeysLike", testKeysLike)
 
 	// Run concurrent set tests 10 times
 	const executions = 10
@@ -657,5 +659,74 @@ func testNonBase64ByteData(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, request.GetEventId(), response.GetEventId())
+	})
+}
+
+func testKeysLike(t *testing.T) {
+	store := getTestStore(t, "")
+
+	keys := []string{
+		"app||wf||a||metadata",
+		"app||wf||b||metadata",
+		"app||wf||b||history-000001",
+		"app||wf||c||metadata",
+		"other||wf||a||metadata",
+		"bracket[1]",
+		"bracket1",
+	}
+	for _, k := range keys {
+		require.NoError(t, store.Set(t.Context(), &state.SetRequest{Key: k, Value: []byte("v")}))
+	}
+
+	// An expired row must not be listed.
+	require.NoError(t, store.Set(t.Context(), &state.SetRequest{
+		Key:      "app||wf||expired||metadata",
+		Value:    []byte("v"),
+		Metadata: map[string]string{"ttlInSeconds": "1"},
+	}))
+	_, err := store.db.ExecContext(t.Context(),
+		"UPDATE "+store.tableFullName()+" SET [ExpireDate] = DATEADD(SECOND, -10, GETDATE()) WHERE [Key] = 'app||wf||expired||metadata'")
+	require.NoError(t, err)
+
+	t.Run("pattern", func(t *testing.T) {
+		got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: "app||wf||%||metadata"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"app||wf||a||metadata", "app||wf||b||metadata", "app||wf||c||metadata"}, got.Keys)
+		assert.Nil(t, got.ContinuationToken)
+	})
+
+	t.Run("bracket matches literally", func(t *testing.T) {
+		got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{Pattern: "bracket[1]"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"bracket[1]"}, got.Keys)
+	})
+
+	t.Run("paging", func(t *testing.T) {
+		var all []string
+		var token *string
+		pages := 0
+		for {
+			got, err := store.KeysLike(t.Context(), &state.KeysLikeRequest{
+				Pattern:           "app||%",
+				PageSize:          ptr.Of(uint32(2)),
+				ContinuationToken: token,
+			})
+			require.NoError(t, err)
+			pages++
+			all = append(all, got.Keys...)
+			if got.ContinuationToken == nil {
+				break
+			}
+			assert.Len(t, got.Keys, 2)
+			assert.Equal(t, got.Keys[len(got.Keys)-1], *got.ContinuationToken)
+			token = got.ContinuationToken
+		}
+		assert.Equal(t, 2, pages)
+		assert.ElementsMatch(t, []string{
+			"app||wf||a||metadata",
+			"app||wf||b||metadata",
+			"app||wf||b||history-000001",
+			"app||wf||c||metadata",
+		}, all)
 	})
 }

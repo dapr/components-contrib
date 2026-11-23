@@ -417,6 +417,27 @@ func TestReasoningSummaryRequiresResponsesAPI(t *testing.T) {
 	require.EqualError(t, err, "reasoningSummary requires useResponsesAPI")
 }
 
+func TestReasoningSummaryValues(t *testing.T) {
+	for _, summary := range []string{"auto", "concise", "detailed"} {
+		t.Run(summary, func(t *testing.T) {
+			o := NewOpenAI(logger.NewLogger("test")).(*OpenAI)
+			require.NoError(t, o.Init(t.Context(), conversation.Metadata{Base: metadata.Base{Properties: map[string]string{
+				"key": "test-key", "model": "gpt-4o", "useResponsesAPI": "true", "reasoningSummary": summary,
+			}}}))
+		})
+	}
+
+	for _, summary := range []string{"Auto", "brief", "none"} {
+		t.Run("rejects "+summary, func(t *testing.T) {
+			o := NewOpenAI(logger.NewLogger("test")).(*OpenAI)
+			err := o.Init(t.Context(), conversation.Metadata{Base: metadata.Base{Properties: map[string]string{
+				"key": "test-key", "model": "gpt-4o", "useResponsesAPI": "true", "reasoningSummary": summary,
+			}}})
+			require.EqualError(t, err, `invalid reasoningSummary "`+summary+`": must be auto, concise or detailed`)
+		})
+	}
+}
+
 func TestResponsesAPIRejectsAzure(t *testing.T) {
 	o := NewOpenAI(logger.NewLogger("test")).(*OpenAI)
 	err := o.Init(t.Context(), conversation.Metadata{Base: metadata.Base{Properties: map[string]string{

@@ -142,6 +142,10 @@ metadata:
       the message's reasoning: auto, concise or detailed. Requires useResponsesAPI.
       OpenAI may require a verified organization to generate reasoning summaries.
     type: string
+    allowedValues:
+      - "auto"
+      - "concise"
+      - "detailed"
     example: 'auto'
   - name: headers
     required: false

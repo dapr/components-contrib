@@ -67,6 +67,12 @@ metadata:
       - "RenegotiateOnceAsClient"
       - "RenegotiateFreelyAsClient"
     example: '"RenegotiateOnceAsClient"'
+  - name: insecureSkipVerify
+    required: false
+    type: bool
+    default: 'false'
+    description: "Skip verification of the server's TLS certificate chain and host name (insecure). Only use for testing."
+    example: 'true'
   - name: securityToken
     required: false
     description: "The security token to include on an outgoing HTTP request as a header"

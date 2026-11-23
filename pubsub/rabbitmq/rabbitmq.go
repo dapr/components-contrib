@@ -419,6 +419,26 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		return r.preparePassiveSubscription(channel, req, queueName)
 	}
 
+	queueType := r.metadata.QueueType
+	if val := strings.ToLower(req.Metadata[reqMetadataQueueTypeKey]); val != "" {
+		if !queueTypeValid(val) {
+			return nil, fmt.Errorf("invalid queue type %s. Valid types are %s and %s", val, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
+		}
+		queueType = val
+	}
+
+	if queueType == amqp.QueueTypeQuorum {
+		if !r.metadata.Durable {
+			return nil, fmt.Errorf("%s quorum queues require %s to be true and queue '%s' resolved to %s: %w", errorMessagePrefix, metadataDurableKey, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+		}
+		if r.metadata.DeleteWhenUnused {
+			return nil, fmt.Errorf("%s quorum queues require %s to be false and queue '%s' resolved to %s: %w", errorMessagePrefix, metadataDeleteWhenUnusedKey, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+		}
+		if val, ok := req.Metadata[metadataMaxPriority]; ok && val != "" {
+			return nil, fmt.Errorf("%s %s is only supported by %s queues and queue '%s' resolved to %s: %w", errorMessagePrefix, metadataMaxPriority, amqp.QueueTypeClassic, queueName, amqp.QueueTypeQuorum, errTerminalSubscription)
+		}
+	}
+
 	var args amqp.Table
 	if r.metadata.EnableDeadLetter {
 		// declare dead letter exchange
@@ -436,8 +456,17 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		}
 		var q amqp.Queue
 		dlqArgs := r.metadata.formatQueueDeclareArgs(nil)
-		// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
-		dlqArgs[argQueueMode] = queueModeLazy
+		// the dead letter queue is quorum only when the component-level
+		// queueType is quorum: deployments that predate this field have a
+		// classic dead letter queue on the broker even when the subscription
+		// sets queueType, and typing it now would fail its redeclaration
+		if r.metadata.QueueType == amqp.QueueTypeQuorum && queueType == amqp.QueueTypeQuorum {
+			dlqArgs[amqp.QueueTypeArg] = amqp.QueueTypeQuorum
+		} else {
+			// dead letter queue use lazy mode, keeping as many messages as possible on disk to reduce RAM usage
+			// (x-queue-mode is a classic-queue-only argument)
+			dlqArgs[argQueueMode] = queueModeLazy
+		}
 		q, err = r.declareQueue(channel, dlqName, true, r.metadata.DeleteWhenUnused, dlqArgs)
 		if err != nil {
 			r.logger.Errorf("%s prepareSubscription for topic/queue '%s/%s' failed in queue declare: %v", logMessagePrefix, req.Topic, dlqName, err)
@@ -473,16 +502,7 @@ func (r *rabbitMQ) prepareSubscription(channel rabbitMQChannelBroker, req pubsub
 		args[argMaxPriority] = mp
 	}
 
-	// queue type is classic by default, but we allow user to create quorum queues if desired
-	if val := req.Metadata[reqMetadataQueueTypeKey]; val != "" {
-		if !queueTypeValid(val) {
-			return nil, fmt.Errorf("invalid queue type %s. Valid types are %s and %s", val, amqp.QueueTypeClassic, amqp.QueueTypeQuorum)
-		} else {
-			args[amqp.QueueTypeArg] = val
-		}
-	} else {
-		args[amqp.QueueTypeArg] = amqp.QueueTypeClassic
-	}
+	args[amqp.QueueTypeArg] = queueType
 
 	// Applying x-single-active-consumer if defined at subscription level
 	if val := req.Metadata[reqMetadataSingleActiveConsumerKey]; kitstrings.IsTruthy(val) {

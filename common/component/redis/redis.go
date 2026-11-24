@@ -138,8 +138,6 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	case metadata.PubSubType:
 		settings.ProcessingTimeout = 60 * time.Second
 		settings.RedeliverInterval = 15 * time.Second
-		// The documented default. It also bounds the XREADGROUP block, which would otherwise be BLOCK 0.
-		settings.ReadTimeout = Duration(3 * time.Second)
 		settings.QueueDepth = 100
 		settings.Concurrency = 10
 	}
@@ -151,6 +149,12 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 
 	switch componentType {
 	case metadata.PubSubType:
+		// 0 means the default, as documented on ReadTimeout. Applied here, after Decode, so an
+		// explicit "0" gets it too. It also bounds the XREADGROUP block, which would otherwise be BLOCK 0.
+		if settings.ReadTimeout == 0 {
+			settings.ReadTimeout = Duration(3 * time.Second)
+		}
+
 		if val, ok := properties[processingTimeoutKey]; ok && val != "" {
 			if processingTimeoutMs, parseErr := strconv.ParseUint(val, 10, 64); parseErr == nil {
 				// because of legacy reasons, we need to interpret a number as milliseconds

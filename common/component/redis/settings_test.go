@@ -338,6 +338,13 @@ func TestPubSubDurationSettings(t *testing.T) {
 			expectedEntryKeepAlive: 30 * time.Second,
 			expectedReadTimeout:    10 * time.Second,
 		},
+		"explicit zero read timeout uses the default": {
+			properties:             map[string]string{"readTimeout": "0"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 30 * time.Second,
+			expectedReadTimeout:    3 * time.Second,
+		},
 		"keep-alive can be disabled": {
 			properties:             map[string]string{"entryKeepAliveInterval": "0"},
 			expectedRedeliver:      15 * time.Second,

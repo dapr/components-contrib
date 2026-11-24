@@ -655,5 +655,5 @@ func TestResubscribeDoesNotLeakBlockedReads(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		cancel()
 	}
-	assert.Less(t, time.Since(start), 4*defaultPollBlock)
+	assert.Less(t, time.Since(start), 4*time.Duration(r.clientSettings.ReadTimeout))
 }

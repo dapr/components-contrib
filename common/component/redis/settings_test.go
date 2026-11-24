@@ -411,3 +411,31 @@ func TestNegativeDurationsRejected(t *testing.T) {
 		})
 	}
 }
+
+// TestPubSubReadTimeoutDefault checks that pub/sub gets the documented 3s readTimeout when it is
+// not set, so XREADGROUP never blocks forever, while other component types keep the go-redis default.
+func TestPubSubReadTimeoutDefault(t *testing.T) {
+	tests := map[string]struct {
+		componentType metadata.ComponentType
+		properties    map[string]string
+		expected      time.Duration
+	}{
+		"pubsub unset":    {metadata.PubSubType, nil, 3 * time.Second},
+		"pubsub explicit": {metadata.PubSubType, map[string]string{"readTimeout": "10s"}, 10 * time.Second},
+		"state unchanged": {metadata.StateStoreType, nil, 0},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			props := map[string]string{"redisHost": "localhost:6379"}
+			for k, v := range tc.properties {
+				props[k] = v
+			}
+
+			log := logger.NewLogger("test")
+			_, settings, err := ParseClientFromProperties(props, tc.componentType, t.Context(), &log)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, time.Duration(settings.ReadTimeout))
+		})
+	}
+}

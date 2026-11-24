@@ -138,6 +138,8 @@ func ParseClientFromProperties(properties map[string]string, componentType metad
 	case metadata.PubSubType:
 		settings.ProcessingTimeout = 60 * time.Second
 		settings.RedeliverInterval = 15 * time.Second
+		// The documented default. It also bounds the XREADGROUP block, which would otherwise be BLOCK 0.
+		settings.ReadTimeout = Duration(3 * time.Second)
 		settings.QueueDepth = 100
 		settings.Concurrency = 10
 	}

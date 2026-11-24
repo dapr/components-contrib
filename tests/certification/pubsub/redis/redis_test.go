@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	redis "github.com/go-redis/redis/v8"
 	"github.com/dapr/go-sdk/service/common"
+	redis "github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,8 +48,6 @@ const (
 	clusterName       = "redispubsubcertification"
 	dockerComposeYAML = "docker-compose.yml"
 	pubsubName        = "messagebus"
-	readTimeoutPubsub = "messagebus-readtimeout"
-	idleTopic         = "idle"
 	redisAddr         = "localhost:6399"
 	appPort           = 8000
 	healthPath        = "/healthz"
@@ -104,18 +102,11 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 				return err
 			}
 		}
-
-		return s.AddTopicEventHandler(&common.Subscription{
-			PubsubName: readTimeoutPubsub,
-			Topic:      idleTopic,
-			Route:      "/" + idleTopic,
-		}, func(context.Context, *common.TopicEvent) (bool, error) {
-			return false, nil
-		})
+		return nil
 	}
 
-	// xreadgroupConns lists the connections to database db whose last command was XREADGROUP.
-	xreadgroupConns := func(ctx context.Context, db string) ([]map[string]string, error) {
+	// xreadgroupConns lists the connections whose last command was XREADGROUP.
+	xreadgroupConns := func(ctx context.Context) ([]map[string]string, error) {
 		list, err := rdb.ClientList(ctx).Result()
 		if err != nil {
 			return nil, err
@@ -128,7 +119,7 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 					fields[k] = v
 				}
 			}
-			if fields["db"] == db && fields["cmd"] == "xreadgroup" {
+			if fields["cmd"] == "xreadgroup" {
 				conns = append(conns, fields)
 			}
 		}
@@ -137,7 +128,7 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 
 	// blockedReaders counts the messagebus connections blocked in XREADGROUP on the server.
 	blockedReaders := func(ctx context.Context) (int, error) {
-		conns, err := xreadgroupConns(ctx, "0")
+		conns, err := xreadgroupConns(ctx)
 		if err != nil {
 			return 0, err
 		}
@@ -168,24 +159,26 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 		}, 10*time.Second, 50*time.Millisecond, "no health probe received")
 	}
 
-	// With readTimeout set, an idle read has to return empty when BLOCK elapses. If it fails
-	// with an i/o timeout instead, go-redis drops the connection and the reader redials.
-	idleReaderKeepsConnection := func(ctx flow.Context) error {
-		var first []map[string]string
-		require.EventuallyWithT(ctx, func(c *assert.CollectT) {
-			var err error
-			first, err = xreadgroupConns(ctx, "1")
-			require.NoError(c, err)
-			assert.Len(c, first, 1)
-		}, 10*time.Second, 50*time.Millisecond, "reader on %s did not start", idleTopic)
+	// An idle read has to return empty when its 3s BLOCK elapses. If it failed with an i/o
+	// timeout instead, go-redis would drop the connection and the reader would redial.
+	idleReadersKeepConnections := func(ctx flow.Context) error {
+		connectionsReceived := func() string {
+			info, err := rdb.Info(ctx, "stats").Result()
+			require.NoError(ctx, err)
+			for _, line := range strings.Split(info, "\r\n") {
+				if v, ok := strings.CutPrefix(line, "total_connections_received:"); ok {
+					return v
+				}
+			}
+			require.Fail(ctx, "total_connections_received not found in INFO stats")
+			return ""
+		}
+		before := connectionsReceived()
 
-		// Several BLOCK periods on an idle stream.
-		time.Sleep(3 * time.Second)
+		// Several BLOCK periods on idle streams.
+		time.Sleep(10 * time.Second)
 
-		conns, err := xreadgroupConns(ctx, "1")
-		require.NoError(ctx, err)
-		require.Len(ctx, conns, 1)
-		assert.Equal(ctx, first[0]["id"], conns[0]["id"], "the idle reader reconnected")
+		assert.Equal(ctx, before, connectionsReceived(), "an idle reader reconnected")
 		return nil
 	}
 
@@ -234,7 +227,7 @@ func TestRedisResubscribeOnQuietTopics(t *testing.T) {
 			)...,
 		)).
 		Step("wait for subscriptions", expectBlockedReaders(len(quietTopics), 20*time.Second)).
-		Step("idle reader keeps its connection", idleReaderKeepsConnection).
+		Step("idle readers keep their connections", idleReadersKeepConnections).
 		Step("flap app health", flapAppHealth).
 		Step("no reads left behind", expectBlockedReaders(len(quietTopics), 10*time.Second)).
 		Step("publish and receive", publishAndReceive).
@@ -245,7 +238,7 @@ func withAppHealthCheck() embedded.Option {
 	return func(c *runtime.Config) {
 		c.EnableAppHealthCheck = true
 		c.AppHealthCheckPath = healthPath
-		c.AppHealthProbeInterval = 1   // seconds
+		c.AppHealthProbeInterval = 1  // seconds
 		c.AppHealthProbeTimeout = 500 // milliseconds
 		c.AppHealthThreshold = 1
 	}

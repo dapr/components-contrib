@@ -1,0 +1,19 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: infisical
+  namespace: default
+spec:
+  type: secretstores.infisical
+  version: v1
+  metadata:
+    - name: projectId
+      value: ${{INFISICAL_PROJECT_ID}}
+    - name: environment
+      value: ${{INFISICAL_ENVIRONMENT}}
+    - name: apiUrl
+      value: ${{INFISICAL_API_URL}}
+    - name: clientId
+      value: ${{INFISICAL_CLIENT_ID}}
+    - name: clientSecret
+      value: ${{INFISICAL_CLIENT_SECRET}}

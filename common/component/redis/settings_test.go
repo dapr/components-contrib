@@ -301,36 +301,56 @@ func TestPubSubDurationSettings(t *testing.T) {
 		expectedRedeliver      time.Duration
 		expectedProcessing     time.Duration
 		expectedEntryKeepAlive time.Duration
+		expectedReadTimeout    time.Duration
 	}{
 		"defaults": {
 			properties:             map[string]string{},
 			expectedRedeliver:      15 * time.Second,
 			expectedProcessing:     60 * time.Second,
 			expectedEntryKeepAlive: 30 * time.Second,
+			expectedReadTimeout:    3 * time.Second,
 		},
 		"duration strings": {
 			properties:             map[string]string{"redeliverInterval": "30s", "processingTimeout": "15m"},
 			expectedRedeliver:      30 * time.Second,
 			expectedProcessing:     15 * time.Minute,
 			expectedEntryKeepAlive: 7*time.Minute + 30*time.Second,
+			expectedReadTimeout:    3 * time.Second,
 		},
 		"legacy bare milliseconds": {
 			properties:             map[string]string{"redeliverInterval": "30000", "processingTimeout": "20000"},
 			expectedRedeliver:      30 * time.Second,
 			expectedProcessing:     20 * time.Second,
 			expectedEntryKeepAlive: 10 * time.Second,
+			expectedReadTimeout:    3 * time.Second,
 		},
 		"explicit keep-alive wins over the derived default": {
 			properties:             map[string]string{"processingTimeout": "60s", "entryKeepAliveInterval": "5s"},
 			expectedRedeliver:      15 * time.Second,
 			expectedProcessing:     60 * time.Second,
 			expectedEntryKeepAlive: 5 * time.Second,
+			expectedReadTimeout:    3 * time.Second,
+		},
+		"explicit read timeout": {
+			properties:             map[string]string{"readTimeout": "10s"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 30 * time.Second,
+			expectedReadTimeout:    10 * time.Second,
+		},
+		"explicit zero read timeout uses the default": {
+			properties:             map[string]string{"readTimeout": "0"},
+			expectedRedeliver:      15 * time.Second,
+			expectedProcessing:     60 * time.Second,
+			expectedEntryKeepAlive: 30 * time.Second,
+			expectedReadTimeout:    3 * time.Second,
 		},
 		"keep-alive can be disabled": {
 			properties:             map[string]string{"entryKeepAliveInterval": "0"},
 			expectedRedeliver:      15 * time.Second,
 			expectedProcessing:     60 * time.Second,
 			expectedEntryKeepAlive: 0,
+			expectedReadTimeout:    3 * time.Second,
 		},
 	}
 
@@ -348,6 +368,7 @@ func TestPubSubDurationSettings(t *testing.T) {
 			require.Equal(t, tc.expectedRedeliver, settings.RedeliverInterval, "redeliverInterval")
 			require.Equal(t, tc.expectedProcessing, settings.ProcessingTimeout, "processingTimeout")
 			require.Equal(t, tc.expectedEntryKeepAlive, settings.EntryKeepAliveInterval, "entryKeepAliveInterval")
+			require.Equal(t, tc.expectedReadTimeout, time.Duration(settings.ReadTimeout), "readTimeout")
 		})
 	}
 }

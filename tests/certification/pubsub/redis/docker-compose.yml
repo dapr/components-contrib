@@ -1,0 +1,8 @@
+version: "3.3"
+services:
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+    ports:
+      - "6399:6379"

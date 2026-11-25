@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dapr/components-contrib/metadata"
+	"github.com/dapr/kit/logger"
 )
 
 func TestResolveHost(t *testing.T) {
@@ -287,4 +290,41 @@ func TestSettings(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestPubSubReadTimeout covers the pub/sub readTimeout default, which also bounds the XREADGROUP
+// block that would otherwise be BLOCK 0.
+func TestPubSubReadTimeout(t *testing.T) {
+	tests := map[string]struct {
+		properties          map[string]string
+		expectedReadTimeout time.Duration
+	}{
+		"defaults": {
+			properties:          map[string]string{},
+			expectedReadTimeout: 3 * time.Second,
+		},
+		"explicit read timeout": {
+			properties:          map[string]string{"readTimeout": "10s"},
+			expectedReadTimeout: 10 * time.Second,
+		},
+		"explicit zero read timeout uses the default": {
+			properties:          map[string]string{"readTimeout": "0"},
+			expectedReadTimeout: 3 * time.Second,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			props := map[string]string{"redisHost": "localhost:6379"}
+			for k, v := range tc.properties {
+				props[k] = v
+			}
+
+			log := logger.NewLogger("test")
+			_, settings, err := ParseClientFromProperties(props, metadata.PubSubType, t.Context(), &log)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectedReadTimeout, time.Duration(settings.ReadTimeout), "readTimeout")
+		})
+	}
 }

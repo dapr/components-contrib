@@ -206,13 +206,18 @@ func (c v9Client) XAck(ctx context.Context, stream string, group string, message
 }
 
 func (c v9Client) XReadGroupResult(ctx context.Context, group string, consumer string, streams []string, count int64, block time.Duration) ([]RedisXStream, error) {
-	var readCtx context.Context
+	readCtx := ctx
 	if c.readTimeout > 0 {
-		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(c.readTimeout))
+		// A blocking read is answered by the server after up to `block`, so the deadline has to
+		// cover that wait plus the read timeout. A deadline of just readTimeout expires together
+		// with BLOCK and turns an idle read into an i/o timeout.
+		timeout := time.Duration(c.readTimeout)
+		if block > 0 {
+			timeout += block
+		}
+		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 		readCtx = timeoutCtx
-	} else {
-		readCtx = ctx
 	}
 	res, err := c.client.XReadGroup(readCtx,
 		&v9.XReadGroupArgs{

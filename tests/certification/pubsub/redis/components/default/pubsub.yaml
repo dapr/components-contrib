@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: messagebus
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: localhost:6399
+  - name: consumerID
+    value: certification
+  # Small enough that a few leaked connections exhaust it. readTimeout is
+  # deliberately not set: that is the default configuration.
+  - name: poolSize
+    value: "6"

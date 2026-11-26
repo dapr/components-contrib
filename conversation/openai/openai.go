@@ -100,6 +100,18 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	if md.UseResponsesAPI && strings.EqualFold(md.APIType, "azure") {
 		return errors.New("useResponsesAPI is not supported when apiType is set to 'azure'")
 	}
+	if md.ReasoningSummary != "" {
+		if !md.UseResponsesAPI {
+			return errors.New("reasoningSummary requires useResponsesAPI")
+		}
+		// The values the Responses API accepts for reasoning.summary. The API
+		// rejects any other value on every request, so fail on load instead.
+		switch md.ReasoningSummary {
+		case "auto", "concise", "detailed":
+		default:
+			return fmt.Errorf("invalid reasoningSummary %q: must be auto, concise or detailed", md.ReasoningSummary)
+		}
+	}
 
 	headers, err := conversation.ParseHeaders(md.Headers)
 	if err != nil {
@@ -134,7 +146,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 	}
 
 	if md.UseResponsesAPI {
-		o.Model, err = newResponsesModel(model, md.Key, md.Endpoint, httpClient, headers)
+		o.Model, err = newResponsesModel(model, md.Key, md.Endpoint, md.ReasoningSummary, httpClient, headers)
 	} else {
 		o.Model, err = openai.New(options...)
 	}
@@ -144,6 +156,7 @@ func (o *OpenAI) Init(ctx context.Context, meta conversation.Metadata) error {
 
 	o.SetModel(model)
 	o.SetDefaultMaxTokens(md.MaxTokens)
+	o.SetReasoningEffortOptions(reasoningEffortOptions)
 	if md.UseLegacyMaxTokensField {
 		o.SetPostCallOptions(openai.WithLegacyMaxTokensField())
 	}

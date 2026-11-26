@@ -248,6 +248,73 @@ func TestConverseMaxTokens(t *testing.T) {
 	}
 }
 
+// TestConverseReasoning verifies that echo reflects the reasoning effort and
+// any reasoning sent back on assistant messages in the result's reasoning, so
+// that callers can observe both reaching the component. Reasoning parts are
+// kept out of the echoed content and the token counts.
+func TestConverseReasoning(t *testing.T) {
+	history := []llms.MessageContent{
+		{Role: llms.ChatMessageTypeHuman, Parts: []llms.ContentPart{llms.TextContent{Text: "one"}}},
+		{Role: llms.ChatMessageTypeAI, Parts: []llms.ContentPart{
+			conversation.ReasoningContent{Text: "earlier thought"},
+			llms.TextContent{Text: "two"},
+		}},
+	}
+
+	tests := []struct {
+		name          string
+		messages      []llms.MessageContent
+		effort        *string
+		wantReasoning string
+	}{
+		{
+			name:     "no effort and no reasoning returns no reasoning",
+			messages: history[:1],
+		},
+		{
+			name:          "effort is echoed",
+			messages:      history[:1],
+			effort:        ptr.Of("high"),
+			wantReasoning: "reasoning effort: high",
+		},
+		{
+			name:          "empty effort is treated as unset",
+			messages:      history[:1],
+			effort:        ptr.Of(""),
+			wantReasoning: "",
+		},
+		{
+			name:          "reasoning sent back is echoed",
+			messages:      history,
+			wantReasoning: "earlier thought",
+		},
+		{
+			name:          "effort comes before reasoning sent back",
+			messages:      history,
+			effort:        ptr.Of("low"),
+			wantReasoning: "reasoning effort: low\nearlier thought",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewEcho(logger.NewLogger("echo test"))
+			resp, err := e.Converse(t.Context(), &conversation.Request{
+				Message:         &tt.messages,
+				ReasoningEffort: tt.effort,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Outputs, 1)
+			require.Len(t, resp.Outputs[0].Choices, 1)
+
+			message := resp.Outputs[0].Choices[0].Message
+			assert.Equal(t, tt.wantReasoning, message.Reasoning)
+			assert.NotContains(t, message.Content, "earlier thought")
+			assert.Equal(t, uint64(len(tt.messages)), resp.Usage.PromptTokens)
+		})
+	}
+}
+
 func TestInitInvalidMaxTokens(t *testing.T) {
 	e := NewEcho(logger.NewLogger("echo test"))
 	err := e.Init(t.Context(), conversation.Metadata{

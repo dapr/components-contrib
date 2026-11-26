@@ -48,6 +48,12 @@ type Request struct {
 	// math.MaxInt32 are clamped to math.MaxInt32.
 	MaxTokens *int64 `json:"maxTokens,omitempty"`
 
+	// ReasoningEffort asks a reasoning model to trade cost against quality
+	// (e.g. "low", "medium", "high"). It is passed through as is; each component
+	// maps it to its provider's parameter and ignores it when the provider has
+	// none. Nil or empty means the provider default.
+	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+
 	// Metadata fields that are separate from the actual component metadata fields
 	// that get passed to the LLM through the conversation.
 	// https://github.com/openai/openai-go/blob/main/chatcompletion.go#L3010
@@ -84,5 +90,22 @@ type Message struct {
 	Content         string           `json:"content,omitempty"`
 	ToolCallRequest *[]llms.ToolCall `json:"toolCallRequest,omitempty"`
 
+	// Reasoning is the model's reasoning text returned alongside the answer,
+	// when the provider exposes it.
+	Reasoning string `json:"reasoning,omitempty"`
+
 	// Note: we do not have refusal passed back bc langchain does not support it.
+}
+
+// ReasoningContent is a content part carrying the reasoning a model returned on
+// an earlier assistant turn, sent back so the model can read it on the next one.
+// It is not a langchaingo type: components strip it before calling langchaingo
+// (see langchaingokit.SplitReasoning) and forward it themselves when their
+// provider accepts it.
+type ReasoningContent struct {
+	// llms.ContentPart is sealed by an unexported method, so embedding it is the
+	// only way to satisfy it outside langchaingo. It is always nil and never called.
+	llms.ContentPart `json:"-"`
+
+	Text string `json:"text"`
 }

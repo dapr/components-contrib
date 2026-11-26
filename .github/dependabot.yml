@@ -20,6 +20,14 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   # gomod build-tools
   - package-ecosystem: "gomod"
     directory: "/build-tools"
@@ -30,13 +38,17 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
-  # gomod middleware
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  # gomod middleware (one entry per directory so each gets its own grouped PR)
   - package-ecosystem: "gomod"
-    directories: 
-      - "/middleware/http/was/example"
-      - "/middleware/http/wasm/internal/e2e-guests/rewrite"
-      - "/middleware/http/wasm/internal/e2e-guests/config"
-      - "/middleware/http/wasm/internal/e2e-guests/output"
+    directory: "/middleware/http/wasm/example"
     schedule:
       interval: "weekly"
     cooldown:
@@ -44,13 +56,16 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
-  # gomod bindings
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   - package-ecosystem: "gomod"
-    directories: 
-      - "/bindings/wasm/testdata/example"
-      - "/bindings/wasm/testdata/http"
-      - "/bindings/wasm/testdata/args"
-      - "/bindings/wasm/testdata/loop"
+    directory: "/middleware/http/wasm/internal/e2e-guests/rewrite"
     schedule:
       interval: "weekly"
     cooldown:
@@ -58,11 +73,16 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
-  # gomod tests
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
   - package-ecosystem: "gomod"
-    directories: 
-      - "/tests/e2e/pubsub/jetstream"
-      - "/tests/certification"
+    directory: "/middleware/http/wasm/internal/e2e-guests/config"
     schedule:
       interval: "weekly"
     cooldown:
@@ -70,4 +90,150 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
-  
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "gomod"
+    directory: "/middleware/http/wasm/internal/e2e-guests/output"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  # gomod bindings (one entry per directory so each gets its own grouped PR)
+  - package-ecosystem: "gomod"
+    directory: "/bindings/wasm/testdata/example"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "gomod"
+    directory: "/bindings/wasm/testdata/http"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "gomod"
+    directory: "/bindings/wasm/testdata/args"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "gomod"
+    directory: "/bindings/wasm/testdata/loop"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  # gomod tests (one entry per directory so each gets its own grouped PR)
+  - package-ecosystem: "gomod"
+    directory: "/tests/e2e/pubsub/jetstream"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "gomod"
+    directory: "/tests/certification"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR per directory; majors stay separate.
+      gomod-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      gomod-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+  # npm Cloudflare worker
+  - package-ecosystem: "npm"
+    directory: "/common/component/cloudflare/worker-src"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    groups:
+      # Minor and patch updates arrive as one PR; majors stay separate.
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      npm-security-minor-patch:
+        applies-to: security-updates
+        update-types: ["minor", "patch"]

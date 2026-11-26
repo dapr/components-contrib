@@ -103,7 +103,7 @@ func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error
 	upgradeMetadata(&meta)
 	err := metadata.DecodeMetadata(meta.Properties, md)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding metadata: %w", err)
 	}
 
 	if md.Region != "" {
@@ -166,7 +166,7 @@ func (s *snsSqs) getSnsSqsMetadata(meta pubsub.Metadata) (*snsSqsMetadata, error
 func (md *snsSqsMetadata) setConcurrencyMode(props map[string]string) error {
 	c, err := pubsub.Concurrency(props)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting concurrency mode: %w", err)
 	}
 	md.ConcurrencyMode = c
 

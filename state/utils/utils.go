@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"strconv"
-	"strings"
 )
 
 func Marshal(val interface{}, marshaler func(interface{}) ([]byte, error)) ([]byte, error) {
@@ -61,8 +60,6 @@ func JSONStringify(value any) ([]byte, error) {
 			return []byte("true"), nil
 		}
 		return []byte("false"), nil
-	case string:
-		return []byte(`"` + strings.ReplaceAll(value, `"`, `\"`) + `"`), nil
 	default:
 		var buf bytes.Buffer
 		enc := json.NewEncoder(&buf)

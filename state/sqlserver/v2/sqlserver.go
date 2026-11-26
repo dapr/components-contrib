@@ -75,6 +75,7 @@ func New(logger logger.Logger) state.Store {
 			state.FeatureETag,
 			state.FeatureTransactional,
 			state.FeatureTTL,
+			state.FeatureKeysLike,
 		},
 		logger:          logger,
 		migratorFactory: newMigration,
@@ -665,6 +666,105 @@ func (s *SQLServer) executeSet(ctx context.Context, db dbExecutor, req *state.Se
 	}
 
 	return nil
+}
+
+// KeysLike returns the keys matching the given SQL LIKE pattern, skipping
+// expired rows. Results are ordered by [Key] (the primary key). When a page
+// size is given and more keys remain, the response carries a continuation
+// token: the last key returned. The next call resumes strictly after it.
+func (s *SQLServer) KeysLike(ctx context.Context, req *state.KeysLikeRequest) (*state.KeysLikeResponse, error) {
+	if len(req.Pattern) == 0 {
+		return nil, state.ErrKeysLikeEmptyPattern
+	}
+
+	// Non-string key types (uuid, integer) are matched on their string form.
+	// String keys are matched directly so prefix patterns can use the index.
+	keyExpr := "[Key]"
+	if s.metadata.keyTypeParsed != "" && s.metadata.keyTypeParsed != StringKeyType {
+		keyExpr = "CONVERT(NVARCHAR(MAX), [Key])"
+	}
+
+	where := []string{
+		keyExpr + ` LIKE @Pattern ESCAPE '\'`,
+		"([ExpireDate] IS NULL OR [ExpireDate] > GETDATE())",
+	}
+	args := []any{sql.Named("Pattern", sqlServerLikePattern(req.Pattern))}
+
+	if req.ContinuationToken != nil && *req.ContinuationToken != "" {
+		where = append(where, "[Key] > @After")
+		args = append(args, sql.Named("After", *req.ContinuationToken))
+	}
+
+	// Fetch one extra row to know whether another page exists.
+	top := ""
+	var pageSize uint32
+	if req.PageSize != nil && *req.PageSize > 0 {
+		pageSize = *req.PageSize
+		top = "TOP (@Top) "
+		args = append(args, sql.Named("Top", int64(pageSize)+1))
+	}
+
+	// Schema and table names are validated at Init via IsValidSQLName, so
+	// concatenation here is safe.
+	//nolint:gosec
+	query := fmt.Sprintf(
+		"SELECT %sCONVERT(NVARCHAR(MAX), [Key]) FROM %s WHERE %s ORDER BY [Key] ASC",
+		top, s.tableFullName(), strings.Join(where, " AND "),
+	)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	keys := make([]string, 0, 256)
+	for rows.Next() {
+		var k string
+		if err = rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	resp := &state.KeysLikeResponse{}
+	//nolint:gosec
+	if pageSize > 0 && uint32(len(keys)) > pageSize {
+		keys = keys[:pageSize]
+		resp.ContinuationToken = ptr.Of(keys[pageSize-1])
+	}
+	resp.Keys = keys
+
+	return resp, nil
+}
+
+// sqlServerLikePattern makes a portable LIKE pattern (where only %, _ and the
+// backslash escape are special) safe for SQL Server, which also treats '[' as
+// the start of a character class. Each unescaped '[' is escaped so it matches
+// literally, as it does on the other state stores.
+func sqlServerLikePattern(pattern string) string {
+	if !strings.Contains(pattern, "[") {
+		return pattern
+	}
+	var b strings.Builder
+	b.Grow(len(pattern) + 4)
+	for i := 0; i < len(pattern); i++ {
+		c := pattern[i]
+		switch {
+		case c == '\\' && i+1 < len(pattern):
+			b.WriteByte(c)
+			i++
+			b.WriteByte(pattern[i])
+		case c == '[':
+			b.WriteString(`\[`)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
 }
 
 func (s *SQLServer) GetComponentMetadata() (metadataInfo metadata.MetadataMap) {

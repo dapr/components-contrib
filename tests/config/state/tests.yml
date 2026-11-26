@@ -49,7 +49,7 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: sqlserver.v2
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
@@ -59,7 +59,7 @@ components:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"
   - component: sqlserver.v2.docker
-    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore" ]
+    operations: [ "transaction", "etag", "first-write", "ttl", "actorStateStore", "keyslike" ]
     config:
       # This component requires etags to be hex-encoded numbers
       badEtag: "FFFF"

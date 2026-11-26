@@ -40,6 +40,10 @@ type StateStore struct {
 	bucket nats.KeyValue
 	logger logger.Logger
 	closed atomic.Bool
+
+	// natsOpts are appended to the connection options built in Init, so they
+	// take precedence. Only tests set them.
+	natsOpts []nats.Option
 }
 
 type jetstreamMetadata struct {
@@ -67,8 +71,28 @@ func (js *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 		return err
 	}
 
-	var opts []nats.Option
-	opts = append(opts, nats.Name(meta.Name))
+	// nats.go closes the connection for good after 60 failed reconnect
+	// attempts (about two minutes), and nothing re-creates it short of a
+	// sidecar restart. Keep reconnecting for as long as the store lives.
+	opts := []nats.Option{
+		nats.Name(meta.Name),
+		nats.MaxReconnects(-1),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			if js.closed.Load() {
+				return
+			}
+			js.logger.Warnf("disconnected from nats, reconnecting: %v", err)
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			js.logger.Infof("reconnected to nats at %s", nc.ConnectedUrlRedacted())
+		}),
+		nats.ClosedHandler(func(nc *nats.Conn) {
+			if js.closed.Load() {
+				return
+			}
+			js.logger.Errorf("nats connection closed: %v", nc.LastError())
+		}),
+	}
 
 	// Set nats.UserJWT options when jwt and seed key is provided.
 	if meta.Jwt != "" && meta.SeedKey != "" {
@@ -78,6 +102,8 @@ func (js *StateStore) Init(_ context.Context, metadata state.Metadata) error {
 			return sigHandler(meta.SeedKey, nonce)
 		}))
 	}
+
+	opts = append(opts, js.natsOpts...)
 
 	js.nc, err = nats.Connect(meta.NatsURL, opts...)
 	if err != nil {

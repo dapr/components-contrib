@@ -2,6 +2,8 @@
 
 The purpose of this module is to provide tests that certify the Pulsar Pubsub as a stable component.
 
+The Pulsar cluster starts once per authentication mode and is shared by the test flows. Each flow uses its own topic names; schema flows use dedicated topics matching their component configuration.
+
 **Certification Tests**
 - Verify with single publisher / single subscriber
    - Run dapr application with 1 publisher and 1 subscriber
@@ -39,11 +41,11 @@ The purpose of this module is to provide tests that certify the Pulsar Pubsub as
    - Subscriber is subscribed to 1 topic
    - Simulate network interruptions and verify that the component retires on error
    - Verify that all expected messages were received
-- Verify data with an optional metadata query parameter deliverAfter/deliverAt set
+- Verify data with deliverAfter/deliverAt set to a 15s delay
    - Run dapr application with 1 publisher and 1 subscriber
    - Publisher publishes to 1 topic
    - Subscriber is subscribed to 1 topic
-   - Verify that subscriber has not immediately received messages
+   - Verify that subscriber receives no messages in the first 5s
    - Wait for message delay to pass
    - Verify that all expected messages were received
 - Verify data with persistent topics after pulsar restart

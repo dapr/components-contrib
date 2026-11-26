@@ -216,3 +216,53 @@ func TestConverseKeepsEveryToolCall(t *testing.T) {
 		"user tool_result t2",
 	}, blocks)
 }
+
+// Anthropic rejects empty text blocks, and clients send an assistant turn that
+// only calls tools as an empty text part followed by the calls.
+func TestConverseDropsEmptyAssistantText(t *testing.T) {
+	var body struct {
+		Messages []struct {
+			Role    string           `json:"role"`
+			Content []map[string]any `json:"content"`
+		} `json:"messages"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		w.Header().Set("content-type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"m","type":"message","role":"assistant","model":"x",`+
+			`"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn",`+
+			`"usage":{"input_tokens":1,"output_tokens":1}}`)
+	}))
+	defer srv.Close()
+
+	a := NewAnthropic(logger.NewLogger("test"))
+	require.NoError(t, a.Init(t.Context(), conversation.Metadata{Base: metadata.Base{
+		Properties: map[string]string{"key": "x", "endpoint": srv.URL},
+	}}))
+
+	msgs := []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeHuman, "read a"),
+		llms.TextParts(llms.ChatMessageTypeAI, ""),
+		{Role: llms.ChatMessageTypeAI, Parts: []llms.ContentPart{
+			llms.TextContent{Text: ""},
+			llms.ToolCall{ID: "t1", Type: "function", FunctionCall: &llms.FunctionCall{Name: "read", Arguments: `{"path":"a"}`}},
+		}},
+		{Role: llms.ChatMessageTypeTool, Parts: []llms.ContentPart{
+			llms.ToolCallResponse{ToolCallID: "t1", Name: "read", Content: "A"},
+		}},
+	}
+	tools := []llms.Tool{{Type: "function", Function: &llms.FunctionDefinition{
+		Name: "read", Parameters: map[string]any{"type": "object"},
+	}}}
+	auto := "auto"
+	_, err := a.Converse(t.Context(), &conversation.Request{Message: &msgs, Tools: &tools, ToolChoice: &auto})
+	require.NoError(t, err)
+
+	var blocks []string
+	for _, m := range body.Messages {
+		for _, block := range m.Content {
+			blocks = append(blocks, m.Role+" "+block["type"].(string))
+		}
+	}
+	assert.Equal(t, []string{"user text", "assistant tool_use", "user tool_result"}, blocks)
+}

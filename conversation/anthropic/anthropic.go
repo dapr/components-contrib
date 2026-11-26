@@ -187,11 +187,16 @@ type splitParts struct {
 func (s splitParts) GenerateContent(ctx context.Context, messages []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) {
 	split := make([]llms.MessageContent, 0, len(messages))
 	for _, msg := range messages {
-		if msg.Role != llms.ChatMessageTypeAI || len(msg.Parts) < 2 {
+		if msg.Role != llms.ChatMessageTypeAI {
 			split = append(split, msg)
 			continue
 		}
 		for _, part := range msg.Parts {
+			// A turn that only calls tools arrives with an empty text part,
+			// and Anthropic rejects empty text blocks.
+			if text, ok := part.(llms.TextContent); ok && text.Text == "" {
+				continue
+			}
 			split = append(split, llms.MessageContent{Role: msg.Role, Parts: []llms.ContentPart{part}})
 		}
 	}

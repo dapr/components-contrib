@@ -90,6 +90,7 @@ func TestCreateMetadata(t *testing.T) {
 		assert.True(t, m.DeleteWhenUnused)
 		assert.False(t, m.EnableDeadLetter)
 		assert.False(t, m.PublisherConfirm)
+		assert.False(t, m.PublishMandatory)
 		assert.Equal(t, uint8(0), m.DeliveryMode)
 		assert.Equal(t, uint8(0), m.PrefetchCount)
 		assert.Equal(t, int64(0), m.MaxLen)
@@ -414,6 +415,46 @@ func TestCreateMetadata(t *testing.T) {
 			assert.Equal(t, fakeProperties[metadataHostnameKey], m.Hostname)
 			assert.Equal(t, fakeProperties[metadataConsumerIDKey], m.ConsumerID)
 			assert.Equal(t, tt.expected, m.PublisherConfirm)
+		})
+	}
+
+	for _, tt := range booleanFlagTests {
+		t.Run("publishMandatory value="+tt.in, func(t *testing.T) {
+			fakeProperties := getFakeProperties()
+
+			fakeMetaData := pubsub.Metadata{
+				Base: mdata.Base{Properties: fakeProperties},
+			}
+			fakeMetaData.Properties[metadataPublisherConfirmKey] = "true"
+			fakeMetaData.Properties[metadataPublishMandatoryKey] = tt.in
+
+			// act
+			m, err := createMetadata(fakeMetaData, log)
+
+			// assert
+			require.NoError(t, err)
+			assert.True(t, m.PublisherConfirm)
+			assert.Equal(t, tt.expected, m.PublishMandatory)
+		})
+	}
+
+	for _, publisherConfirm := range []string{"", "false", "FALSE"} {
+		t.Run("publishMandatory requires publisherConfirm value="+publisherConfirm, func(t *testing.T) {
+			fakeProperties := getFakeProperties()
+
+			fakeMetaData := pubsub.Metadata{
+				Base: mdata.Base{Properties: fakeProperties},
+			}
+			if publisherConfirm != "" {
+				fakeMetaData.Properties[metadataPublisherConfirmKey] = publisherConfirm
+			}
+			fakeMetaData.Properties[metadataPublishMandatoryKey] = "true"
+
+			// act
+			_, err := createMetadata(fakeMetaData, log)
+
+			// assert
+			require.EqualError(t, err, "rabbitmq pub/sub error: publishMandatory requires publisherConfirm to be true")
 		})
 	}
 

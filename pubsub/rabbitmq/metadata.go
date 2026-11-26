@@ -53,6 +53,7 @@ type rabbitmqMetadata struct {
 	ClientName                         string                 `mapstructure:"clientName"`
 	HeartBeat                          time.Duration          `mapstructure:"heartBeat"`
 	PublisherConfirm                   bool                   `mapstructure:"publisherConfirm"`
+	PublishMandatory                   bool                   `mapstructure:"publishMandatory"`
 	SaslExternal                       bool                   `mapstructure:"saslExternal"`
 	Concurrency                        pubsub.ConcurrencyMode `mapstructure:"concurrency"`
 	DefaultQueueTTL                    *time.Duration         `mapstructure:"ttlInSeconds"`
@@ -84,6 +85,7 @@ const (
 	metadataExchangeDeclareModeKey                = "exchangeDeclareMode"
 	metadataQueueDeclareModeKey                   = "queueDeclareMode"
 	metadataPublisherConfirmKey                   = "publisherConfirm"
+	metadataPublishMandatoryKey                   = "publishMandatory"
 	metadataSaslExternal                          = "saslExternal"
 	metadataMaxPriority                           = "maxPriority"
 	metadataClientNameKey                         = "clientName"
@@ -134,6 +136,7 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 		QueueDeclareMode:                   queueDeclareModeDeclare,
 		QueueType:                          amqp.QueueTypeClassic,
 		PublisherConfirm:                   false,
+		PublishMandatory:                   false,
 		SaslExternal:                       false,
 		HeartBeat:                          defaultHeartbeat,
 		PublishMessagePropertiesToMetadata: false,
@@ -216,6 +219,11 @@ func createMetadata(pubSubMetadata pubsub.Metadata, log logger.Logger) (*rabbitm
 
 	if result.SaslExternal && (result.CACert == "" || result.ClientCert == "" || result.ClientKey == "") {
 		return &result, fmt.Errorf("%s can only be set to true, when all these properties are set: %s, %s, %s", metadataSaslExternal, pubsub.CACert, pubsub.ClientCert, pubsub.ClientKey)
+	}
+
+	// A basic.return is only resolved against the publication's own confirmation.
+	if result.PublishMandatory && !result.PublisherConfirm {
+		return &result, fmt.Errorf("%s %s requires %s to be true", errorMessagePrefix, metadataPublishMandatoryKey, metadataPublisherConfirmKey)
 	}
 
 	result.Concurrency, err = pubsub.Concurrency(pubSubMetadata.Properties)

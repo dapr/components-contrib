@@ -96,6 +96,16 @@ metadata:
       a message.
     default: '"false"'
     example: '"true", "false"'
+  - name: publishMandatory
+    type: bool
+    description: |
+      If enabled, messages are published with the AMQP mandatory flag. When
+      the broker returns a message it cannot route to any queue, the component
+      fails the publish with a FailedPrecondition error and does not retry it
+      itself. Publishing to a topic before any subscriber has bound a queue
+      therefore fails. Requires `publisherConfirm` to be enabled.
+    default: '"false"'
+    example: '"true", "false"'
   - name: maxLen
     type: number
     description: |

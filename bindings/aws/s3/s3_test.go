@@ -186,6 +186,71 @@ func TestParseMetadata(t *testing.T) {
 	})
 }
 
+func TestParseMetadataTLSAliases(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		properties  map[string]string
+		disableSSL  bool
+		insecureSSL bool
+	}{
+		{name: "defaults"},
+		{
+			name:       "TLS aliases",
+			properties: map[string]string{"disableTLS": "true", "insecureTLS": "true"},
+			disableSSL: true, insecureSSL: true,
+		},
+		{
+			name:       "case insensitive TLS aliases",
+			properties: map[string]string{"DisableTLS": "yes", "InsecureTLS": "1"},
+			disableSSL: true, insecureSSL: true,
+		},
+		{
+			name:       "legacy SSL names",
+			properties: map[string]string{"disableSSL": "true", "insecureSSL": "true"},
+			disableSSL: true, insecureSSL: true,
+		},
+		{
+			name:       "disabled aliases",
+			properties: map[string]string{"disableTLS": "false", "insecureTLS": "false"},
+		},
+		{
+			name:       "disableTLS is independent of insecureTLS",
+			properties: map[string]string{"disableTLS": "true"},
+			disableSSL: true,
+		},
+		{
+			name:        "insecureTLS is independent of disableTLS",
+			properties:  map[string]string{"insecureTLS": "true"},
+			insecureSSL: true,
+		},
+		{
+			name: "explicit legacy false takes precedence",
+			properties: map[string]string{
+				"disableSSL": "false", "disableTLS": "true",
+				"insecureSSL": "false", "insecureTLS": "true",
+			},
+		},
+		{
+			name: "explicit legacy true takes precedence",
+			properties: map[string]string{
+				"disableSSL": "true", "disableTLS": "false",
+				"insecureSSL": "true", "insecureTLS": "false",
+			},
+			disableSSL: true, insecureSSL: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := AWSS3{}
+			m := bindings.Metadata{}
+			m.Properties = tt.properties
+			meta, err := s.parseMetadata(m)
+			require.NoError(t, err)
+			assert.Equal(t, tt.disableSSL, meta.DisableSSL)
+			assert.Equal(t, tt.insecureSSL, meta.InsecureSSL)
+		})
+	}
+}
+
 func TestParseS3Tags(t *testing.T) {
 	t.Run("Has parsed s3 tags", func(t *testing.T) {
 		request := bindings.InvokeRequest{}

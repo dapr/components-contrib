@@ -90,8 +90,8 @@ type s3Metadata struct {
 	DecodeBase64   bool   `json:"decodeBase64,string" mapstructure:"decodeBase64"`
 	EncodeBase64   bool   `json:"encodeBase64,string" mapstructure:"encodeBase64"`
 	ForcePathStyle bool   `json:"forcePathStyle,string" mapstructure:"forcePathStyle"`
-	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL"`
-	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL"`
+	DisableSSL     bool   `json:"disableSSL,string" mapstructure:"disableSSL" mapstructurealiases:"disableTLS" mdaliases:"disableTLS"`
+	InsecureSSL    bool   `json:"insecureSSL,string" mapstructure:"insecureSSL" mapstructurealiases:"insecureTLS" mdaliases:"insecureTLS"`
 	FilePath       string `json:"filePath" mapstructure:"filePath"   mdignore:"true"`
 	PresignTTL     string `json:"presignTTL" mapstructure:"presignTTL"  mdignore:"true"`
 	StorageClass   string `json:"storageClass" mapstructure:"storageClass"  mdignore:"true"`

@@ -66,13 +66,25 @@ metadata:
     example: '"true", "false"'
   - name: disableSSL
     description: |
-      Allows to connect to non-`https://` endpoints. 
+      Allows to connect to non-`https://` endpoints. Takes precedence over `disableTLS` if both are set.
     type: bool
     default: 'false'
     example: '"true", "false"'
   - name: insecureSSL
     description: |
-      When connecting to `https://` endpoints, accepts self-signed or invalid certificates.
+      When connecting to `https://` endpoints, accepts self-signed or invalid certificates. Takes precedence over `insecureTLS` if both are set.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: disableTLS
+    description: |
+      Alias for `disableSSL`. Allows to connect to non-`https://` endpoints.
+    type: bool
+    default: 'false'
+    example: '"true", "false"'
+  - name: insecureTLS
+    description: |
+      Alias for `insecureSSL`. When connecting to `https://` endpoints, accepts self-signed or invalid certificates.
     type: bool
     default: 'false'
     example: '"true", "false"'

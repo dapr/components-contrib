@@ -20,3 +20,5 @@ components:
 
   - component: aws-floci.secretsmanager
     operations: []
+  - component: infisical
+    operations: []

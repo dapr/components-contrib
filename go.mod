@@ -92,6 +92,7 @@ require (
 	github.com/http-wasm/http-wasm-host-go v0.7.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.23.4+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
+	github.com/infisical/go-sdk v0.9.1
 	github.com/influxdata/influxdb-client-go/v2 v2.14.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx/v5 v5.9.2
@@ -147,7 +148,7 @@ require (
 	golang.org/x/net v0.61.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.24.0
-	google.golang.org/api v0.264.0
+	google.golang.org/api v0.267.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260727163830-6c54dddc4772
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
@@ -294,10 +295,11 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.14.1 // indirect
-	github.com/go-resty/resty/v2 v2.11.0 // indirect
+	github.com/go-resty/resty/v2 v2.13.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogap/errors v0.0.0-20200228125012-531a6449b28c // indirect
 	github.com/gogap/stack v0.0.0-20150131034635-fef68dddd4f8 // indirect
@@ -397,6 +399,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/oracle/oci-go-sdk/v65 v65.95.2 // indirect
 	github.com/panjf2000/ants/v2 v2.11.3 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect

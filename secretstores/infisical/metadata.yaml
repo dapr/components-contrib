@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=../../component-metadata-schema.json
+schemaVersion: v1
+type: secretstores
+name: infisical
+version: v1
+status: alpha
+title: "Infisical"
+urls:
+  - title: Reference
+    url: "https://docs.dapr.io/reference/components-reference/supported-secret-stores/infisical/"
+authenticationProfiles:
+  - title: "Universal Auth"
+    description: "Authenticate using Infisical Universal Auth client ID and client secret."
+    metadata:
+      - name: clientId
+        required: true
+        sensitive: true
+        description: Infisical Universal Auth client ID.
+        example: "<infisical-client-id>"
+        type: string
+      - name: clientSecret
+        required: true
+        sensitive: true
+        description: Infisical Universal Auth client secret.
+        example: "<infisical-client-secret>"
+        type: string
+  - title: "Access Token"
+    description: "Authenticate using an Infisical access token."
+    metadata:
+      - name: accessToken
+        required: true
+        sensitive: true
+        description: Infisical access token used for authentication. You can also use `token` as an alias.
+        example: "<infisical-access-token>"
+        type: string
+metadata:
+  - name: projectId
+    required: true
+    description: Infisical project (workspace) ID. You can also use `workspaceId` as an alias.
+    example: "2c95d8c8-cc6e-4ca8-88f9-c8e318dbf544"
+    type: string
+  - name: environment
+    required: true
+    description: Infisical environment slug to query secrets from.
+    example: "dev"
+    type: string
+  - name: apiUrl
+    required: false
+    description: Infisical API or app URL.
+    default: "https://app.infisical.com"
+    example: "https://app.infisical.com"
+    type: string
+  - name: caPem
+    required: false
+    description: The inlined contents of the CA certificate to use, in PEM format.
+    example: |
+      "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+    type: string
+  - name: secretPath
+    required: false
+    description: Secret path to use when fetching and listing secrets.
+    default: "/"
+    example: "/"
+    type: string
+  - name: includeImports
+    required: false
+    description: Include imported secrets in GetSecret and BulkGetSecret calls.
+    default: "false"
+    example: "true"
+    type: bool
+  - name: expandSecretReferences
+    required: false
+    description: Expand secret references in GetSecret and BulkGetSecret calls.
+    default: "false"
+    example: "false"
+    type: bool
+  - name: recursive
+    required: false
+    description: Recursively list secrets from subdirectories in BulkGetSecret calls.
+    default: "true"
+    example: "true"
+    type: bool

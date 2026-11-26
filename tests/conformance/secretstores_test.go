@@ -26,6 +26,7 @@ import (
 	ss_aws "github.com/dapr/components-contrib/secretstores/aws/secretmanager"
 	ss_azure "github.com/dapr/components-contrib/secretstores/azure/keyvault"
 	ss_hashicorp_vault "github.com/dapr/components-contrib/secretstores/hashicorp/vault"
+	ss_infisical "github.com/dapr/components-contrib/secretstores/infisical"
 	ss_kubernetes "github.com/dapr/components-contrib/secretstores/kubernetes"
 	ss_local_env "github.com/dapr/components-contrib/secretstores/local/env"
 	ss_local_file "github.com/dapr/components-contrib/secretstores/local/file"
@@ -72,6 +73,8 @@ func loadSecretStore(name string) secretstores.SecretStore {
 		return ss_local_file.NewLocalSecretStore(testLogger)
 	case "hashicorp.vault":
 		return ss_hashicorp_vault.NewHashiCorpVaultSecretStore(testLogger)
+	case "infisical":
+		return ss_infisical.NewInfisicalSecretStore(testLogger)
 	case "aws.secretsmanager.docker":
 		return ss_aws.NewSecretManager(testLogger)
 	case "aws.secretsmanager.terraform":

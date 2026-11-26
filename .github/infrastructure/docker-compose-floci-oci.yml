@@ -1,0 +1,24 @@
+x-dapr-test-env:
+  FLOCI_OCI_PORT: "${FLOCI_OCI_PORT:-4599}"
+  OCI_FLOCI_ENDPOINT: "https://objectstorage.us-ashburn-1.oraclecloud.com"
+
+services:
+  floci-oci:
+    image: floci/floci-oci:0.6.0@sha256:7b976aabefd8a53ebf09df52b788a1b3c3cd4e71f2e0b29efe8f9d8b3954fbd3
+    profiles: ["binarystore-oci-objectstorage"]
+    ports:
+      - "127.0.0.1:${FLOCI_OCI_PORT:-4599}:4599"
+      - "127.0.0.1:443:443"
+    environment:
+      FLOCI_OCI_SERVICES_OBJECTSTORAGE_ENABLED: "true"
+      FLOCI_OCI_STORAGE_MODE: memory
+      FLOCI_OCI_TLS_ENABLED: "true"
+      FLOCI_OCI_TLS_HTTPS_PORT: "443"
+      FLOCI_OCI_HOSTNAME: "objectstorage.us-ashburn-1.oraclecloud.com"
+      FLOCI_OCI_BASE_URL: "https://objectstorage.us-ashburn-1.oraclecloud.com"
+    tmpfs:
+      - /app/data
+    networks:
+      default:
+        aliases:
+          - objectstorage.us-ashburn-1.oraclecloud.com

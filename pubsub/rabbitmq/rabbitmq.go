@@ -331,7 +331,7 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 			select {
 			case <-time.After(r.metadata.ReconnectWait):
 			case <-ctx.Done():
-				return nil
+				return errors.Join(err, ctx.Err())
 			}
 
 			_ = r.reconnect(connectionCount) //nolint:errcheck // legacy behavior preserved
@@ -340,7 +340,7 @@ func (r *rabbitMQ) Publish(ctx context.Context, req *pubsub.PublishRequest) erro
 			select {
 			case <-time.After(publishRetryWaitSeconds * time.Second):
 			case <-ctx.Done():
-				return nil
+				return errors.Join(err, ctx.Err())
 			}
 		}
 	}

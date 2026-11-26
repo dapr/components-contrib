@@ -98,6 +98,19 @@ azuread:
           - AzurePublicCloud
           - AzureChinaCloud
           - AzureUSGovernmentCloud
+  - title: "Azure AD: Workload identity"
+    description: Authenticate using Azure AD workload identity.
+    metadata:
+      - name: azureAuthMethods
+        description: |
+          Azure authentication methods to try, in order. Set this to "WorkloadIdentity" to use workload identity.
+        example: '"WorkloadIdentity"'
+      - name: azureDisableInstanceDiscovery
+        description: |
+          Disables Microsoft Entra instance discovery for workload identity, including SPIFFE workload identity. Disabling instance discovery also disables authority validation, so set this only when the configured authority is trusted and instance discovery is not available, such as in a disconnected or private cloud. Accepts y, yes, true, t, on, or 1 (case-insensitive); other values are false. Does not affect managed identity or Azure CLI authentication.
+        default: '"false"'
+        example: '"true"'
+        type: bool
   - title: "Azure AD: Client credentials"
     description: |
       Authenticate using Azure AD with client credentials, also known as "service principals".
@@ -115,6 +128,12 @@ azuread:
         required: true
         sensitive: true
         example: '"Ecy3XG7zVZK3/vl/a2NSB+a1zXLa8RnMum/IgD0E"'
+      - name: azureDisableInstanceDiscovery
+        description: |
+          Disables Microsoft Entra instance discovery for client credentials. Disabling instance discovery also disables authority validation, so set this only when the configured authority is trusted and instance discovery is not available, such as in a disconnected or private cloud. Accepts y, yes, true, t, on, or 1 (case-insensitive); other values are false.
+        default: '"false"'
+        example: '"true"'
+        type: bool
       - name: azureEnvironment
         description: |
           Optional name for the Azure environment if using a different Azure cloud
@@ -151,6 +170,12 @@ azuread:
         description: Password for the certificate if encrypted.
         sensitive: true
         example: '"password"'
+      - name: azureDisableInstanceDiscovery
+        description: |
+          Disables Microsoft Entra instance discovery for client certificates. Disabling instance discovery also disables authority validation, so set this only when the configured authority is trusted and instance discovery is not available, such as in a disconnected or private cloud. Accepts y, yes, true, t, on, or 1 (case-insensitive); other values are false.
+        default: '"false"'
+        example: '"true"'
+        type: bool
       - name: azureEnvironment
         description: |
           Optional name for the Azure environment if using a different Azure cloud

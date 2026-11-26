@@ -33,9 +33,10 @@ const (
 
 // SpiffeWorkloadIdentityConfig provides the options to get a bearer authorizer using SPIFFE-based workload identity.
 type SpiffeWorkloadIdentityConfig struct {
-	TenantID   string
-	ClientID   string
-	AzureCloud *cloud.Configuration
+	TenantID                 string
+	ClientID                 string
+	AzureCloud               *cloud.Configuration
+	DisableInstanceDiscovery bool
 }
 
 // GetTokenCredential returns the azcore.TokenCredential object using a SPIFFE JWT token.
@@ -44,13 +45,11 @@ func (c SpiffeWorkloadIdentityConfig) GetTokenCredential() (azcore.TokenCredenti
 		return nil, errors.New("parameters clientId and tenantId must be present for SPIFFE workload identity")
 	}
 
-	var opts *azidentity.ClientAssertionCredentialOptions
+	opts := &azidentity.ClientAssertionCredentialOptions{
+		DisableInstanceDiscovery: c.DisableInstanceDiscovery,
+	}
 	if c.AzureCloud != nil {
-		opts = &azidentity.ClientAssertionCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: *c.AzureCloud,
-			},
-		}
+		opts.Cloud = *c.AzureCloud
 	}
 
 	// Mint a new JWT SVID for every client assertion.
@@ -62,7 +61,7 @@ func (c SpiffeWorkloadIdentityConfig) GetTokenCredential() (azcore.TokenCredenti
 		return spiffeauth.MintJWT(ctx, minter, AzureADTokenExchangeAudience)
 	}
 
-	cred, err := azidentity.NewClientAssertionCredential(c.TenantID, c.ClientID, tokenProvider, opts)
+	cred, err := newClientAssertionCredential(c.TenantID, c.ClientID, tokenProvider, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +105,7 @@ func (s EnvironmentSettings) GetSpiffeWorkloadIdentity() (config SpiffeWorkloadI
 	}
 
 	config.AzureCloud = azureCloud
+	config.DisableInstanceDiscovery = s.GetDisableInstanceDiscovery()
 
 	return config, nil
 }

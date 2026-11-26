@@ -140,7 +140,14 @@ func (sm *SubscriptionManager) Subscribe(topicHandler *SubscriptionTopicHandler)
 func (sm *SubscriptionManager) createSubscribeListener(topicHandler *SubscriptionTopicHandler) {
 	sm.logger.Debug("Creating a subscribe listener for topic: ", topicHandler.topic)
 
-	sm.topicsChangeCh <- changeSubscriptionTopicHandler{Subscribe, topicHandler}
+	// once shutdown has started, the controller may already have exited (empty map + closeCh
+	// closed), so don't block forever trying to deliver a Subscribe nobody will receive.
+	select {
+	case sm.topicsChangeCh <- changeSubscriptionTopicHandler{Subscribe, topicHandler}:
+	case <-sm.closeCh:
+		sm.logger.Debugf("Skipping subscription for topic %s: shutdown started", topicHandler.topic)
+		return
+	}
 	closeCh := make(chan struct{})
 	// the unsubscriber is expected to be terminated by the dapr runtime as it cancels the context upon unsubscribe
 	go sm.createUnsubscribeListener(topicHandler.ctx, topicHandler.topic, closeCh)

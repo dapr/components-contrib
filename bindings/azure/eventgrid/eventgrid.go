@@ -31,9 +31,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	armeventgrid "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/httprc/v3"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/valyala/fasthttp"
 
 	"github.com/dapr/components-contrib/bindings"
@@ -138,7 +139,7 @@ func (a *AzureEventGrid) validateAuthHeader(ctx *fasthttp.RequestCtx) bool {
 		return false
 	}
 
-	actualIssuer := parsedToken.Issuer()
+	actualIssuer, _ := parsedToken.Issuer()
 	azureADV2Issuer := fmt.Sprintf(jwtIssuerFormat, a.metadata.azureTenantID)
 	expectedAudience := a.metadata.azureClientID
 	switch actualIssuer {
@@ -230,16 +231,32 @@ func (a *AzureEventGrid) initJWKSCache(ctx context.Context) error {
 	// Init the cache with the given URL
 	jwkURL := fmt.Sprintf(jwksURIFormat, a.metadata.azureTenantID)
 
-	c := jwk.NewCache(ctx)
-	_ = c.Register(jwkURL, jwk.WithMinRefreshInterval(15*time.Minute)) //nolint:errcheck // legacy behavior preserved; failure surfaces in Refresh below
+	c, err := jwk.NewCache(ctx, httprc.NewClient())
+	if err != nil {
+		return fmt.Errorf("failed to create JWKS cache: %w", err)
+	}
+	// Don't wait for the first fetch in Register: it blocks until a fetch succeeds, so a failing endpoint would hang
+	// until ctx is canceled. The Refresh below does the first fetch and returns its error.
+	err = c.Register(ctx, jwkURL,
+		jwk.WithMinInterval(15*time.Minute),
+		jwk.WithWaitReady(false),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to register JWKS cache: %w", err)
+	}
 
 	// Do a first refresh to validate the JWKS keybag
-	_, err := c.Refresh(ctx, jwkURL)
+	_, err = c.Refresh(ctx, jwkURL)
 	if err != nil {
 		return fmt.Errorf("failed to perform initial refresh of JWKS: %w", err)
 	}
 
-	a.jwks = jwk.NewCachedSet(c, jwkURL)
+	// Look the resource up with ctx: c.CachedSet uses context.Background(), which can block forever once the cache has stopped
+	r, err := c.LookupResource(ctx, jwkURL)
+	if err != nil {
+		return fmt.Errorf("failed to look up JWKS cache resource: %w", err)
+	}
+	a.jwks = jwk.NewCachedSet(r)
 	return nil
 }
 

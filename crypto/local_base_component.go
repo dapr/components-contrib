@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	internals "github.com/dapr/kit/crypto"
 )
@@ -50,7 +50,7 @@ func (k LocalCryptoBaseComponent) GetKey(parentCtx context.Context, key string) 
 	}
 
 	// We can only return public keys
-	if jwkObj.KeyType() == jwa.OctetSeq {
+	if jwkObj.KeyType() == jwa.OctetSeq() {
 		// If the key exists but it's not of the right kind, return a not-found error
 		return nil, ErrKeyNotFound
 	}
@@ -158,7 +158,7 @@ func (k LocalCryptoBaseComponent) UnwrapKey(parentCtx context.Context, wrappedKe
 	}
 
 	// We allow wrapping/unwrapping only symmetric keys, so no need to try and decode an ASN.1 DER-encoded sequence
-	plaintextKey, err = jwk.FromRaw(plaintext)
+	plaintextKey, err = jwk.Import(plaintext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWK from raw key: %w", err)
 	}

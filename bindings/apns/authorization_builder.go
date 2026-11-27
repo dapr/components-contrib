@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"github.com/dapr/kit/logger"
 )
@@ -52,7 +52,7 @@ func (a *authorizationBuilder) setPK() error {
 		return errors.New("keyID property is nil")
 	}
 
-	pk, err := jwk.FromRaw(a.privateKey)
+	pk, err := jwk.Import(a.privateKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse private key: %w", err)
 	}
@@ -104,7 +104,7 @@ func (a *authorizationBuilder) generateAuthorizationHeader() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to build token: %w", err)
 	}
-	signed, err := jwt.Sign(token, jwt.WithKey(jwa.ES256, a.pk))
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.ES256(), a.pk))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}

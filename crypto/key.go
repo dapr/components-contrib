@@ -18,7 +18,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 // Key extends jwk.Key adding optional properties for determining if the key is valid (time bounds) or can be used for certain purposes.
@@ -40,9 +40,10 @@ func NewKey(key jwk.Key, kid string, exp, nbf *time.Time) *Key {
 	}
 }
 
-// KeyID returns the value of the kid (key ID) property if present.
-func (k Key) KeyID() string {
-	return k.kid
+// KeyID returns the value of the kid (key ID) property, and true if it is set.
+// It returns the key ID passed to NewKey, not the one of the wrapped key.
+func (k Key) KeyID() (string, bool) {
+	return k.kid, k.kid != ""
 }
 
 // CanPerformOperation returns true if the key can be used to perform a specific operation.
@@ -77,8 +78,8 @@ func (k Key) MarshalJSON() ([]byte, error) {
 func KeyCanPerformOperation(key jwk.Key, op jwk.KeyOperation) bool {
 	// keyUsage is the value of "use" ("sig" or "enc"), while keyOps is the value of "key_ops" (an array of allowed operations)
 	// Per RFC 7517: `The "use" and "key_ops" JWK members SHOULD NOT be used together; however, if both are used, the information they convey MUST be consistent.`
-	keyUsage := key.KeyUsage()
-	keyOps := key.KeyOps()
+	keyUsage, _ := key.KeyUsage()
+	keyOps, _ := key.KeyOps()
 
 	// If the key has nothin in both fields, then just allow any operation
 	if len(keyOps) == 0 && keyUsage == "" {
@@ -110,7 +111,9 @@ func KeyCanPerformAlgorithm(key jwk.Key, alg string) bool {
 	// "alg" is the supported algorithm
 	var keyAlg string
 	if key != nil {
-		keyAlg = key.Algorithm().String()
+		if alg, ok := key.Algorithm(); ok {
+			keyAlg = alg.String()
+		}
 	}
 	// If there's no "alg", then allow the operation
 	if keyAlg == "" {

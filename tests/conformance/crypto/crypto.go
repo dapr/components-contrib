@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -301,7 +301,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 		return func(t *testing.T) {
 			// Key to wrap, random 256-bit
 			rawKey := randomBytes(t, 32)
-			rawKeyObj, err := jwk.FromRaw(rawKey)
+			rawKeyObj, err := jwk.Import(rawKey)
 			require.NoError(t, err, "failed to generate key to wrap")
 
 			// Wrap the key
@@ -322,7 +322,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 			unwrappedObj, err := component.UnwrapKey(ctx, wrapped, algorithm, keyName, nonce, tag, nil)
 			require.NoError(t, err)
 			var unwrapped []byte
-			err = unwrappedObj.Raw(&unwrapped)
+			err = jwk.Export(unwrappedObj, &unwrapped)
 			require.NoError(t, err)
 			assert.True(t, bytes.Equal(rawKey, unwrapped))
 
@@ -364,7 +364,7 @@ func ConformanceTests(t *testing.T, props map[string]string, component contribCr
 				return func(t *testing.T) {
 					// Key to wrap, random 256-bit
 					rawKey := randomBytes(t, 32)
-					rawKeyObj, err := jwk.FromRaw(rawKey)
+					rawKeyObj, err := jwk.Import(rawKey)
 					require.NoError(t, err, "failed to generate key to wrap")
 
 					// Wrap the key

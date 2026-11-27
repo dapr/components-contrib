@@ -21,7 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	contribMetadata "github.com/dapr/components-contrib/metadata"

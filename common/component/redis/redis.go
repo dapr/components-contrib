@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 
@@ -317,8 +317,9 @@ func (s *Settings) InitEntraID(ctx context.Context, properties *map[string]strin
 	if err != nil {
 		return time.Time{}, fmt.Errorf("redis client configuration error: %w", err)
 	}
-	objectID, _ := parsedToken.Get("oid")
-	oid, _ := objectID.(string)
+	var oid string
+	// A missing or non-string claim leaves oid empty
+	_ = parsedToken.Get("oid", &oid)
 	if oid == "" {
 		return time.Time{}, errors.New("redis client configuration error: could not parse object ID from Auth token")
 	}

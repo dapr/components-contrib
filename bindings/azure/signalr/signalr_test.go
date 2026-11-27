@@ -27,7 +27,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -456,7 +456,7 @@ func TestGetShouldSucceed(t *testing.T) {
 		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
 
 		require.NoError(t, err)
-		audience := claims.Audience()
+		audience, _ := claims.Audience()
 		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
 	})
 
@@ -487,9 +487,9 @@ func TestGetShouldSucceed(t *testing.T) {
 		claims, err := jwt.ParseString(accessToken, jwt.WithVerify(false))
 
 		require.NoError(t, err)
-		audience := claims.Audience()
+		audience, _ := claims.Audience()
 		assert.Equal(t, []string{"https://fake.service.signalr.net/client/?hub=testhub"}, audience)
-		user := claims.Subject()
+		user, _ := claims.Subject()
 		assert.Equal(t, "user1", user)
 	})
 

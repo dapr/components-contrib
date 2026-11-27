@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"golang.org/x/oauth2"
 
 	"github.com/dapr/kit/crypto/pem"
@@ -210,7 +210,7 @@ func (ts *OAuthTokenSourcePrivateKeyJWT) token(ctx context.Context) (*oauth2.Tok
 		}
 		signOptions = append(signOptions, jws.WithProtectedHeaders(headers))
 	}
-	assertion, err := jwt.Sign(assertionToken, jwt.WithKey(jwa.RS256, rsaKey, signOptions...))
+	assertion, err := jwt.Sign(assertionToken, jwt.WithKey(jwa.RS256(), rsaKey, signOptions...))
 	if err != nil {
 		return nil, fmt.Errorf("error signing client assertion: %w", err)
 	}

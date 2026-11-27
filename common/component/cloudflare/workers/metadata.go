@@ -24,8 +24,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
 // Default timeout for network requests.
@@ -122,7 +122,7 @@ func (m *BaseMetadata) CreateToken() (string, error) {
 		return "", fmt.Errorf("failed to build token: %w", err)
 	}
 
-	signed, err := jwt.Sign(token, jwt.WithKey(jwa.EdDSA, m.privKey))
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.EdDSA(), m.privKey))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}

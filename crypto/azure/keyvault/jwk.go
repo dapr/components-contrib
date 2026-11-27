@@ -23,7 +23,7 @@ import (
 	"math/big"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 )
@@ -47,7 +47,7 @@ func KeyBundleToKey(bundle *azkeys.KeyBundle) (*contribCrypto.Key, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract public key as crypto.PublicKey: %w", err)
 	}
-	jwkObj, err := jwk.FromRaw(pk)
+	jwkObj, err := jwk.Import(pk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create jwk.Key: %w", err)
 	}

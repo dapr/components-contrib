@@ -24,8 +24,8 @@ import (
 	"time"
 
 	redis "github.com/go-redis/redis/v8"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dapr/components-contrib/state"
@@ -99,7 +99,7 @@ func (m *fakeManagedIdentity) lastIssued() string {
 func entraToken(t *testing.T, id string, lifetime time.Duration) string {
 	tok, err := jwt.NewBuilder().JwtID(id).Claim("oid", entraOID).Expiration(time.Now().Add(lifetime)).Build()
 	require.NoError(t, err)
-	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.HS256, []byte("certification-test-key")))
+	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.HS256(), []byte("certification-test-key")))
 	require.NoError(t, err)
 	return string(signed)
 }

@@ -110,9 +110,9 @@ linters:
         main:
           deny:
             - pkg: github.com/golang-jwt/jwt/v5
-              desc: must use github.com/lestrrat-go/jwx/v2/jwt
+              desc: must use github.com/lestrrat-go/jwx/v3/jwt
             - pkg: github.com/golang-jwt/jwt/v4
-              desc: must use github.com/lestrrat-go/jwx/v2/jwt
+              desc: must use github.com/lestrrat-go/jwx/v3/jwt
             - pkg: github.com/Sirupsen/logrus
               desc: must use github.com/dapr/kit/logger
             - pkg: github.com/agrea/ptr
@@ -140,21 +140,23 @@ linters:
             - pkg: gopkg.in/yaml.v2
               desc: must use gopkg.in/yaml.v3
             - pkg: github.com/golang-jwt/jwt
-              desc: must use github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
             - pkg: github.com/golang-jwt/jwt/v2
-              desc: must use github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
             - pkg: github.com/golang-jwt/jwt/v3
-              desc: must use github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
             - pkg: github.com/golang-jwt/jwt/v4
-              desc: must use github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
             - pkg: github.com/gogo/status
               desc: must use google.golang.org/grpc/status
             - pkg: github.com/gogo/protobuf
               desc: must use google.golang.org/protobuf
             - pkg: github.com/lestrrat-go/jwx/jwa
-              desc: must use github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
             - pkg: github.com/lestrrat-go/jwx/jwt
-              desc: must use github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
+            - pkg: github.com/lestrrat-go/jwx/v2
+              desc: must use github.com/lestrrat-go/jwx/v3
             - pkg: github.com/labstack/gommon/log
               desc: must use github.com/dapr/kit/logger
             - pkg: github.com/gobuffalo/logger

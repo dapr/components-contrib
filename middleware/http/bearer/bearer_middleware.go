@@ -21,10 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lestrrat-go/httprc"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/httprc/v3"
+	"github.com/lestrrat-go/httprc/v3/errsink"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"github.com/dapr/components-contrib/common/httputils"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -71,14 +72,28 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 		return nil, fmt.Errorf("failed to retrieve OpenID Configuration document: %w", err)
 	}
 
-	// Create a JWKS cache that is refreshed automatically
-	cache := jwk.NewCache(ctx,
-		jwk.WithErrSink(httprc.ErrSinkFunc(func(err error) {
+	// Create a JWKS cache that is refreshed automatically.
+	// The cache runs goroutines until its context is canceled: if init fails, stop them right away.
+	cacheCtx, cacheCancel := context.WithCancel(ctx)
+	var initDone bool
+	defer func() {
+		if !initDone {
+			cacheCancel()
+		}
+	}()
+	cache, err := jwk.NewCache(cacheCtx, httprc.NewClient(
+		httprc.WithErrorSink(errsink.NewFunc(func(_ context.Context, err error) {
 			m.logger.Warnf("Error while refreshing JWKS cache: %v", err)
 		})),
-	)
-	err = cache.Register(meta.JWKSURL,
-		jwk.WithMinRefreshInterval(minRefreshInterval),
+	))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWKS cache: %w", err)
+	}
+	// Don't wait for the first fetch here: Register would block until it succeeds, so a failing endpoint would hang
+	// until ctx is canceled. The Refresh call below does the first fetch and returns its error.
+	err = cache.Register(ctx, meta.JWKSURL,
+		jwk.WithMinInterval(minRefreshInterval),
+		jwk.WithWaitReady(false),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register JWKS cache: %w", err)
@@ -89,6 +104,14 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
+
+	// Look the resource up once: cache.Lookup goes through the cache's single controller goroutine,
+	// while resource.Resource() is a lock-free read of the last fetched set.
+	resource, err := cache.LookupResource(ctx, meta.JWKSURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve JWKS cache: %w", err)
+	}
+	initDone = true
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,14 +126,16 @@ func (m *Middleware) GetHandler(ctx context.Context, metadata middleware.Metadat
 				return
 			}
 
-			keyset, err := cache.Get(r.Context(), meta.JWKSURL)
-			if err != nil {
-				m.logger.Errorf("Failed to retrieve JWKS cache: %v", err)
+			keyset := resource.Resource()
+			if keyset == nil {
+				m.logger.Error("Failed to retrieve JWKS cache: no key set fetched")
 				httputils.RespondWithError(w, http.StatusInternalServerError)
 				return
 			}
 
-			_, err = jwt.Parse([]byte(rawToken),
+			// jwx v3's jwt.Parse verifies the compact serialization only, so a JWS JSON envelope around a once-signed
+			// token can't be used to substitute the claims.
+			_, err := jwt.Parse([]byte(rawToken),
 				jwt.WithContext(r.Context()),
 				jwt.WithAcceptableSkew(allowedClockSkew),
 				jwt.WithKeySet(keyset, jws.WithInferAlgorithmFromKey(true)),

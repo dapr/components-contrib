@@ -22,8 +22,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -96,7 +96,7 @@ func (l *localStorageCrypto) retrieveKey(parentCtx context.Context, key string) 
 	jwkObj, err := internals.ParseKey(data, contentType)
 	if err == nil {
 		switch jwkObj.KeyType() {
-		case jwa.EC, jwa.RSA, jwa.OKP, jwa.OctetSeq:
+		case jwa.EC(), jwa.RSA(), jwa.OKP(), jwa.OctetSeq():
 			// Nop
 		default:
 			err = errors.New("invalid key type")

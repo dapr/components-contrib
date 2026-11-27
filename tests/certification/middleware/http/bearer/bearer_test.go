@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -353,7 +353,7 @@ func TestHTTPMiddlewareBearer(t *testing.T) {
 						token, err := builder.Build()
 						require.NoError(t, err)
 						useKey, _ := privateKeys.Key(tt.signingKeyID)
-						signedToken, err = jwt.Sign(token, jwt.WithKey(jwa.PS256, useKey))
+						signedToken, err = jwt.Sign(token, jwt.WithKey(jwa.PS256(), useKey))
 						require.NoError(t, err)
 					}
 

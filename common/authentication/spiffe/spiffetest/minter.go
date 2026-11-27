@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 )
 
@@ -66,7 +66,7 @@ func (m *Minter) MintJWTSVID(_ context.Context, params jwtsvid.Params) (*jwtsvid
 	if err != nil {
 		return nil, err
 	}
-	signed, err := jwt.Sign(tkn, jwt.WithKey(jwa.ES256, m.key))
+	signed, err := jwt.Sign(tkn, jwt.WithKey(jwa.ES256(), m.key))
 	if err != nil {
 		return nil, err
 	}

@@ -23,8 +23,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	contribCrypto "github.com/dapr/components-contrib/crypto"
 	contribMetadata "github.com/dapr/components-contrib/metadata"
@@ -225,7 +225,7 @@ func (k *keyvaultCrypto) Decrypt(parentCtx context.Context, ciphertext []byte, a
 // The key argument can be in the format "name" or "name/version".
 func (k *keyvaultCrypto) WrapKey(parentCtx context.Context, plaintextKey jwk.Key, algorithmStr string, key string, nonce []byte, associatedData []byte) (wrappedKey []byte, tag []byte, err error) {
 	// Azure Key Vault does not support wrapping asymmetric keys
-	if plaintextKey.KeyType() != jwa.OctetSeq {
+	if plaintextKey.KeyType() != jwa.OctetSeq() {
 		return nil, nil, errors.New("cannot wrap asymmetric keys")
 	}
 	plaintext, err := internals.SerializeKey(plaintextKey)
@@ -311,7 +311,7 @@ func (k *keyvaultCrypto) UnwrapKey(parentCtx context.Context, wrappedKey []byte,
 	}
 
 	// Key Vault allows wrapping/unwrapping only symmetric keys, so no need to try and decode an ASN.1 DER-encoded sequence
-	plaintextKey, err = jwk.FromRaw(res.Result)
+	plaintextKey, err = jwk.Import(res.Result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWK from raw key: %w", err)
 	}

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/chebyrash/promise"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,12 +34,12 @@ import (
 func TestPubKeyCacheGetKey(t *testing.T) {
 	pk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	testKey, err := jwk.FromRaw(pk.PublicKey)
+	testKey, err := jwk.Import(pk.PublicKey)
 	require.NoError(t, err)
 
 	pk2, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	testKey2, err := jwk.FromRaw(pk2.PublicKey)
+	testKey2, err := jwk.Import(pk2.PublicKey)
 	require.NoError(t, err)
 
 	t.Run("existing key should return key", func(t *testing.T) {

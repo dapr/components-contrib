@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -107,7 +107,7 @@ func (k *kubeSecretsCrypto) retrieveKeyFromSecret(parentCtx context.Context, key
 	jwkObj, err := internals.ParseKey(res.Data[keyName], string(res.Type))
 	if err == nil {
 		switch jwkObj.KeyType() {
-		case jwa.EC, jwa.RSA, jwa.OKP, jwa.OctetSeq:
+		case jwa.EC(), jwa.RSA(), jwa.OKP(), jwa.OctetSeq():
 			// Nop
 		default:
 			err = errors.New("invalid key type")

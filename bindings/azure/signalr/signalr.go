@@ -29,8 +29,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"github.com/dapr/components-contrib/bindings"
 	azauth "github.com/dapr/components-contrib/common/authentication/azure"
@@ -396,7 +396,7 @@ func (s *SignalR) signJwtToken(audience string, expireAt time.Time, user string)
 	if err != nil {
 		return "", fmt.Errorf("failed to build token: %w", err)
 	}
-	signed, err := jwt.Sign(token, jwt.WithKey(jwa.HS256, []byte(s.accessKey)))
+	signed, err := jwt.Sign(token, jwt.WithKey(jwa.HS256(), []byte(s.accessKey)))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}

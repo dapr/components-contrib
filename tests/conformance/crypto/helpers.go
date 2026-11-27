@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,7 +125,7 @@ func randomBytes(t *testing.T, size int) []byte {
 
 func requireKeyPublic(t *testing.T, key jwk.Key) {
 	var rawKey any
-	err := key.Raw(&rawKey)
+	err := jwk.Export(key, &rawKey)
 	require.NoError(t, err)
 
 	switch rawKey.(type) {

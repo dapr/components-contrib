@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dapr/components-contrib/secretstores"
 	"github.com/dapr/kit/logger"
 )
 
@@ -67,8 +68,10 @@ func TestGetNamespace(t *testing.T) {
 func TestGetFeatures(t *testing.T) {
 	s := kubernetesSecretStore{logger: logger.NewLogger("test")}
 	// Yes, we are skipping initialization as feature retrieval doesn't depend on it.
-	t.Run("no features are advertised", func(t *testing.T) {
+	t.Run("declares multiple key-values per secret", func(t *testing.T) {
+		// A Kubernetes Secret's Data field is a map[string][]byte, so GetSecret/BulkGetSecret
+		// already return multiple keys per secret; the declared feature must match that.
 		f := s.Features()
-		assert.Empty(t, f)
+		assert.Contains(t, f, secretstores.FeatureMultipleKeyValuesPerSecret)
 	})
 }
